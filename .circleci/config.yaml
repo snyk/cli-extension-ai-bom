@@ -1,0 +1,91 @@
+version: 2.1
+
+parameters:
+  snyk-scan-context:
+    description: CircleCI context that provides SNYK_TOKEN to Snyk security scanning.
+    type: string
+    default: ai-bom
+
+orbs:
+  go: circleci/go@1.7.1
+  prodsec: snyk/prodsec-orb@1
+
+jobs:
+  unit-test:
+    executor:
+      name: go/default
+      tag: '1.24'
+    steps:
+      - checkout
+      - go/load-cache
+      - go/mod-download
+      - go/save-cache
+      - go/test:
+          covermode: atomic
+          failfast: true
+          race: true
+  lint:
+    docker:
+      - image: golangci/golangci-lint:v1.64.7-alpine
+    steps:
+      - checkout
+      - run: golangci-lint run -v ./...
+
+  security-scans:
+    executor:
+      name: go/default
+      tag: '1.24'
+    resource_class: small
+    steps:
+      - checkout
+      - go/load-cache
+      - go/mod-download
+      - go/save-cache
+      - prodsec/security_scans:
+          mode: auto
+          iac-scan: disabled
+  release:
+    executor:
+      name: go/default
+      tag: '1.24'
+    steps:
+      - checkout
+
+      - run:
+          name: Install go-semantic-release
+          command: |
+            curl -sSL https://github.com/go-semantic-release/semantic-release/releases/latest/download/semantic-release_linux_amd64 -o semantic-release
+            chmod +x semantic-release
+            sudo mv semantic-release /usr/local/bin/
+
+      - run:
+          name: Run Semantic Release
+          command: |
+            semantic-release --provider github
+          environment:
+            GITHUB_TOKEN: $GITHUB_TOKEN
+
+
+workflows:
+  version: 2
+  CI:
+    jobs:
+      - prodsec/secrets-scan:
+          name: Scan repository for secrets
+          context:
+            - snyk-bot-slack
+          channel: ai-bom-alerting
+      - security-scans:
+          name: Security Scans
+          context:
+            - << pipeline.parameters.snyk-scan-context >>
+      - unit-test:
+          name: Unit Test
+      - lint:
+          name: Linting
+  release:
+    jobs:
+      - release:
+          filters:
+            branches:
+              only: main
