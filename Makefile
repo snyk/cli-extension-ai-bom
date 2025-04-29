@@ -25,3 +25,7 @@ lint: ## Run golangci linters
 .PHONY: format
 format: ## Format source code based on golangci configuration
 	golangci-lint run --fix -v ./...
+
+.PHONY: test
+test: ## Run unit tests
+	go test -v ./...

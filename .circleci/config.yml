@@ -14,7 +14,7 @@ jobs:
   unit-test:
     executor:
       name: go/default
-      tag: '1.24'
+      tag: "1.24"
     steps:
       - checkout
       - go/load-cache
@@ -34,7 +34,7 @@ jobs:
   security-scans:
     executor:
       name: go/default
-      tag: '1.24'
+      tag: "1.24"
     resource_class: small
     steps:
       - checkout
@@ -44,27 +44,6 @@ jobs:
       - prodsec/security_scans:
           mode: auto
           iac-scan: disabled
-  release:
-    executor:
-      name: go/default
-      tag: '1.24'
-    steps:
-      - checkout
-
-      - run:
-          name: Install go-semantic-release
-          command: |
-            curl -sSL https://github.com/go-semantic-release/semantic-release/releases/latest/download/semantic-release_linux_amd64 -o semantic-release
-            chmod +x semantic-release
-            sudo mv semantic-release /usr/local/bin/
-
-      - run:
-          name: Run Semantic Release
-          command: |
-            semantic-release --provider github
-          environment:
-            GITHUB_TOKEN: $GITHUB_TOKEN
-
 
 workflows:
   version: 2
@@ -83,9 +62,3 @@ workflows:
           name: Unit Test
       - lint:
           name: Linting
-  release:
-    jobs:
-      - release:
-          filters:
-            branches:
-              only: main

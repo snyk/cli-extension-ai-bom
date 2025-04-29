@@ -2,7 +2,10 @@ module github.com/snyk/cli-extension-ai-bom
 
 go 1.24.2
 
-require github.com/snyk/go-application-framework v0.0.0-20250228141123-ae19bde3449f
+require (
+	github.com/snyk/go-application-framework v0.0.0-20250228141123-ae19bde3449f
+	github.com/stretchr/testify v1.10.0
+)
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
@@ -14,6 +17,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.10.0 // indirect
 	github.com/cloudflare/circl v1.6.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dprotaso/go-yit v0.0.0-20240618133044-5a0af90af097 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/frankban/quicktest v1.14.6 // indirect
@@ -63,6 +67,7 @@ require (
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/puzpuzpuz/xsync v1.5.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect
