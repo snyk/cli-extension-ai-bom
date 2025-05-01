@@ -11,3 +11,20 @@ repos:
       - id: commitlint
         stages: [commit-msg]
         additional_dependencies: ["@commitlint/config-conventional"]
+
+  - repo: local
+    hooks:
+    -   id: format
+        name: Run make format
+        entry: make
+        args:
+        - format
+        language: system
+        pass_filenames: false
+    -   id: lint
+        name: Run make lint
+        entry: make
+        args:
+        - lint
+        language: system
+        pass_filenames: false
