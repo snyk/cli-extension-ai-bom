@@ -29,6 +29,6 @@ func assertWorkflowExists(t *testing.T, e workflow.Engine, id *url.URL) {
 	t.Helper()
 
 	wflw, ok := e.GetWorkflow(id)
-	assert.False(t, ok) // TODO assert True when command is ready
-	assert.Nil(t, wflw) // TODO assert NotNil when command is ready
+	assert.True(t, ok)     // TODO assert True when command is ready
+	assert.NotNil(t, wflw) // TODO assert NotNil when command is ready
 }

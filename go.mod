@@ -1,9 +1,13 @@
 module github.com/snyk/cli-extension-ai-bom
 
-go 1.24.2
+go 1.23.8
 
 require (
-	github.com/snyk/go-application-framework v0.0.0-20250228141123-ae19bde3449f
+	github.com/hashicorp/go-uuid v1.0.3
+	github.com/rs/zerolog v1.33.0
+	github.com/snyk/code-client-go v1.19.0
+	github.com/snyk/go-application-framework v0.0.0-20250325133828-3ffd1aa4f76f
+	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -32,7 +36,6 @@ require (
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/logutils v1.0.0 // indirect
@@ -70,11 +73,9 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/puzpuzpuz/xsync v1.5.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/rs/zerolog v1.33.0 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
-	github.com/snyk/code-client-go v1.15.0 // indirect
 	github.com/snyk/error-catalog-golang-public v0.0.0-20250218074309-307ad7b38a60 // indirect
 	github.com/snyk/go-httpauth v0.0.0-20231117135515-eb445fea7530 // indirect
 	github.com/speakeasy-api/jsonpath v0.6.1 // indirect
@@ -83,7 +84,6 @@ require (
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/cobra v1.8.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.13.0 // indirect
 	github.com/subosito/gotenv v1.4.1 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
