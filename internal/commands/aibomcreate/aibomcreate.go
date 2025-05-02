@@ -9,7 +9,8 @@ import (
 	"github.com/snyk/go-application-framework/pkg/configuration"
 	"github.com/snyk/go-application-framework/pkg/workflow"
 
-	"github.com/snyk/cli-extension-ai-bom/internal/code"
+	"github.com/snyk/cli-extension-ai-bom/internal/services/code"
+	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
 	"github.com/spf13/pflag"
 )
@@ -18,6 +19,8 @@ var WorkflowID = workflow.NewWorkflowIdentifier("aibom")
 
 func RegisterWorkflows(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom", pflag.ExitOnError)
+	flagset.Bool(utils.FlagExperimental, false, "This is an experiment feature that will contain breaking changes in future revisions")
+
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
 	if _, err := e.Register(WorkflowID, configuration, AiBomWorkflow); err != nil {
 		return fmt.Errorf("error while registering AI-BOM workflow: %w", err)
@@ -26,15 +29,27 @@ func RegisterWorkflows(e workflow.Engine) error {
 }
 
 func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (output []workflow.Data, err error) {
+	codeService := code.NewCodeServiceImpl()
+	return RunAiBomWorkflow(invocationCtx, codeService)
+}
+
+func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code.CodeService) (output []workflow.Data, err error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
 
 	config.Set(configuration.RAW_CMD_ARGS, os.Args[1:])
+	experimental := config.GetBool(utils.FlagExperimental)
 	path := config.GetString(configuration.INPUT_DIRECTORY)
+
+	// As this is an experimental feature, we only want to continue if the experimental flag is set
+	if !experimental {
+		//nolint:stylecheck,revive // The string begins with a capital in order to remain consistent with other Snyk commands
+		return nil, fmt.Errorf("Flag `--experimental` is required to execute this command.")
+	}
 
 	logger.Debug().Msg("AI BOM workflow start")
 
-	response, resultMetaData, err := code.Analyze(path, invocationCtx.GetNetworkAccess().GetHttpClient, logger, config, invocationCtx.GetUserInterface())
+	response, resultMetaData, err := codeService.Analyze(path, invocationCtx.GetNetworkAccess().GetHttpClient, logger, config, invocationCtx.GetUserInterface())
 	if err != nil {
 		return nil, fmt.Errorf("code client failed to analyze bundle: %w", err)
 	}
@@ -61,7 +76,7 @@ func extractSbomFromResult(response *code.AnalysisResponse, logger *zerolog.Logg
 	return []workflow.Data{newWorkflowData("application/json", []byte(response.Sarif.Runs[0].Results[0].Message.Text))}, nil
 }
 
-//nolint:ireturn // ignored.
+//nolint:ireturn // Unable to change return type of external library
 func newWorkflowData(contentType string, aisbom []byte) workflow.Data {
 	return workflow.NewData(
 		workflow.NewTypeIdentifier(WorkflowID, "aibom"),
