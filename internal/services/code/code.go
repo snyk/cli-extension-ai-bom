@@ -1,5 +1,7 @@
 package code
 
+//go:generate mockgen -package mock -destination mock/code_mock.go github.com/snyk/cli-extension-ai-bom/internal/services/code CodeService
+
 import (
 	"bytes"
 	"context"
@@ -9,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-uuid"
@@ -19,19 +22,46 @@ import (
 
 	"github.com/snyk/go-application-framework/pkg/configuration"
 	"github.com/snyk/go-application-framework/pkg/ui"
-	"github.com/snyk/go-application-framework/pkg/utils"
+	frameworkUtils "github.com/snyk/go-application-framework/pkg/utils"
+
+	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 )
+
+//revive:disable:exported // The interface must be called CodeService to standardize.
+type CodeService interface {
+	Analyze(
+		path string,
+		httpClientFunc func() *http.Client,
+		logger *zerolog.Logger,
+		config configuration.Configuration,
+		userInterface ui.UserInterface,
+	) (*AnalysisResponse, *scan.ResultMetaData, error)
+}
+
+// CodeServiceImpl is an implementation of our CodeService using open telemetry.
+type CodeServiceImpl struct {
+	baseURL          string
+	pollInterval     time.Duration
+	maxNumberOfPolls int
+}
+
+var _ CodeService = (*CodeServiceImpl)(nil) // Assert that CodeServiceImpl implements CodeService
+
+func NewCodeServiceImpl() *CodeServiceImpl {
+	return &CodeServiceImpl{
+		baseURL:          "http://localhost:9999",
+		pollInterval:     500 * time.Millisecond,
+		maxNumberOfPolls: 7200,
+	}
+}
 
 const (
 	ConfigurationTestFLowName = "internal_code_test_flow_name"
-	BaseURL                   = "http://localhost:9999"
-	PollIntervallMs           = 500
-	MaxNumberOfPolls          = 7200
 	AnalysisStatusComplete    = "COMPLETE"
 	AnalysisStatusNotStarted  = "NOT_STARTED"
 )
 
-func Analyze(
+func (cs *CodeServiceImpl) Analyze(
 	path string,
 	httpClientFunc func() *http.Client,
 	logger *zerolog.Logger,
@@ -79,7 +109,7 @@ func Analyze(
 	postURL := fmt.Sprintf("%s/analysis", SnykCodeAPI(config))
 	numberOfPolls := 0
 	ctx := context.Background()
-	for numberOfPolls <= MaxNumberOfPolls {
+	for numberOfPolls <= cs.maxNumberOfPolls {
 		numberOfPolls++
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, postURL, bytes.NewBuffer(postData))
 		if err != nil {
@@ -100,7 +130,7 @@ func Analyze(
 			logger.Debug().Msg(fmt.Sprintf("analysis status: %s, SARIF received", analysisResp.Status))
 			return &analysisResp, resultMetaData, nil
 		}
-		time.Sleep(PollIntervallMs * time.Millisecond)
+		time.Sleep(cs.pollInterval)
 	}
 
 	logger.Debug().Msg("analysis polling timed out")
@@ -153,10 +183,11 @@ func uploadBundle(requestID,
 	return bundle.GetBundleHash(), nil
 }
 
-func SnykCodeAPI(_ configuration.Configuration) string {
-	return BaseURL
-	// TODO: replace with non hardcoded url, something like:
-	// return strings.Replace(config.GetString(configuration.API_URL), "api", "deeproxy", -1)
+func SnykCodeAPI(config configuration.Configuration) string {
+	if url := config.GetString(utils.ConfigurationSnykCodeAPIURL); url != "" {
+		return url
+	}
+	return strings.ReplaceAll(config.GetString(configuration.API_URL), "api", "deeproxy")
 }
 
 //nolint:ireturn // ignored.
@@ -181,7 +212,7 @@ func getAnalysisInput(path string, config configuration.Configuration, logger *z
 }
 
 func getFilesForPath(path string, logger *zerolog.Logger, maxThreads int) (<-chan string, error) {
-	filter := utils.NewFileFilter(path, logger, utils.WithThreadNumber(maxThreads))
+	filter := frameworkUtils.NewFileFilter(path, logger, frameworkUtils.WithThreadNumber(maxThreads))
 
 	rules, err := filter.GetRules([]string{".gitignore", ".dcignore", ".snyk"})
 	if err != nil {

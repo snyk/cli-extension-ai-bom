@@ -3,12 +3,14 @@ module github.com/snyk/cli-extension-ai-bom
 go 1.23.8
 
 require (
+	github.com/golang/mock v1.6.0
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/rs/zerolog v1.33.0
 	github.com/snyk/code-client-go v1.19.0
 	github.com/snyk/go-application-framework v0.0.0-20250325133828-3ffd1aa4f76f
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.10.0
+	go.uber.org/mock v0.5.2
 )
 
 require (
@@ -34,7 +36,6 @@ require (
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
-	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
