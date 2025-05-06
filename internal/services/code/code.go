@@ -38,7 +38,6 @@ type CodeService interface {
 
 // CodeServiceImpl is an implementation of our CodeService using open telemetry.
 type CodeServiceImpl struct {
-	baseURL          string
 	pollInterval     time.Duration
 	maxNumberOfPolls int
 }
@@ -47,7 +46,6 @@ var _ CodeService = (*CodeServiceImpl)(nil) // Assert that CodeServiceImpl imple
 
 func NewCodeServiceImpl() *CodeServiceImpl {
 	return &CodeServiceImpl{
-		baseURL:          "http://localhost:9999",
 		pollInterval:     500 * time.Millisecond,
 		maxNumberOfPolls: 7200,
 	}
@@ -187,7 +185,7 @@ func uploadBundle(requestID,
 }
 
 func SnykCodeAPI(config configuration.Configuration) string {
-	if url := config.GetString(utils.ConfigurationSnykCodeAPIURL); url != "" {
+	if url := config.GetString(utils.ConfigurationSnykCodeClientProxyURL); url != "" {
 		return url
 	}
 	return strings.ReplaceAll(config.GetString(configuration.API_URL), "api", "deeproxy")

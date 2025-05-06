@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/services/code"
+	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 	"github.com/snyk/cli-extension-ai-bom/mocks/frameworkmock"
 	"github.com/snyk/cli-extension-ai-bom/mocks/loggermock"
 
@@ -42,6 +43,16 @@ func TestAnalyze(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.Equal(t, "my-aibom", resp.Sarif.Runs[0].Results[0].Message.Text)
+}
+
+func TestSnykCodeAPIProxyUrl(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	config := ictx.GetConfiguration()
+	config.Set(configuration.API_URL, "https://api.snyk.io")
+
+	assert.Equal(t, code.SnykCodeAPI(config), "https://deeproxy.snyk.io")
+	config.Set(utils.ConfigurationSnykCodeClientProxyURL, "http://localhost:1234")
+	assert.Equal(t, code.SnykCodeAPI(config), "http://localhost:1234")
 }
 
 type TestServer struct {

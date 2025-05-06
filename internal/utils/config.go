@@ -1,6 +1,6 @@
 package utils
 
 const (
-	FlagExperimental            = "experimental"
-	ConfigurationSnykCodeAPIURL = "snyk_code_api_url"
+	FlagExperimental                    = "experimental"
+	ConfigurationSnykCodeClientProxyURL = "SNYK_CODE_CLIENT_PROXY_URL"
 )
