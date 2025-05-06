@@ -13,7 +13,8 @@ install-tools: ## Install golangci-lint, pre-commit & everything in tools.go
 	mkdir -p ${GO_BIN}
 	@cat tools.go | grep _ | awk -F'"' '{print $$2}' | xargs -tI % sh -c 'GOBIN=${GO_BIN} go install %'
 	curl -sSfL 'https://raw.githubusercontent.com/golangci/golangci-lint/${GOCI_LINT_V}/install.sh' | sh -s -- -b ${GO_BIN} ${GOCI_LINT_V}
-	pip3 install --target=${PYTHON_PATH} pre-commit==${PRE_COMMIT_V}
+	python -m venv ${PYTHON_PATH}
+	pip install pre-commit==${PRE_COMMIT_V}
 	pre-commit install --hook-type commit-msg --hook-type pre-commit
 
 .PHONY: lint
@@ -30,4 +31,4 @@ test: ## Run unit tests
 
 .PHONY: generate
 generate: ## Run commands described by //go:generate directives within source code
-	go generate ./... 
+	go generate ./...
