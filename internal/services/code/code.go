@@ -120,6 +120,12 @@ func (cs *CodeServiceImpl) Analyze(
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("snyk-org-name", config.GetString(configuration.ORGANIZATION))
 		res, err := httpClient.Do(req)
+		if err != nil {
+			return nil, nil, fmt.Errorf("analysis request failed: %w", err)
+		}
+		if res == nil {
+			return nil, nil, fmt.Errorf("analysis request failed with nil response")
+		}
 		if res.StatusCode != http.StatusOK {
 			return nil, nil, fmt.Errorf("analysis request failed with status code %d", res.StatusCode)
 		}
