@@ -56,6 +56,12 @@ linters:
     - wastedassign
     - whitespace
     - wrapcheck
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+
 
 linters-settings:
   errcheck:
