@@ -116,6 +116,7 @@ func (cs *CodeServiceImpl) Analyze(
 			return nil, nil, fmt.Errorf("error building analysis request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("snyk-org-name", config.GetString(configuration.ORGANIZATION))
 		res, err := httpClient.Do(req)
 		if res.StatusCode != http.StatusOK {
 			return nil, nil, fmt.Errorf("analysis request failed with status code %d", res.StatusCode)
