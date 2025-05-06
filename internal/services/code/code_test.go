@@ -1,88 +1,192 @@
 package code_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"runtime"
-	"sync"
 	"testing"
 
-	"github.com/snyk/go-application-framework/pkg/configuration"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/services/code"
 	"github.com/snyk/cli-extension-ai-bom/mocks/frameworkmock"
+	"github.com/snyk/cli-extension-ai-bom/mocks/httpmock"
 	"github.com/snyk/cli-extension-ai-bom/mocks/loggermock"
-
-	"go.uber.org/mock/gomock"
 )
 
-func TestAnalyze(t *testing.T) {
-	gomock.NewController(t)
-	client := &http.Client{}
-	clientFactory := func() *http.Client { return client }
+func TestAnalyze_Happy(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	server := NewTestServer(t)
+	mockRT := httpmock.NewMockRoundTripper(ctrl)
 
+	clientFactory := func() *http.Client {
+		return &http.Client{
+			Transport: mockRT,
+		}
+	}
 	logger := loggermock.NewNoOpLogger()
 	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(configuration.API_URL, server.URL)
 
 	codeService := code.NewCodeServiceImpl()
 
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		panic("unable to get current file path")
-	}
-	dir := filepath.Dir(filename)
+	mockFiltersSuccess(mockRT)
+	mockBundleSuccess(mockRT)
+	mockAnalysisSuccess(mockRT)
 
-	resp, _, err := codeService.Analyze(dir, clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Nil(t, err)
 	assert.Equal(t, "my-aibom", resp.Sarif.Runs[0].Results[0].Message.Text)
 }
 
-type TestServer struct {
-	*httptest.Server
-	Requests []*http.Request
-	mu       sync.Mutex
+func TestAnalyze_FiltersFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRT := httpmock.NewMockRoundTripper(ctrl)
+	clientFactory := func() *http.Client {
+		return &http.Client{
+			Transport: mockRT,
+		}
+	}
+
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	codeService := code.NewCodeServiceImpl()
+
+	mockFiltersFailure(mockRT, fmt.Errorf("filters error"))
+
+	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+
+	assert.Error(t, err)
+	assert.Nil(t, resp)
 }
 
-func NewTestServer(t *testing.T) *TestServer {
-	t.Helper()
+func TestAnalyze_BundleFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	ts := &TestServer{}
+	mockRT := httpmock.NewMockRoundTripper(ctrl)
 
-	ts.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ts.mu.Lock()
-		ts.Requests = append(ts.Requests, r.Clone(r.Context()))
-		ts.mu.Unlock()
-		switch r.URL.Path {
-		case "/filters":
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{
-    "configFiles": [],
-    "extensions": [".go"],
-    "autofixExtensions": []
-}`))
-		case "/bundle":
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"bundleHash": "my-bundle-hash", "missingFiles": []}`))
-		case "/analysis":
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			sarif := code.Sarif{Runs: []code.SarifRun{{Results: []code.SarifResult{{Message: code.SarifMessage{Text: "my-aibom"}}}}}}
-			body, _ := json.Marshal(code.AnalysisResponse{Status: "COMPLETE", Sarif: sarif})
-			w.Write(body)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte("path not handled"))
+	clientFactory := func() *http.Client {
+		return &http.Client{
+			Transport: mockRT,
 		}
-	}))
+	}
 
-	t.Cleanup(ts.Close)
-	return ts
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	codeService := code.NewCodeServiceImpl()
+
+	mockFiltersSuccess(mockRT)
+	mockBundleFailure(mockRT, fmt.Errorf("bundle error"))
+
+	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+}
+
+func TestAnalyze_AnalysisFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRT := httpmock.NewMockRoundTripper(ctrl)
+
+	clientFactory := func() *http.Client {
+		return &http.Client{
+			Transport: mockRT,
+		}
+	}
+
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	codeService := code.NewCodeServiceImpl()
+
+	mockFiltersSuccess(mockRT)
+	mockBundleSuccess(mockRT)
+	mockAnalysisFailure(mockRT, fmt.Errorf("analysis error"))
+
+	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+}
+
+func getDir() string {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("unable to get current file path")
+	}
+	dir := filepath.Dir(filename)
+	return dir
+}
+
+func mockFiltersSuccess(mockRT *httpmock.MockRoundTripper) {
+	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodGet, "/filters")).DoAndReturn(
+		func(_ *http.Request) (*http.Response, error) {
+			body := `{
+					"configFiles": [],
+					"extensions": [".go"],
+					"autofixExtensions": []
+				}`
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(body)),
+				Header:     make(http.Header),
+			}, nil
+		},
+	).Times(1)
+}
+
+func mockFiltersFailure(mockRT *httpmock.MockRoundTripper, err error) {
+	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodGet, "/filters")).Return(nil, err).Times(1)
+}
+
+func mockBundleSuccess(mockRT *httpmock.MockRoundTripper) {
+	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/bundle")).DoAndReturn(
+		func(_ *http.Request) (*http.Response, error) {
+			body := `{"bundleHash": "my-bundle-hash", "missingFiles": []}`
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(body)),
+				Header:     make(http.Header),
+			}, nil
+		},
+	).Times(1)
+}
+
+func mockBundleFailure(mockRT *httpmock.MockRoundTripper, err error) {
+	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/bundle")).Return(nil, err).Times(1)
+}
+
+func mockAnalysisSuccess(mockRT *httpmock.MockRoundTripper) {
+	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/analysis")).DoAndReturn(
+		func(_ *http.Request) (*http.Response, error) {
+			sarif := code.Sarif{Runs: []code.SarifRun{{Results: []code.SarifResult{{Message: code.SarifMessage{Text: "my-aibom"}}}}}}
+			bodyBytes, _ := json.Marshal(code.AnalysisResponse{Status: "COMPLETE", Sarif: sarif})
+			body := string(bodyBytes)
+
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(body)),
+				Header:     make(http.Header),
+			}
+			resp.Header.Set("Content-Type", "application/json")
+			return resp, nil
+		},
+	).Times(1)
+}
+
+func mockAnalysisFailure(mockRT *httpmock.MockRoundTripper, err error) {
+	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/analysis")).Return(nil, err).Times(1)
 }
