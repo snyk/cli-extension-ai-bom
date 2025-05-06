@@ -22,10 +22,9 @@ func NewMockInvocationContext(
 	libCtrl := libGoMock.NewController(t)
 
 	mockConfig := configuration.New()
-	mockConfig.Set(configuration.AUTHENTICATION_TOKEN, "<SOME API TOKEN>")
-	mockConfig.Set(configuration.ORGANIZATION, "6277734c-fc84-4c74-9662-33d46ec66c53")
-	mockConfig.Set("format", "cyclonedx1.4+json")
-	mockConfig.Set("name", "goof")
+	mockConfig.Set(configuration.AUTHENTICATION_TOKEN, "<MOCK_API_TOKEN>")
+	mockConfig.Set(configuration.ORGANIZATION, "<MOCK_ORG_PUBLIC_ID>")
+	mockConfig.Set("name", "mock-project")
 	mockConfig.Set("version", "0.0.0")
 
 	mockRuntimeInfo := runtimeinfo.New(
