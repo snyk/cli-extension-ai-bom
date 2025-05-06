@@ -9,17 +9,14 @@ import (
 	"github.com/snyk/go-application-framework/pkg/configuration"
 	"github.com/snyk/go-application-framework/pkg/workflow"
 
+	"github.com/snyk/cli-extension-ai-bom/internal/flags"
 	"github.com/snyk/cli-extension-ai-bom/internal/services/code"
-	"github.com/snyk/cli-extension-ai-bom/internal/utils"
-
-	"github.com/spf13/pflag"
 )
 
 var WorkflowID = workflow.NewWorkflowIdentifier("aibom")
 
 func RegisterWorkflows(e workflow.Engine) error {
-	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom", pflag.ExitOnError)
-	flagset.Bool(utils.FlagExperimental, false, "This is an experiment feature that will contain breaking changes in future revisions")
+	flagset := flags.GetAiBBomFlagSet()
 
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
 	if _, err := e.Register(WorkflowID, configuration, AiBomWorkflow); err != nil {
@@ -38,7 +35,13 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 	config := invocationCtx.GetConfiguration()
 
 	config.Set(configuration.RAW_CMD_ARGS, os.Args[1:])
-	experimental := config.GetBool(utils.FlagExperimental)
+	experimental := config.GetBool(flags.FlagExperimental)
+	if url := config.GetString(flags.FlagFilesBundlestoreAPIURL); url != "" {
+		logger.Debug().Msgf("Using %s as url for files bundle store", url)
+	}
+	if url := config.GetString(flags.FlagCodeAPIURL); url != "" {
+		logger.Debug().Msgf("Using %s as url for code API", url)
+	}
 	path := config.GetString(configuration.INPUT_DIRECTORY)
 
 	// As this is an experimental feature, we only want to continue if the experimental flag is set

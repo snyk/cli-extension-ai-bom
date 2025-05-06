@@ -24,7 +24,7 @@ import (
 	"github.com/snyk/go-application-framework/pkg/ui"
 	frameworkUtils "github.com/snyk/go-application-framework/pkg/utils"
 
-	"github.com/snyk/cli-extension-ai-bom/internal/utils"
+	"github.com/snyk/cli-extension-ai-bom/internal/flags"
 )
 
 //revive:disable:exported // The interface must be called CodeService to standardize.
@@ -40,7 +40,6 @@ type CodeService interface {
 
 // CodeServiceImpl is an implementation of our CodeService using open telemetry.
 type CodeServiceImpl struct {
-	baseURL          string
 	pollInterval     time.Duration
 	maxNumberOfPolls int
 }
@@ -49,7 +48,6 @@ var _ CodeService = (*CodeServiceImpl)(nil) // Assert that CodeServiceImpl imple
 
 func NewCodeServiceImpl() *CodeServiceImpl {
 	return &CodeServiceImpl{
-		baseURL:          "http://localhost:9999",
 		pollInterval:     500 * time.Millisecond,
 		maxNumberOfPolls: 7200,
 	}
@@ -106,6 +104,7 @@ func (cs *CodeServiceImpl) Analyze(
 
 	// Poll until analysis status is failed or complete
 	analysisResp := AnalysisResponse{Status: AnalysisStatusNotStarted}
+
 	postURL := fmt.Sprintf("%s/analysis", SnykCodeAPI(config))
 	numberOfPolls := 0
 	ctx := context.Background()
@@ -184,11 +183,22 @@ func uploadBundle(requestID,
 	return bundle.GetBundleHash(), nil
 }
 
+func ReplaceAPIWithDeeproxy(url string) string {
+	return strings.ReplaceAll(url, "api", "deeproxy")
+}
+
 func SnykCodeAPI(config configuration.Configuration) string {
-	if url := config.GetString(utils.ConfigurationSnykCodeAPIURL); url != "" {
+	if url := config.GetString(flags.FlagCodeAPIURL); url != "" {
 		return url
 	}
-	return strings.ReplaceAll(config.GetString(configuration.API_URL), "api", "deeproxy")
+	return ReplaceAPIWithDeeproxy(config.GetString(configuration.API_URL))
+}
+
+func FilesBundleAPI(config configuration.Configuration) string {
+	if url := config.GetString(flags.FlagFilesBundlestoreAPIURL); url != "" {
+		return url
+	}
+	return ReplaceAPIWithDeeproxy(config.GetString(configuration.API_URL))
 }
 
 //nolint:ireturn // ignored.

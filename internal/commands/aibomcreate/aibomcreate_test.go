@@ -13,7 +13,7 @@ import (
 	"github.com/snyk/go-application-framework/pkg/runtimeinfo"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/aibomcreate"
-	"github.com/snyk/cli-extension-ai-bom/internal/utils"
+	"github.com/snyk/cli-extension-ai-bom/internal/flags"
 
 	"github.com/snyk/go-application-framework/pkg/mocks"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +40,7 @@ var exampleAIBOM = `{
 func TestAiBomWorkflow_HAPPY(t *testing.T) {
 	ictx := mockInvocationContext(t)
 	ctrl := gomock.NewController(t)
-	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
+	ictx.GetConfiguration().Set(flags.FlagExperimental, true)
 	mockCodeService := codeMock.NewMockCodeService(ctrl)
 
 	sarif := code.Sarif{Runs: []code.SarifRun{{Results: []code.SarifResult{{Message: code.SarifMessage{Text: exampleAIBOM}}}}}}
@@ -58,7 +58,7 @@ func TestAiBomWorkflow_HAPPY(t *testing.T) {
 
 func TestAiBomWorkflow_ANALYSIS_FAIL(t *testing.T) {
 	ictx := mockInvocationContext(t)
-	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
+	ictx.GetConfiguration().Set(flags.FlagExperimental, true)
 	ctrl := gomock.NewController(t)
 	mockCodeService := codeMock.NewMockCodeService(ctrl)
 

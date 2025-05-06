@@ -20,7 +20,7 @@ func (c *codeClientConfig) IsFedramp() bool {
 
 //nolint:revive,stylecheck // required name by code client
 func (c *codeClientConfig) SnykCodeApi() string {
-	return SnykCodeAPI(c.localConfiguration)
+	return FilesBundleAPI(c.localConfiguration)
 }
 
 //nolint:revive,stylecheck // required name by code client
