@@ -52,7 +52,8 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 	logger.Debug().Msg("AI BOM workflow start")
 
 	if !config.GetBool(utils.FlagSkipDepGraph) {
-		depGraphResult, err := GetDepGraph(invocationCtx)
+		var depGraphResult *DepGraphResult
+		depGraphResult, err = GetDepGraph(invocationCtx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get the depgraph: %w", err)
 		}
