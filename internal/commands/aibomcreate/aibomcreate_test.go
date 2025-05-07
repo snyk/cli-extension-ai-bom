@@ -33,6 +33,7 @@ func TestAiBomWorkflow_HAPPY(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ctrl := gomock.NewController(t)
 	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
+	ictx.GetConfiguration().Set(utils.FlagSkipDepGraph, true)
 	mockCodeService := codemock.NewMockCodeService(ctrl)
 
 	sarif := code.Sarif{Runs: []code.SarifRun{{Results: []code.SarifResult{{Message: code.SarifMessage{Text: exampleAIBOM}}}}}}
@@ -51,6 +52,7 @@ func TestAiBomWorkflow_HAPPY(t *testing.T) {
 func TestAiBomWorkflow_ANALYSIS_FAIL(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
+	ictx.GetConfiguration().Set(utils.FlagSkipDepGraph, true)
 	ctrl := gomock.NewController(t)
 	mockCodeService := codemock.NewMockCodeService(ctrl)
 
