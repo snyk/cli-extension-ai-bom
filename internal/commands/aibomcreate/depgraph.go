@@ -22,7 +22,7 @@ func GetDepGraph(ictx workflow.InvocationContext) (*DepGraphResult, error) {
 	depGraphConfig := config.Clone()
 	depGraphs, err := engine.InvokeWithConfig(DepGraphWorkflowID, depGraphConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error invoking depgraphs workflow: %w", err)
 	}
 
 	numGraphs := len(depGraphs)
