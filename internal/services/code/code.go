@@ -1,7 +1,5 @@
 package code
 
-//go:generate mockgen -package mock -destination mock/code_mock.go github.com/snyk/cli-extension-ai-bom/internal/services/code CodeService
-
 import (
 	"bytes"
 	"context"
@@ -78,9 +76,13 @@ func (cs *CodeServiceImpl) Analyze(
 	logger.Debug().Msgf("Request ID: %s", requestID)
 
 	bundleHash, err := uploadBundle(requestID, path, httpClient, logger, config, userInterface)
-	if err != nil || bundleHash == "" {
-		logger.Debug().Msg("failed to upload file bundle")
-		return nil, nil, err
+	if err != nil {
+		logger.Debug().Msg("error while uploading file bundle")
+		return nil, nil, fmt.Errorf("failed to upload file bundle: %w", err)
+	}
+	if bundleHash == "" {
+		logger.Debug().Msg("empty bundle hash to upload file bundle")
+		return nil, nil, fmt.Errorf("empty bundle hash")
 	}
 	logger.Debug().Msg("successfully uploaded file bundle")
 
