@@ -1,9 +1,11 @@
 package aibomcreate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/rs/zerolog"
 	"github.com/snyk/go-application-framework/pkg/configuration"
@@ -52,6 +54,20 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 
 	logger.Debug().Msg("AI BOM workflow start")
 
+	depGraphResult, err := GetDepGraph(invocationCtx)
+	if err != nil {
+		logger.Debug().Msg("Failed to get the depgraph")
+	} else {
+		numGraphs := len(depGraphResult.DepGraphBytes)
+		logger.Debug().Msgf("Generated %d depgraph(s)\n", numGraphs)
+
+		_, err = writeRawMessagesToFiles(depGraphResult.DepGraphBytes, path+"/depgraphs", "deps")
+		if err != nil {
+			logger.Debug().Msgf("writing depgraphs to files failed: %+v", err)
+			return nil, err
+		}
+	}
+
 	response, resultMetaData, err := codeService.Analyze(path, invocationCtx.GetNetworkAccess().GetHttpClient, logger, config, invocationCtx.GetUserInterface())
 	if err != nil {
 		return nil, fmt.Errorf("code client failed to analyze bundle: %w", err)
@@ -77,6 +93,30 @@ func extractSbomFromResult(response *code.AnalysisResponse, logger *zerolog.Logg
 		return nil, errors.New("failed to extract SBOM from SARIF result")
 	}
 	return []workflow.Data{newWorkflowData("application/json", []byte(response.Sarif.Runs[0].Results[0].Message.Text))}, nil
+}
+
+func writeRawMessagesToFiles(data []json.RawMessage, outputDir string, filenamePrefix string) ([]string, error) {
+	// Create the output directory if it doesn't exist
+	err := os.MkdirAll(outputDir, 0755)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	filePaths := make([]string, len(data))
+
+	for i, rawMessage := range data {
+		filename := filepath.Join(outputDir, fmt.Sprintf("%s_%d.snykdepgraph", filenamePrefix, i))
+
+		// Write the json.RawMessage to the file
+		err := os.WriteFile(filename, rawMessage, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to write to file %s: %w", filename, err)
+		}
+
+		filePaths[i] = filename
+	}
+
+	return filePaths, nil
 }
 
 //nolint:ireturn // Unable to change return type of external library
