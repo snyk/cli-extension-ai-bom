@@ -51,16 +51,18 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 
 	logger.Debug().Msg("AI BOM workflow start")
 
-	depGraphResult, err := GetDepGraph(invocationCtx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get the depgraph: %w", err)
-	}
-	numGraphs := len(depGraphResult.DepGraphBytes)
-	logger.Debug().Msgf("Generated %d depgraph(s)\n", numGraphs)
+	if !config.GetBool(utils.FlagSkipDepGraph) {
+		depGraphResult, err := GetDepGraph(invocationCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get the depgraph: %w", err)
+		}
+		numGraphs := len(depGraphResult.DepGraphBytes)
+		logger.Debug().Msgf("Generated %d depgraph(s)\n", numGraphs)
 
-	_, err = writeRawMessagesToFiles(depGraphResult.DepGraphBytes, path+"/depgraphs", "deps")
-	if err != nil {
-		return nil, fmt.Errorf("writing depgraphs to files failed: %w", err)
+		_, err = writeRawMessagesToFiles(depGraphResult.DepGraphBytes, path+"/depgraphs", "deps")
+		if err != nil {
+			return nil, fmt.Errorf("writing depgraphs to files failed: %w", err)
+		}
 	}
 
 	response, resultMetaData, err := codeService.Analyze(path, invocationCtx.GetNetworkAccess().GetHttpClient, logger, config, invocationCtx.GetUserInterface())
