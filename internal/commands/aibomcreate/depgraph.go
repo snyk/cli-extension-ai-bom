@@ -2,6 +2,7 @@ package aibomcreate
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/snyk/go-application-framework/pkg/workflow"
 )
