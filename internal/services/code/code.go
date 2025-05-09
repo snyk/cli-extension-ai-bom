@@ -9,26 +9,25 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/rs/zerolog"
 	codeclient "github.com/snyk/code-client-go"
+	codebundle "github.com/snyk/code-client-go/bundle"
 	codeclienthttp "github.com/snyk/code-client-go/http"
 	"github.com/snyk/code-client-go/scan"
 
 	"github.com/snyk/go-application-framework/pkg/configuration"
 	"github.com/snyk/go-application-framework/pkg/ui"
 	frameworkUtils "github.com/snyk/go-application-framework/pkg/utils"
-
-	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 )
 
 //revive:disable:exported // The interface must be called CodeService to standardize.
 type CodeService interface {
 	Analyze(
 		path string,
+		depgraph map[string][]byte,
 		httpClientFunc func() *http.Client,
 		logger *zerolog.Logger,
 		config configuration.Configuration,
@@ -59,6 +58,7 @@ const (
 
 func (cs *CodeServiceImpl) Analyze(
 	path string,
+	depgraphs map[string][]byte,
 	httpClientFunc func() *http.Client,
 	logger *zerolog.Logger,
 	config configuration.Configuration,
@@ -75,7 +75,7 @@ func (cs *CodeServiceImpl) Analyze(
 	}
 	logger.Debug().Msgf("Request ID: %s", requestID)
 
-	bundleHash, err := uploadBundle(requestID, path, httpClient, logger, config, userInterface)
+	bundleHash, err := uploadBundle(requestID, path, depgraphs, httpClient, logger, config, userInterface)
 	if err != nil {
 		logger.Debug().Msg("error while uploading file bundle")
 		return nil, nil, fmt.Errorf("failed to upload file bundle: %w", err)
@@ -140,6 +140,7 @@ func (cs *CodeServiceImpl) Analyze(
 
 func uploadBundle(requestID,
 	path string,
+	depgraphs map[string][]byte,
 	httpClient codeclienthttp.HTTPClient,
 	logger *zerolog.Logger,
 	config configuration.Configuration,
@@ -177,18 +178,28 @@ func uploadBundle(requestID,
 	logger.Debug().Msgf("Target: %s", target)
 
 	changedFiles := make(map[string]bool)
+
 	bundle, err := codeScanner.Upload(ctx, requestID, target, files, changedFiles)
 	if err != nil {
 		return "", fmt.Errorf("failed to upload bundle: %w", err)
 	}
+
+	// extend the bundle with the depgraphs
+	if depgraphs != nil {
+		depgraphBatch := codebundle.NewBatchFromRawContent(depgraphs)
+		bundle.UploadBatch(ctx, requestID, depgraphBatch)
+	}
+
 	return bundle.GetBundleHash(), nil
 }
 
 func SnykCodeAPI(config configuration.Configuration) string {
-	if url := config.GetString(utils.ConfigurationSnykCodeClientProxyURL); url != "" {
-		return url
-	}
-	return strings.ReplaceAll(config.GetString(configuration.API_URL), "api", "deeproxy")
+	// TODO: remove this code when we validate that the bundle update is working
+	return "http://localhost:9999"
+	// if url := config.GetString(utils.ConfigurationSnykCodeClientProxyURL); url != "" {
+	// 	return url
+	// }
+	// return strings.ReplaceAll(config.GetString(configuration.API_URL), "api", "deeproxy")
 }
 
 //nolint:ireturn // ignored.

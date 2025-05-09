@@ -51,22 +51,32 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 
 	logger.Debug().Msg("AI BOM workflow start")
 
+	var depGraphResult *DepGraphResult
+
 	if !config.GetBool(utils.FlagSkipDepGraph) {
-		var depGraphResult *DepGraphResult
 		depGraphResult, err = GetDepGraph(invocationCtx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get the depgraph: %w", err)
 		}
-		numGraphs := len(depGraphResult.DepGraphBytes)
-		logger.Debug().Msgf("Generated %d depgraph(s)\n", numGraphs)
+		// TODO: remove this code when we validate that the bundle update is working
+		// numGraphs := len(depGraphResult.DepGraphBytes)
+		// logger.Debug().Msgf("Generated %d depgraph(s)\n", numGraphs)
 
-		_, err = writeRawMessagesToFiles(depGraphResult.DepGraphBytes, path+"/depgraphs", "deps")
-		if err != nil {
-			return nil, fmt.Errorf("writing depgraphs to files failed: %w", err)
+		// _, err = writeRawMessagesToFiles(depGraphResult.DepGraphBytes, path+"/depgraphs", "deps")
+		// if err != nil {
+		// 	return nil, fmt.Errorf("writing depgraphs to files failed: %w", err)
+		// }
+	}
+
+	// transform a depGraphResult into a map[string][]byte
+	depGraphMap := make(map[string][]byte)
+	if depGraphResult != nil {
+		for i, depGraph := range depGraphResult.DepGraphBytes {
+			depGraphMap[fmt.Sprintf("%s_%d.snykdepgraph", path+"/", i)] = depGraph
 		}
 	}
 
-	response, resultMetaData, err := codeService.Analyze(path, invocationCtx.GetNetworkAccess().GetHttpClient, logger, config, invocationCtx.GetUserInterface())
+	response, resultMetaData, err := codeService.Analyze(path, depGraphMap, invocationCtx.GetNetworkAccess().GetHttpClient, logger, config, invocationCtx.GetUserInterface())
 	if err != nil {
 		return nil, fmt.Errorf("code client failed to analyze bundle: %w", err)
 	}
@@ -93,6 +103,7 @@ func extractSbomFromResult(response *code.AnalysisResponse, logger *zerolog.Logg
 	return []workflow.Data{newWorkflowData("application/json", []byte(response.Sarif.Runs[0].Results[0].Message.Text))}, nil
 }
 
+// TODO: remove this code when we validate that the bundle update is working
 func writeRawMessagesToFiles(data []json.RawMessage, outputDir, filenamePrefix string) ([]string, error) {
 	// Create the output directory if it doesn't exist
 	err := os.MkdirAll(outputDir, 0o0755)
