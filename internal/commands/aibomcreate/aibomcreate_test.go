@@ -1,10 +1,10 @@
 package aibomcreate_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/aibomcreate"
+	"github.com/snyk/cli-extension-ai-bom/internal/errors"
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
 	"github.com/stretchr/testify/assert"
@@ -54,11 +54,12 @@ func TestAiBomWorkflow_ANALYSIS_FAIL(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockCodeService := codemock.NewMockCodeService(ctrl)
 
+	codeErr := errors.NewInternalError("failed to upload file bundle")
 	mockCodeService.EXPECT().Analyze(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
-		Return(nil, nil, fmt.Errorf("test error"))
+		Return(nil, nil, codeErr)
 
 	_, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService)
-	assert.EqualError(t, err, "code client failed to analyze bundle: test error")
+	assert.Equal(t, codeErr.SnykError, err)
 }
 
 func TestAiBomWorkflow_NO_EXPERIMENTAL(t *testing.T) {
@@ -67,5 +68,5 @@ func TestAiBomWorkflow_NO_EXPERIMENTAL(t *testing.T) {
 	mockCodeService := codemock.NewMockCodeService(ctrl)
 
 	_, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService)
-	assert.EqualError(t, err, "Flag `--experimental` is required to execute this command.")
+	assert.EqualError(t, err, "Command is experimental")
 }
