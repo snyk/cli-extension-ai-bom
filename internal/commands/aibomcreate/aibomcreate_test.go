@@ -36,7 +36,7 @@ func TestAiBomWorkflow_HAPPY(t *testing.T) {
 	mockCodeService := codemock.NewMockCodeService(ctrl)
 
 	sarif := code.Sarif{Runs: []code.SarifRun{{Results: []code.SarifResult{{Message: code.SarifMessage{Text: exampleAIBOM}}}}}}
-	mockCodeService.EXPECT().Analyze(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
+	mockCodeService.EXPECT().Analyze(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
 		Return(&code.AnalysisResponse{Sarif: sarif}, nil, nil)
 
 	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService)
@@ -55,7 +55,7 @@ func TestAiBomWorkflow_ANALYSIS_FAIL(t *testing.T) {
 	mockCodeService := codemock.NewMockCodeService(ctrl)
 
 	codeErr := errors.NewInternalError("failed to upload file bundle")
-	mockCodeService.EXPECT().Analyze(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
+	mockCodeService.EXPECT().Analyze(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
 		Return(nil, nil, codeErr)
 
 	_, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService)

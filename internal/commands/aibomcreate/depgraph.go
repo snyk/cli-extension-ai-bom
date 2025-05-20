@@ -2,6 +2,7 @@ package aibomcreate
 
 import (
 	"encoding/json"
+	goErrors "errors"
 	"fmt"
 
 	"github.com/snyk/go-application-framework/pkg/workflow"
@@ -15,6 +16,10 @@ type DepGraphResult struct {
 
 func GetDepGraph(ictx workflow.InvocationContext) (*DepGraphResult, error) {
 	engine := ictx.GetEngine()
+	if engine == nil {
+		return nil, goErrors.New("failed to get engine for depgraphs")
+	}
+
 	config := ictx.GetConfiguration()
 	logger := ictx.GetEnhancedLogger()
 

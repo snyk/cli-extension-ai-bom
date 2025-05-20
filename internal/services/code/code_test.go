@@ -45,7 +45,7 @@ func TestAnalyze_Happy(t *testing.T) {
 	mockBundleSuccess(mockRT)
 	mockAnalysisSuccess(mockRT)
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Nil(t, err)
 	assert.Equal(t, "my-aibom", resp.Sarif.Runs[0].Results[0].Message.Text)
@@ -69,7 +69,7 @@ func TestAnalyze_FiltersFails(t *testing.T) {
 
 	mockFiltersHTTPError(mockRT, fmt.Errorf("filters error"))
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
 	assertSnykError(t, "Failed to upload bundle: error creating bundle...: Get \"/filters\": filters error.", err.SnykError)
@@ -96,7 +96,7 @@ func TestAnalyze_BundleHTTPError(t *testing.T) {
 	mockFiltersSuccess(mockRT)
 	mockBundleHTTPError(mockRT, fmt.Errorf("bundle error"))
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
 	assertSnykError(t, "Failed to upload bundle: error creating bundle...: Post \"/bundle\": bundle error.", err.SnykError)
@@ -123,7 +123,7 @@ func TestAnalyze_AuthenticationError(t *testing.T) {
 	mockFiltersSuccess(mockRT)
 	mockBundleHTTPError(mockRT, fmt.Errorf("Authentication error"))
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-0005", err.SnykError.ErrorCode)
 	assertSnykError(t, "Upload failed with authentication error.", err.SnykError)
@@ -176,7 +176,7 @@ func TestAnalyze_NoSupportedFiles(t *testing.T) {
 	mockFiltersSuccess(mockRT)
 	mockEmptyBundle(mockRT)
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0003", err.SnykError.ErrorCode)
 	assert.Nil(t, resp)
@@ -203,7 +203,7 @@ func TestAnalyze_AnalysisAuthZError(t *testing.T) {
 	mockBundleSuccess(mockRT)
 	mockAnalysisAuthZError(mockRT)
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0002", err.SnykError.ErrorCode)
 	assertSnykError(t, "Analysis request failed with status code 403.", err.SnykError)
@@ -231,7 +231,7 @@ func TestAnalyze_AnalysisHTTPError(t *testing.T) {
 	mockBundleSuccess(mockRT)
 	mockAnalysisHTTPError(mockRT, fmt.Errorf("analysis error"))
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
 	assertSnykError(t, "Analysis request HTTP error.", err.SnykError)
@@ -259,7 +259,7 @@ func TestAnalyze_AnalysisFailure(t *testing.T) {
 	mockBundleSuccess(mockRT)
 	mockAnalysisFailure(mockRT)
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
 	assertSnykError(t, "Analysis has completed with status: FAILED.", err.SnykError)
