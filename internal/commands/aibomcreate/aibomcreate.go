@@ -44,7 +44,7 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 
 	// As this is an experimental feature, we only want to continue if the experimental flag is set
 	if !experimental {
-		logger.Debug().Msg("Required experimental flag is present")
+		logger.Debug().Msg("Required experimental flag is not present")
 		return nil, errors.NewCommandIsExperimentalError().SnykError
 	}
 
