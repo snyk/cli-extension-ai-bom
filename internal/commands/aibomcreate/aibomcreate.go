@@ -1,6 +1,7 @@
 package aibomcreate
 
 import (
+	goErrors "errors"
 	"fmt"
 	"os"
 
@@ -60,7 +61,7 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 
 	aiBomDoc, err := extractSbomFromResult(response, logger)
 	if err != nil {
-		return nil, errors.NewInternalError("unable to create ai-bom from scan result").SnykError
+		return nil, errors.NewInternalError(err.Error()).SnykError
 	}
 
 	logger.Debug().Msg("Successfully generated AI BOM document.")
@@ -70,11 +71,11 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 func extractSbomFromResult(response *code.AnalysisResponse, logger *zerolog.Logger) (output []workflow.Data, err error) {
 	if len(response.Sarif.Runs) != 1 {
 		logger.Debug().Msgf("failed to extract AI-BOM from result, %d runs in result, expected 1", len(response.Sarif.Runs))
-		return nil, errors.NewInternalError("failed to extract AI-BOM from result").SnykError
+		return nil, goErrors.New("failed to extract AI-BOM from result")
 	}
 	if len(response.Sarif.Runs[0].Results) != 1 {
 		logger.Debug().Msgf("Failed to extract SBOM from result, %d results in Runs[0], expected 1", len(response.Sarif.Runs[0].Results))
-		return nil, errors.NewInternalError("failed to extract AI-BOM from result").SnykError
+		return nil, goErrors.New("failed to extract AI-BOM from result")
 	}
 	return []workflow.Data{newWorkflowData("application/json", []byte(response.Sarif.Runs[0].Results[0].Message.Text))}, nil
 }
