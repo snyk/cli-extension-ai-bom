@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	zerolog "github.com/rs/zerolog"
+	errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
 	code "github.com/snyk/cli-extension-ai-bom/internal/services/code"
 	scan "github.com/snyk/code-client-go/scan"
 	configuration "github.com/snyk/go-application-framework/pkg/configuration"
@@ -46,12 +47,12 @@ func (m *MockCodeService) EXPECT() *MockCodeServiceMockRecorder {
 }
 
 // Analyze mocks base method.
-func (m *MockCodeService) Analyze(path string, httpClientFunc func() *http.Client, logger *zerolog.Logger, config configuration.Configuration, userInterface ui.UserInterface) (*code.AnalysisResponse, *scan.ResultMetaData, error) {
+func (m *MockCodeService) Analyze(path string, httpClientFunc func() *http.Client, logger *zerolog.Logger, config configuration.Configuration, userInterface ui.UserInterface) (*code.AnalysisResponse, *scan.ResultMetaData, *errors.AiBomError) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Analyze", path, httpClientFunc, logger, config, userInterface)
 	ret0, _ := ret[0].(*code.AnalysisResponse)
 	ret1, _ := ret[1].(*scan.ResultMetaData)
-	ret2, _ := ret[2].(error)
+	ret2, _ := ret[2].(*errors.AiBomError)
 	return ret0, ret1, ret2
 }
 

@@ -7,6 +7,7 @@ require (
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/rs/zerolog v1.33.0
 	github.com/snyk/code-client-go v1.19.0
+	github.com/snyk/error-catalog-golang-public v0.0.0-20250520083045-87fdeaf670ba
 	github.com/snyk/go-application-framework v0.0.0-20250325133828-3ffd1aa4f76f
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.10.0
@@ -77,7 +78,6 @@ require (
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
-	github.com/snyk/error-catalog-golang-public v0.0.0-20250218074309-307ad7b38a60 // indirect
 	github.com/snyk/go-httpauth v0.0.0-20231117135515-eb445fea7530 // indirect
 	github.com/speakeasy-api/jsonpath v0.6.1 // indirect
 	github.com/speakeasy-api/openapi-overlay v0.10.1 // indirect
@@ -105,3 +105,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// replace github.com/snyk/error-catalog-golang-public => ../error-catalog/packages/error-catalog-golang-public/src
