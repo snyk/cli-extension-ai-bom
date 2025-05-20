@@ -51,7 +51,24 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 
 	logger.Debug().Msg("AI BOM workflow start")
 
-	response, resultMetaData, codeErr := codeService.Analyze(path,
+	depGraphResult, err := GetDepGraph(invocationCtx)
+	if err != nil {
+		// We just log a warning here; no return as we want to still proceed even without depgraphs.
+		logger.Warn().Msg("Failed to get the depgraph")
+	} else {
+		numGraphs := len(depGraphResult.DepGraphBytes)
+		logger.Debug().Msgf("Generated %d depgraph(s)\n", numGraphs)
+	}
+
+	// transform a depGraphResult into a map[string][]byte
+	depGraphMap := make(map[string][]byte)
+	if depGraphResult != nil {
+		for i, depGraph := range depGraphResult.DepGraphBytes {
+			depGraphMap[fmt.Sprintf("%s_%d.snykdepgraph", path+"/", i)] = depGraph
+		}
+	}
+
+	response, resultMetaData, codeErr := codeService.Analyze(path, depGraphMap,
 		invocationCtx.GetNetworkAccess().GetHttpClient, logger, config, invocationCtx.GetUserInterface())
 	if codeErr != nil {
 		logger.Debug().Err(codeErr.SnykError).Msg("error while analyzing code")
