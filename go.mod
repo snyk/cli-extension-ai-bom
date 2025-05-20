@@ -7,7 +7,7 @@ require (
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/rs/zerolog v1.33.0
 	github.com/snyk/code-client-go v1.19.0
-	github.com/snyk/error-catalog-golang-public v0.0.0-20250512070807-30bf12b5f11f
+	github.com/snyk/error-catalog-golang-public v0.0.0-20250520083045-87fdeaf670ba
 	github.com/snyk/go-application-framework v0.0.0-20250325133828-3ffd1aa4f76f
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.10.0
@@ -106,4 +106,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/snyk/error-catalog-golang-public => ../error-catalog/packages/error-catalog-golang-public/src
+// replace github.com/snyk/error-catalog-golang-public => ../error-catalog/packages/error-catalog-golang-public/src
