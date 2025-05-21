@@ -24,10 +24,10 @@ func NewInternalError(msg string) *AiBomError {
 	return &AiBomError{SnykError: aibom_errors.NewInternalError(msg)}
 }
 
-func NewNoSupportedFilesError(msg string) *AiBomError {
-	return &AiBomError{SnykError: aibom_errors.NewNoSupportedFilesError(msg)}
+func NewNoSupportedFilesError() *AiBomError {
+	return &AiBomError{SnykError: aibom_errors.NewNoSupportedFilesError("")}
 }
 
 func NewCommandIsExperimentalError() *AiBomError {
-	return &AiBomError{SnykError: cli_errors.NewCommandIsExperimentalError("snyk aibom is experimental and likely to change")}
+	return &AiBomError{SnykError: cli_errors.NewCommandIsExperimentalError("Snyk aibom is experimental and likely to change.")}
 }

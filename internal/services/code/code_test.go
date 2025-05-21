@@ -72,7 +72,7 @@ func TestAnalyze_FiltersFails(t *testing.T) {
 	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
-	assertSnykError(t, "failed to upload bundle: error creating bundle...: Get \"/filters\": filters error", err.SnykError)
+	assertSnykError(t, "Failed to upload bundle: error creating bundle...: Get \"/filters\": filters error.", err.SnykError)
 	assert.Nil(t, resp)
 }
 
@@ -99,7 +99,7 @@ func TestAnalyze_BundleHTTPError(t *testing.T) {
 	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
-	assertSnykError(t, "failed to upload bundle: error creating bundle...: Post \"/bundle\": bundle error", err.SnykError)
+	assertSnykError(t, "Failed to upload bundle: error creating bundle...: Post \"/bundle\": bundle error.", err.SnykError)
 	assert.Nil(t, resp)
 }
 
@@ -126,11 +126,37 @@ func TestAnalyze_AuthenticationError(t *testing.T) {
 	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-0005", err.SnykError.ErrorCode)
-	assertSnykError(t, "upload failed with authentication error", err.SnykError)
+	assertSnykError(t, "Upload failed with authentication error.", err.SnykError)
 	assert.Nil(t, resp)
 }
 
-func TestAnalyze_EmptyBundleError(t *testing.T) {
+func TestAnalyze_EmptyDirectory(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRT := httpmock.NewMockRoundTripper(ctrl)
+
+	clientFactory := func() *http.Client {
+		return &http.Client{
+			Transport: mockRT,
+		}
+	}
+
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	codeService := code.NewCodeServiceImpl()
+
+	mockFiltersSuccess(mockRT)
+	mockBundleHTTPError(mockRT, fmt.Errorf("no files to scan"))
+
+	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+
+	assert.Equal(t, "SNYK-AI-BOM-0003", err.SnykError.ErrorCode)
+	assert.Nil(t, resp)
+}
+
+func TestAnalyze_NoSupportedFiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -153,7 +179,6 @@ func TestAnalyze_EmptyBundleError(t *testing.T) {
 	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0003", err.SnykError.ErrorCode)
-	assertSnykError(t, "empty bundle hash", err.SnykError)
 	assert.Nil(t, resp)
 }
 
@@ -181,7 +206,7 @@ func TestAnalyze_AnalysisAuthZError(t *testing.T) {
 	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0002", err.SnykError.ErrorCode)
-	assertSnykError(t, "analysis request failed with status code 403", err.SnykError)
+	assertSnykError(t, "Analysis request failed with status code 403.", err.SnykError)
 	assert.Nil(t, resp)
 }
 
@@ -209,7 +234,7 @@ func TestAnalyze_AnalysisHTTPError(t *testing.T) {
 	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
-	assertSnykError(t, "analysis request HTTP error", err.SnykError)
+	assertSnykError(t, "Analysis request HTTP error.", err.SnykError)
 	assert.Nil(t, resp)
 }
 
@@ -237,7 +262,7 @@ func TestAnalyze_AnalysisFailure(t *testing.T) {
 	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
-	assertSnykError(t, "analysis has completed with status: FAILED", err.SnykError)
+	assertSnykError(t, "Analysis has completed with status: FAILED.", err.SnykError)
 	assert.Nil(t, resp)
 }
 
