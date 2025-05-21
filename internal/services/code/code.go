@@ -241,9 +241,12 @@ func uploadBundle(requestID,
 	if depgraphs != nil {
 		depgraphBatch, err := codebundle.NewBatchFromRawContent(depgraphs)
 		if err != nil {
-			return "", fmt.Errorf("failed to upload bundle: %w", err)
+			return "", fmt.Errorf("failed to create depgraph batch: %w", err)
 		}
-		bundle.UploadBatch(ctx, requestID, depgraphBatch)
+		err = bundle.UploadBatch(ctx, requestID, depgraphBatch)
+		if err != nil {
+			return "", fmt.Errorf("failed to update bundle with depgraphs: %w", err)
+		}
 	}
 
 	return bundle.GetBundleHash(), nil

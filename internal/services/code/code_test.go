@@ -41,11 +41,15 @@ func TestAnalyze_Happy(t *testing.T) {
 
 	codeService := code.NewCodeServiceImpl()
 
+	depGraphMap := make(map[string][]byte)
+	depGraphMap["./test.snykdepgraph"] = []byte("hello")
+
 	mockFiltersSuccess(mockRT)
 	mockBundleSuccess(mockRT)
+	mockBundleDepgraphsSuccess(mockRT)
 	mockAnalysisSuccess(mockRT)
 
-	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), depGraphMap, clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Nil(t, err)
 	assert.Equal(t, "my-aibom", resp.Sarif.Runs[0].Results[0].Message.Text)
@@ -319,6 +323,19 @@ func mockBundleSuccess(mockRT *httpmock.MockRoundTripper) {
 	).Times(1)
 }
 
+func mockBundleDepgraphsSuccess(mockRT *httpmock.MockRoundTripper) {
+	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPut, "/bundle/my-bundle-hash")).DoAndReturn(
+		func(_ *http.Request) (*http.Response, error) {
+			body := `{"bundleHash": "my-new-bundle-hash", "missingFiles": []}`
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(body)),
+				Header:     make(http.Header),
+			}, nil
+		},
+	).Times(1)
+}
+
 func mockEmptyBundle(mockRT *httpmock.MockRoundTripper) {
 	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/bundle")).DoAndReturn(
 		func(_ *http.Request) (*http.Response, error) {
@@ -338,7 +355,10 @@ func mockBundleHTTPError(mockRT *httpmock.MockRoundTripper, err error) {
 
 func mockAnalysisSuccess(mockRT *httpmock.MockRoundTripper) {
 	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/analysis")).DoAndReturn(
-		func(_ *http.Request) (*http.Response, error) {
+		func(r *http.Request) (*http.Response, error) {
+			if !checkRequestBundleHash(r, "my-new-bundle-hash") {
+				return nil, fmt.Errorf("bundle hash does not match expected value")
+			}
 			sarif := code.Sarif{Runs: []code.SarifRun{{Results: []code.SarifResult{{Message: code.SarifMessage{Text: "my-aibom"}}}}}}
 			bodyBytes, _ := json.Marshal(code.AnalysisResponse{Status: "COMPLETE", Sarif: sarif})
 			body := string(bodyBytes)
@@ -376,6 +396,27 @@ func mockAnalysisHTTPError(mockRT *httpmock.MockRoundTripper, err error) {
 
 func mockAnalysisAuthZError(mockRT *httpmock.MockRoundTripper) {
 	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/analysis")).Return(&http.Response{StatusCode: http.StatusForbidden}, nil).Times(1)
+}
+
+func checkRequestBundleHash(r *http.Request, expectedHash string) bool {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return false
+	}
+	var data map[string]interface{}
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		return false
+	}
+	keyMap, ok := data["key"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	hash, ok := keyMap["hash"].(string)
+	if !ok {
+		return false
+	}
+	return hash == expectedHash
 }
 
 func assertSnykError(t *testing.T, expectedMsg string, err error) {
