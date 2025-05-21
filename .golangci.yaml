@@ -62,7 +62,6 @@ linters:
         linters:
           - errcheck
 
-
 linters-settings:
   errcheck:
     check-blank: true
@@ -114,6 +113,7 @@ linters-settings:
       - name: dot-imports
       - name: error-return
       - name: error-strings
+        disabled: true # Requires all error messages to start with lower case characters. This conflicts with Snyk's public error message standards.
       - name: error-naming
       - name: exported
         arguments:
@@ -138,5 +138,5 @@ linters-settings:
   staticcheck:
     checks: ["all"]
   stylecheck:
-    checks: ["all"]
+    checks: ["all", "-ST1005"] # ST1005 requires all error messages to start with lower case characters. This conflicts with Snyk's public error message standards.
     http-status-code-whitelist: []

@@ -75,20 +75,23 @@ func (cs *CodeServiceImpl) Analyze(
 	requestID, err := uuid.GenerateUUID()
 	if err != nil {
 		logger.Debug().Err(err).Msg("error generating requestID")
-		return nil, nil, errors.NewInternalError("error generating requestID")
+		return nil, nil, errors.NewInternalError("Error generating requestID.")
 	}
 	logger.Debug().Msgf("Request ID: %s", requestID)
 	bundleHash, err := uploadBundle(requestID, path, httpClient, logger, config, userInterface)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error while uploading file bundle")
 		if strings.Contains(strings.ToLower(err.Error()), "authentication") {
-			return nil, nil, errors.NewUnauthorizedError("upload failed with authentication error")
+			return nil, nil, errors.NewUnauthorizedError("Upload failed with authentication error.")
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "no files to scan") {
+			return nil, nil, errors.NewNoSupportedFilesError()
 		}
 		return nil, nil, errors.NewInternalError(err.Error())
 	}
 	if bundleHash == "" {
 		logger.Debug().Msg("empty bundle hash to upload file bundle")
-		return nil, nil, errors.NewNoSupportedFilesError("empty bundle hash")
+		return nil, nil, errors.NewNoSupportedFilesError()
 	}
 	logger.Debug().Msg("successfully uploaded file bundle")
 
@@ -117,7 +120,7 @@ func (cs *CodeServiceImpl) pollForAnalysis(
 	postData, err := createPostData(bundleHash)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error while creating post data")
-		return nil, nil, errors.NewInternalError(fmt.Sprintf("error creating analysis post request: %s", err.Error()))
+		return nil, nil, errors.NewInternalError(fmt.Sprintf("Error creating analysis post request: %s.", err.Error()))
 	}
 
 	var resultMetaData *scan.ResultMetaData
@@ -140,21 +143,21 @@ func (cs *CodeServiceImpl) pollForAnalysis(
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, postURL, bytes.NewBuffer(postData))
 		if err != nil {
 			logger.Debug().Err(err).Msg("error while building analysis request")
-			return nil, nil, errors.NewInternalError("error building analysis request")
+			return nil, nil, errors.NewInternalError("Error building analysis request.")
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("snyk-org-name", config.GetString(configuration.ORGANIZATION))
 		res, err := httpClient.Do(req)
 		if err != nil {
 			logger.Debug().Err(err).Msg("analysis request HTTP error")
-			return nil, nil, errors.NewInternalError("analysis request HTTP error")
+			return nil, nil, errors.NewInternalError("Analysis request HTTP error.")
 		}
 		if res == nil {
 			logger.Debug().Err(err).Msg("analysis request failed with nil response")
-			return nil, nil, errors.NewInternalError("analysis request returned unexpected response")
+			return nil, nil, errors.NewInternalError("Analysis request returned unexpected response.")
 		}
 		if res.StatusCode != http.StatusOK {
-			failureMsg := fmt.Sprintf("analysis request failed with status code %d", res.StatusCode)
+			failureMsg := fmt.Sprintf("Analysis request failed with status code %d.", res.StatusCode)
 			logger.Debug().Msg(failureMsg)
 			switch res.StatusCode {
 			case http.StatusUnauthorized:
@@ -162,18 +165,18 @@ func (cs *CodeServiceImpl) pollForAnalysis(
 			case http.StatusForbidden:
 				return nil, nil, errors.NewForbiddenError(failureMsg)
 			default:
-				return nil, nil, errors.NewInternalError(fmt.Sprintf("analysis request failed with status code %d", res.StatusCode))
+				return nil, nil, errors.NewInternalError(fmt.Sprintf("Analysis request failed with status code %d.", res.StatusCode))
 			}
 		}
 
 		analysisResp, err = buildAnalysisResponse(res)
 		if err != nil {
 			logger.Debug().Err(err).Msg("error while building response for analysis")
-			return nil, nil, errors.NewInternalError("error while building response for analysis")
+			return nil, nil, errors.NewInternalError("Error while building response for analysis.")
 		}
 		logger.Debug().Msg(fmt.Sprintf("analysis status: %s, SARIF received", analysisResp.Status))
 		if _, found := healthyStatus[analysisResp.Status]; !found {
-			return nil, nil, errors.NewInternalError(fmt.Sprintf("analysis has completed with status: %s", analysisResp.Status))
+			return nil, nil, errors.NewInternalError(fmt.Sprintf("Analysis has completed with status: %s.", analysisResp.Status))
 		}
 		if analysisResp.Status == AnalysisStatusComplete {
 			logger.Debug().Msg("analysis is complete")
@@ -183,7 +186,7 @@ func (cs *CodeServiceImpl) pollForAnalysis(
 	}
 
 	logger.Debug().Msg("analysis polling timed out")
-	return nil, nil, errors.NewInternalError("analysis polling timed out")
+	return nil, nil, errors.NewInternalError("Analysis polling timed out.")
 }
 
 func uploadBundle(requestID,
@@ -227,7 +230,7 @@ func uploadBundle(requestID,
 	changedFiles := make(map[string]bool)
 	bundle, err := codeScanner.Upload(ctx, requestID, target, files, changedFiles)
 	if err != nil {
-		return "", fmt.Errorf("failed to upload bundle: %w", err)
+		return "", fmt.Errorf("Failed to upload bundle: %w.", err)
 	}
 	return bundle.GetBundleHash(), nil
 }
@@ -316,12 +319,12 @@ func buildAnalysisResponse(res *http.Response) (AnalysisResponse, error) {
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return analysisResponse, fmt.Errorf("error reading response body: %w", err)
+		return analysisResponse, fmt.Errorf("Error reading response body: %w.", err)
 	}
 
 	err = json.Unmarshal(body, &analysisResponse)
 	if err != nil {
-		return analysisResponse, fmt.Errorf("error unmarshaling response body: %w", err)
+		return analysisResponse, fmt.Errorf("Error unmarshaling response body: %w.", err)
 	}
 
 	return analysisResponse, nil

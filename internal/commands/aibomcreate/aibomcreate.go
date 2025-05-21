@@ -59,7 +59,7 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 	}
 	logger.Debug().Msgf("Result metadata: %+v", resultMetaData)
 
-	aiBomDoc, err := extractSbomFromResult(response, logger)
+	aiBomDoc, err := extractAiBomFromResult(response, logger)
 	if err != nil {
 		return nil, errors.NewInternalError(err.Error()).SnykError
 	}
@@ -68,14 +68,14 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 	return aiBomDoc, nil
 }
 
-func extractSbomFromResult(response *code.AnalysisResponse, logger *zerolog.Logger) (output []workflow.Data, err error) {
+func extractAiBomFromResult(response *code.AnalysisResponse, logger *zerolog.Logger) (output []workflow.Data, err error) {
 	if len(response.Sarif.Runs) != 1 {
 		logger.Debug().Msgf("failed to extract AI-BOM from result, %d runs in result, expected 1", len(response.Sarif.Runs))
-		return nil, goErrors.New("failed to extract AI-BOM from result")
+		return nil, goErrors.New("Failed to extract AI-BOM from result.")
 	}
 	if len(response.Sarif.Runs[0].Results) != 1 {
-		logger.Debug().Msgf("Failed to extract SBOM from result, %d results in Runs[0], expected 1", len(response.Sarif.Runs[0].Results))
-		return nil, goErrors.New("failed to extract AI-BOM from result")
+		logger.Debug().Msgf("Failed to extract AI-BOM from result, %d results in Runs[0], expected 1", len(response.Sarif.Runs[0].Results))
+		return nil, goErrors.New("Failed to extract AI-BOM from result.")
 	}
 	return []workflow.Data{newWorkflowData("application/json", []byte(response.Sarif.Runs[0].Results[0].Message.Text))}, nil
 }
