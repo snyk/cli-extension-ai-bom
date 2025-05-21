@@ -155,7 +155,7 @@ func TestAnalyze_EmptyDirectory(t *testing.T) {
 	mockFiltersSuccess(mockRT)
 	mockBundleHTTPError(mockRT, fmt.Errorf("no files to scan"))
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0003", err.SnykError.ErrorCode)
 	assert.Nil(t, resp)
