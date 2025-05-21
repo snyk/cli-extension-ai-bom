@@ -47,9 +47,9 @@ func (m *MockCodeService) EXPECT() *MockCodeServiceMockRecorder {
 }
 
 // Analyze mocks base method.
-func (m *MockCodeService) Analyze(path string, httpClientFunc func() *http.Client, logger *zerolog.Logger, config configuration.Configuration, userInterface ui.UserInterface) (*code.AnalysisResponse, *scan.ResultMetaData, *errors.AiBomError) {
+func (m *MockCodeService) Analyze(path string, depgraph map[string][]byte, httpClientFunc func() *http.Client, logger *zerolog.Logger, config configuration.Configuration, userInterface ui.UserInterface) (*code.AnalysisResponse, *scan.ResultMetaData, *errors.AiBomError) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Analyze", path, httpClientFunc, logger, config, userInterface)
+	ret := m.ctrl.Call(m, "Analyze", path, depgraph, httpClientFunc, logger, config, userInterface)
 	ret0, _ := ret[0].(*code.AnalysisResponse)
 	ret1, _ := ret[1].(*scan.ResultMetaData)
 	ret2, _ := ret[2].(*errors.AiBomError)
@@ -57,7 +57,7 @@ func (m *MockCodeService) Analyze(path string, httpClientFunc func() *http.Clien
 }
 
 // Analyze indicates an expected call of Analyze.
-func (mr *MockCodeServiceMockRecorder) Analyze(path, httpClientFunc, logger, config, userInterface any) *gomock.Call {
+func (mr *MockCodeServiceMockRecorder) Analyze(path, depgraph, httpClientFunc, logger, config, userInterface any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Analyze", reflect.TypeOf((*MockCodeService)(nil).Analyze), path, httpClientFunc, logger, config, userInterface)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Analyze", reflect.TypeOf((*MockCodeService)(nil).Analyze), path, depgraph, httpClientFunc, logger, config, userInterface)
 }

@@ -3,6 +3,8 @@ package code_test
 
 import (
 	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,11 +43,14 @@ func TestAnalyze_Happy(t *testing.T) {
 
 	codeService := code.NewCodeServiceImpl()
 
+	depGraphMap := map[string][]byte{"/0.snykdepgraph": []byte("foo")}
+
 	mockFiltersSuccess(mockRT)
 	mockBundleSuccess(mockRT)
+	mockBundleDepgraphsSuccess(mockRT)
 	mockAnalysisSuccess(mockRT)
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), depGraphMap, clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Nil(t, err)
 	assert.Equal(t, "my-aibom", resp.Sarif.Runs[0].Results[0].Message.Text)
@@ -69,7 +74,7 @@ func TestAnalyze_FiltersFails(t *testing.T) {
 
 	mockFiltersHTTPError(mockRT, fmt.Errorf("filters error"))
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
 	assertSnykError(t, "Failed to upload bundle: error creating bundle...: Get \"/filters\": filters error.", err.SnykError)
@@ -96,11 +101,40 @@ func TestAnalyze_BundleHTTPError(t *testing.T) {
 	mockFiltersSuccess(mockRT)
 	mockBundleHTTPError(mockRT, fmt.Errorf("bundle error"))
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
 	assertSnykError(t, "Failed to upload bundle: error creating bundle...: Post \"/bundle\": bundle error.", err.SnykError)
 	assert.Nil(t, resp)
+}
+
+func TestAnalyze_DepgraphUploadError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRT := httpmock.NewMockRoundTripper(ctrl)
+
+	clientFactory := func() *http.Client {
+		return &http.Client{
+			Transport: mockRT,
+		}
+	}
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	codeService := code.NewCodeServiceImpl()
+
+	depGraphMap := map[string][]byte{"/0.snykdepgraph": []byte("foo")}
+
+	mockFiltersSuccess(mockRT)
+	mockBundleSuccess(mockRT)
+	mockBundleDepgraphsFailure(mockRT)
+
+	resp, _, err := codeService.Analyze(getDir(), depGraphMap, clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+
+	assert.Nil(t, resp)
+	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
+	assertSnykError(t, "Failed to update bundle with depgraphs: Put \"/bundle/my-bundle-hash\": depgraphs error", err.SnykError)
 }
 
 func TestAnalyze_AuthenticationError(t *testing.T) {
@@ -123,7 +157,7 @@ func TestAnalyze_AuthenticationError(t *testing.T) {
 	mockFiltersSuccess(mockRT)
 	mockBundleHTTPError(mockRT, fmt.Errorf("Authentication error"))
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-0005", err.SnykError.ErrorCode)
 	assertSnykError(t, "Upload failed with authentication error.", err.SnykError)
@@ -150,7 +184,7 @@ func TestAnalyze_EmptyDirectory(t *testing.T) {
 	mockFiltersSuccess(mockRT)
 	mockBundleHTTPError(mockRT, fmt.Errorf("no files to scan"))
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0003", err.SnykError.ErrorCode)
 	assert.Nil(t, resp)
@@ -176,7 +210,7 @@ func TestAnalyze_NoSupportedFiles(t *testing.T) {
 	mockFiltersSuccess(mockRT)
 	mockEmptyBundle(mockRT)
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0003", err.SnykError.ErrorCode)
 	assert.Nil(t, resp)
@@ -203,7 +237,7 @@ func TestAnalyze_AnalysisAuthZError(t *testing.T) {
 	mockBundleSuccess(mockRT)
 	mockAnalysisAuthZError(mockRT)
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0002", err.SnykError.ErrorCode)
 	assertSnykError(t, "Analysis request failed with status code 403.", err.SnykError)
@@ -231,7 +265,7 @@ func TestAnalyze_AnalysisHTTPError(t *testing.T) {
 	mockBundleSuccess(mockRT)
 	mockAnalysisHTTPError(mockRT, fmt.Errorf("analysis error"))
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
 	assertSnykError(t, "Analysis request HTTP error.", err.SnykError)
@@ -259,7 +293,7 @@ func TestAnalyze_AnalysisFailure(t *testing.T) {
 	mockBundleSuccess(mockRT)
 	mockAnalysisFailure(mockRT)
 
-	resp, _, err := codeService.Analyze(getDir(), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
 	assertSnykError(t, "Analysis has completed with status: FAILED.", err.SnykError)
@@ -319,6 +353,26 @@ func mockBundleSuccess(mockRT *httpmock.MockRoundTripper) {
 	).Times(1)
 }
 
+func mockBundleDepgraphsSuccess(mockRT *httpmock.MockRoundTripper) {
+	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPut, "/bundle/my-bundle-hash")).DoAndReturn(
+		func(r *http.Request) (*http.Response, error) {
+			if !checkRequestFileNameAndContent(r, "/0.snykdepgraph", "foo") {
+				return nil, fmt.Errorf("depgraph file does not match")
+			}
+			body := `{"bundleHash": "my-new-bundle-hash", "missingFiles": []}`
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(body)),
+				Header:     make(http.Header),
+			}, nil
+		},
+	).Times(1)
+}
+
+func mockBundleDepgraphsFailure(mockRT *httpmock.MockRoundTripper) {
+	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPut, "/bundle/my-bundle-hash")).Return(nil, fmt.Errorf("depgraphs error")).Times(1)
+}
+
 func mockEmptyBundle(mockRT *httpmock.MockRoundTripper) {
 	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/bundle")).DoAndReturn(
 		func(_ *http.Request) (*http.Response, error) {
@@ -338,7 +392,10 @@ func mockBundleHTTPError(mockRT *httpmock.MockRoundTripper, err error) {
 
 func mockAnalysisSuccess(mockRT *httpmock.MockRoundTripper) {
 	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/analysis")).DoAndReturn(
-		func(_ *http.Request) (*http.Response, error) {
+		func(r *http.Request) (*http.Response, error) {
+			if !checkRequestBundleHash(r, "my-new-bundle-hash") {
+				return nil, fmt.Errorf("bundle hash does not match expected value")
+			}
 			sarif := code.Sarif{Runs: []code.SarifRun{{Results: []code.SarifResult{{Message: code.SarifMessage{Text: "my-aibom"}}}}}}
 			bodyBytes, _ := json.Marshal(code.AnalysisResponse{Status: "COMPLETE", Sarif: sarif})
 			body := string(bodyBytes)
@@ -376,6 +433,62 @@ func mockAnalysisHTTPError(mockRT *httpmock.MockRoundTripper, err error) {
 
 func mockAnalysisAuthZError(mockRT *httpmock.MockRoundTripper) {
 	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/analysis")).Return(&http.Response{StatusCode: http.StatusForbidden}, nil).Times(1)
+}
+
+func checkRequestBundleHash(r *http.Request, expectedHash string) bool {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return false
+	}
+	var data map[string]interface{}
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		return false
+	}
+	keyMap, ok := data["key"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	hash, ok := keyMap["hash"].(string)
+	if !ok {
+		return false
+	}
+	return hash == expectedHash
+}
+
+func checkRequestFileNameAndContent(r *http.Request, expectedName, expectedContent string) bool {
+	gr, err := gzip.NewReader(r.Body)
+	if err != nil {
+		return false
+	}
+	defer gr.Close()
+
+	b64, err := io.ReadAll(gr)
+	if err != nil {
+		return false
+	}
+	content, err := base64.StdEncoding.DecodeString(string(b64))
+	if err != nil {
+		return false
+	}
+	var data map[string]interface{}
+	err = json.Unmarshal(content, &data)
+	if err != nil {
+		return false
+	}
+	filesMap, ok := data["files"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	fileMap, ok := filesMap[expectedName].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	fileContent, ok := fileMap["content"].(string)
+	if !ok {
+		return false
+	}
+	return fileContent == expectedContent
 }
 
 func assertSnykError(t *testing.T, expectedMsg string, err error) {

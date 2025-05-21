@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-uuid"
 	"github.com/rs/zerolog"
 	codeclient "github.com/snyk/code-client-go"
+	codebundle "github.com/snyk/code-client-go/bundle"
 	codeclienthttp "github.com/snyk/code-client-go/http"
 	"github.com/snyk/code-client-go/scan"
 
@@ -30,6 +31,7 @@ import (
 type CodeService interface {
 	Analyze(
 		path string,
+		depgraph map[string][]byte,
 		httpClientFunc func() *http.Client,
 		logger *zerolog.Logger,
 		config configuration.Configuration,
@@ -63,6 +65,7 @@ const (
 
 func (cs *CodeServiceImpl) Analyze(
 	path string,
+	depgraphs map[string][]byte,
 	httpClientFunc func() *http.Client,
 	logger *zerolog.Logger,
 	config configuration.Configuration,
@@ -78,7 +81,7 @@ func (cs *CodeServiceImpl) Analyze(
 		return nil, nil, errors.NewInternalError("Error generating requestID.")
 	}
 	logger.Debug().Msgf("Request ID: %s", requestID)
-	bundleHash, err := uploadBundle(requestID, path, httpClient, logger, config, userInterface)
+	bundleHash, err := uploadBundle(requestID, path, depgraphs, httpClient, logger, config, userInterface)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error while uploading file bundle")
 		if strings.Contains(strings.ToLower(err.Error()), "authentication") {
@@ -99,12 +102,12 @@ func (cs *CodeServiceImpl) Analyze(
 	progressBar.SetTitle("Analyzing")
 	err = progressBar.UpdateProgress(ui.InfiniteProgress)
 	if err != nil {
-		logger.Debug().Err(err).Msg("failed to update progress bar")
+		logger.Debug().Err(err).Msg("Failed to update progress bar")
 	}
 	defer func() {
 		err = progressBar.Clear()
 		if err != nil {
-			logger.Debug().Err(err).Msg("failed to clear progress bar")
+			logger.Debug().Err(err).Msg("Failed to clear progress bar")
 		}
 	}()
 
@@ -191,6 +194,7 @@ func (cs *CodeServiceImpl) pollForAnalysis(
 
 func uploadBundle(requestID,
 	path string,
+	depgraphs map[string][]byte,
 	httpClient codeclienthttp.HTTPClient,
 	logger *zerolog.Logger,
 	config configuration.Configuration,
@@ -232,6 +236,19 @@ func uploadBundle(requestID,
 	if err != nil {
 		return "", fmt.Errorf("Failed to upload bundle: %w.", err)
 	}
+
+	// extend the bundle with the depgraphs
+	if depgraphs != nil {
+		depgraphBatch, err := codebundle.NewBatchFromRawContent(depgraphs)
+		if err != nil {
+			return "", fmt.Errorf("Failed to create depgraph batch: %w", err)
+		}
+		err = bundle.UploadBatch(ctx, requestID, depgraphBatch)
+		if err != nil {
+			return "", fmt.Errorf("Failed to update bundle with depgraphs: %w", err)
+		}
+	}
+
 	return bundle.GetBundleHash(), nil
 }
 
@@ -268,7 +285,7 @@ func getFilesForPath(path string, logger *zerolog.Logger, maxThreads int) (<-cha
 
 	rules, err := filter.GetRules([]string{".gitignore", ".dcignore", ".snyk"})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get file filter rules: %w", err)
+		return nil, fmt.Errorf("Failed to get file filter rules: %w", err)
 	}
 
 	results := filter.GetFilteredFiles(filter.GetAllFiles(), rules)

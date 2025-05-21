@@ -12,6 +12,7 @@ import (
 
 	"github.com/snyk/cli-extension-ai-bom/internal/errors"
 	"github.com/snyk/cli-extension-ai-bom/internal/services/code"
+	"github.com/snyk/cli-extension-ai-bom/internal/services/depgraph"
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
 	"github.com/spf13/pflag"
@@ -32,10 +33,15 @@ func RegisterWorkflows(e workflow.Engine) error {
 
 func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (output []workflow.Data, err error) {
 	codeService := code.NewCodeServiceImpl()
-	return RunAiBomWorkflow(invocationCtx, codeService)
+	depGraphService := depgraph.NewDepgraphServiceImpl()
+	return RunAiBomWorkflow(invocationCtx, codeService, depGraphService)
 }
 
-func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code.CodeService) ([]workflow.Data, error) {
+func RunAiBomWorkflow(
+	invocationCtx workflow.InvocationContext,
+	codeService code.CodeService,
+	depgraphService depgraph.DepgraphService,
+) ([]workflow.Data, error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
 
@@ -51,7 +57,24 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 
 	logger.Debug().Msg("AI BOM workflow start")
 
-	response, resultMetaData, codeErr := codeService.Analyze(path,
+	depGraphResult, err := depgraphService.GetDepgraph(invocationCtx)
+	if err != nil {
+		// We just log a warning here; no return as we want to still proceed even without depgraphs.
+		logger.Warn().Msg("Failed to get the depgraph")
+	} else {
+		numGraphs := len(depGraphResult.DepgraphBytes)
+		logger.Debug().Msgf("Generated %d depgraph(s)\n", numGraphs)
+	}
+
+	// transform a depGraphResult into a map[string][]byte
+	depGraphMap := make(map[string][]byte)
+	if depGraphResult != nil {
+		for i, depGraph := range depGraphResult.DepgraphBytes {
+			depGraphMap[fmt.Sprintf("%s_%d.snykdepgraph", path+"/", i)] = depGraph
+		}
+	}
+
+	response, resultMetaData, codeErr := codeService.Analyze(path, depGraphMap,
 		invocationCtx.GetNetworkAccess().GetHttpClient, logger, config, invocationCtx.GetUserInterface())
 	if codeErr != nil {
 		logger.Debug().Err(codeErr.SnykError).Msg("error while analyzing code")
@@ -70,7 +93,7 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 
 func extractAiBomFromResult(response *code.AnalysisResponse, logger *zerolog.Logger) (output []workflow.Data, err error) {
 	if len(response.Sarif.Runs) != 1 {
-		logger.Debug().Msgf("failed to extract AI-BOM from result, %d runs in result, expected 1", len(response.Sarif.Runs))
+		logger.Debug().Msgf("Failed to extract AI-BOM from result, %d runs in result, expected 1", len(response.Sarif.Runs))
 		return nil, goErrors.New("Failed to extract AI-BOM from result.")
 	}
 	if len(response.Sarif.Runs[0].Results) != 1 {
