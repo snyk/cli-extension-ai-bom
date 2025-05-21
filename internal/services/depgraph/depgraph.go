@@ -33,7 +33,7 @@ func NewDepgraphServiceImpl() *DepgraphServiceImpl {
 func (dg *DepgraphServiceImpl) GetDepgraph(ictx workflow.InvocationContext) (*DepgraphResult, error) {
 	engine := ictx.GetEngine()
 	if engine == nil {
-		return nil, goErrors.New("failed to get engine for depgraphs")
+		return nil, goErrors.New("Failed to get engine for depgraphs")
 	}
 
 	config := ictx.GetConfiguration()

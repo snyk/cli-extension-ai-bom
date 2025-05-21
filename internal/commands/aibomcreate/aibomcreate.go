@@ -93,7 +93,7 @@ func RunAiBomWorkflow(
 
 func extractAiBomFromResult(response *code.AnalysisResponse, logger *zerolog.Logger) (output []workflow.Data, err error) {
 	if len(response.Sarif.Runs) != 1 {
-		logger.Debug().Msgf("failed to extract AI-BOM from result, %d runs in result, expected 1", len(response.Sarif.Runs))
+		logger.Debug().Msgf("Failed to extract AI-BOM from result, %d runs in result, expected 1", len(response.Sarif.Runs))
 		return nil, goErrors.New("Failed to extract AI-BOM from result.")
 	}
 	if len(response.Sarif.Runs[0].Results) != 1 {

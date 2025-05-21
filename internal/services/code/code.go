@@ -102,12 +102,12 @@ func (cs *CodeServiceImpl) Analyze(
 	progressBar.SetTitle("Analyzing")
 	err = progressBar.UpdateProgress(ui.InfiniteProgress)
 	if err != nil {
-		logger.Debug().Err(err).Msg("failed to update progress bar")
+		logger.Debug().Err(err).Msg("Failed to update progress bar")
 	}
 	defer func() {
 		err = progressBar.Clear()
 		if err != nil {
-			logger.Debug().Err(err).Msg("failed to clear progress bar")
+			logger.Debug().Err(err).Msg("Failed to clear progress bar")
 		}
 	}()
 
@@ -241,11 +241,11 @@ func uploadBundle(requestID,
 	if depgraphs != nil {
 		depgraphBatch, err := codebundle.NewBatchFromRawContent(depgraphs)
 		if err != nil {
-			return "", fmt.Errorf("failed to create depgraph batch: %w", err)
+			return "", fmt.Errorf("Failed to create depgraph batch: %w", err)
 		}
 		err = bundle.UploadBatch(ctx, requestID, depgraphBatch)
 		if err != nil {
-			return "", fmt.Errorf("failed to update bundle with depgraphs: %w", err)
+			return "", fmt.Errorf("Failed to update bundle with depgraphs: %w", err)
 		}
 	}
 
@@ -285,7 +285,7 @@ func getFilesForPath(path string, logger *zerolog.Logger, maxThreads int) (<-cha
 
 	rules, err := filter.GetRules([]string{".gitignore", ".dcignore", ".snyk"})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get file filter rules: %w", err)
+		return nil, fmt.Errorf("Failed to get file filter rules: %w", err)
 	}
 
 	results := filter.GetFilteredFiles(filter.GetAllFiles(), rules)

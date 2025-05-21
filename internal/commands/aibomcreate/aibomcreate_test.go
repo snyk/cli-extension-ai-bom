@@ -89,7 +89,7 @@ func TestAiBomWorkflow_ANALYSIS_FAIL(t *testing.T) {
 	mockCodeService := codemock.NewMockCodeService(ctrl)
 	mockDepgraphService := depgraphmock.NewMockDepgraphService(ctrl)
 
-	codeErr := errors.NewInternalError("failed to upload file bundle")
+	codeErr := errors.NewInternalError("Failed to upload file bundle")
 	mockDepgraphService.EXPECT().GetDepgraph(gomock.Any()).Times(1).Return(&depgraph.DepgraphResult{}, nil)
 	mockCodeService.EXPECT().Analyze(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
 		Return(nil, nil, codeErr)

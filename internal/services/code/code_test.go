@@ -134,7 +134,7 @@ func TestAnalyze_DepgraphUploadError(t *testing.T) {
 
 	assert.Nil(t, resp)
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
-	assertSnykError(t, "failed to update bundle with depgraphs: Put \"/bundle/my-bundle-hash\": depgraphs error", err.SnykError)
+	assertSnykError(t, "Failed to update bundle with depgraphs: Put \"/bundle/my-bundle-hash\": depgraphs error", err.SnykError)
 }
 
 func TestAnalyze_AuthenticationError(t *testing.T) {
