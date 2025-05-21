@@ -3,6 +3,8 @@ package code_test
 
 import (
 	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,8 +43,7 @@ func TestAnalyze_Happy(t *testing.T) {
 
 	codeService := code.NewCodeServiceImpl()
 
-	depGraphMap := make(map[string][]byte)
-	depGraphMap["./test.snykdepgraph"] = []byte("hello")
+	depGraphMap := map[string][]byte{"/0.snykdepgraph": []byte("foo")}
 
 	mockFiltersSuccess(mockRT)
 	mockBundleSuccess(mockRT)
@@ -325,7 +326,10 @@ func mockBundleSuccess(mockRT *httpmock.MockRoundTripper) {
 
 func mockBundleDepgraphsSuccess(mockRT *httpmock.MockRoundTripper) {
 	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPut, "/bundle/my-bundle-hash")).DoAndReturn(
-		func(_ *http.Request) (*http.Response, error) {
+		func(r *http.Request) (*http.Response, error) {
+			if !checkRequestFileNameAndContent(r, "/0.snykdepgraph", "foo") {
+				return nil, fmt.Errorf("depgraph file does not match")
+			}
 			body := `{"bundleHash": "my-new-bundle-hash", "missingFiles": []}`
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -417,6 +421,41 @@ func checkRequestBundleHash(r *http.Request, expectedHash string) bool {
 		return false
 	}
 	return hash == expectedHash
+}
+
+func checkRequestFileNameAndContent(r *http.Request, expectedName, expectedContent string) bool {
+	gr, err := gzip.NewReader(r.Body)
+	if err != nil {
+		return false
+	}
+	defer gr.Close()
+
+	b64, err := io.ReadAll(gr)
+	if err != nil {
+		return false
+	}
+	content, err := base64.StdEncoding.DecodeString(string(b64))
+	if err != nil {
+		return false
+	}
+	var data map[string]interface{}
+	err = json.Unmarshal(content, &data)
+	if err != nil {
+		return false
+	}
+	filesMap, ok := data["files"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	fileMap, ok := filesMap[expectedName].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	fileContent, ok := fileMap["content"].(string)
+	if !ok {
+		return false
+	}
+	return fileContent == expectedContent
 }
 
 func assertSnykError(t *testing.T, expectedMsg string, err error) {

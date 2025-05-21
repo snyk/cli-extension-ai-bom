@@ -12,6 +12,7 @@ import (
 
 	"github.com/snyk/cli-extension-ai-bom/internal/errors"
 	"github.com/snyk/cli-extension-ai-bom/internal/services/code"
+	"github.com/snyk/cli-extension-ai-bom/internal/services/depgraph"
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
 	"github.com/spf13/pflag"
@@ -32,10 +33,11 @@ func RegisterWorkflows(e workflow.Engine) error {
 
 func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (output []workflow.Data, err error) {
 	codeService := code.NewCodeServiceImpl()
-	return RunAiBomWorkflow(invocationCtx, codeService)
+	depGraphService := depgraph.NewDepgraphServiceImpl()
+	return RunAiBomWorkflow(invocationCtx, codeService, depGraphService)
 }
 
-func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code.CodeService) ([]workflow.Data, error) {
+func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code.CodeService, depGraphService depgraph.DepgraphService) ([]workflow.Data, error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
 
@@ -51,19 +53,19 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 
 	logger.Debug().Msg("AI BOM workflow start")
 
-	depGraphResult, err := GetDepGraph(invocationCtx)
+	depGraphResult, err := depGraphService.GetDepgraph(invocationCtx)
 	if err != nil {
 		// We just log a warning here; no return as we want to still proceed even without depgraphs.
 		logger.Warn().Msg("Failed to get the depgraph")
 	} else {
-		numGraphs := len(depGraphResult.DepGraphBytes)
+		numGraphs := len(depGraphResult.DepgraphBytes)
 		logger.Debug().Msgf("Generated %d depgraph(s)\n", numGraphs)
 	}
 
 	// transform a depGraphResult into a map[string][]byte
 	depGraphMap := make(map[string][]byte)
 	if depGraphResult != nil {
-		for i, depGraph := range depGraphResult.DepGraphBytes {
+		for i, depGraph := range depGraphResult.DepgraphBytes {
 			depGraphMap[fmt.Sprintf("%s_%d.snykdepgraph", path+"/", i)] = depGraph
 		}
 	}
