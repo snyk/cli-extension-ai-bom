@@ -108,6 +108,35 @@ func TestAnalyze_BundleHTTPError(t *testing.T) {
 	assert.Nil(t, resp)
 }
 
+func TestAnalyze_DepgraphUploadError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRT := httpmock.NewMockRoundTripper(ctrl)
+
+	clientFactory := func() *http.Client {
+		return &http.Client{
+			Transport: mockRT,
+		}
+	}
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	codeService := code.NewCodeServiceImpl()
+
+	depGraphMap := map[string][]byte{"/0.snykdepgraph": []byte("foo")}
+
+	mockFiltersSuccess(mockRT)
+	mockBundleSuccess(mockRT)
+	mockBundleDepgraphsFailure(mockRT)
+
+	resp, _, err := codeService.Analyze(getDir(), depGraphMap, clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
+
+	assert.Nil(t, resp)
+	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
+	assertSnykError(t, "failed to update bundle with depgraphs: Put \"/bundle/my-bundle-hash\": depgraphs error", err.SnykError)
+}
+
 func TestAnalyze_AuthenticationError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -338,6 +367,10 @@ func mockBundleDepgraphsSuccess(mockRT *httpmock.MockRoundTripper) {
 			}, nil
 		},
 	).Times(1)
+}
+
+func mockBundleDepgraphsFailure(mockRT *httpmock.MockRoundTripper) {
+	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPut, "/bundle/my-bundle-hash")).Return(nil, fmt.Errorf("depgraphs error")).Times(1)
 }
 
 func mockEmptyBundle(mockRT *httpmock.MockRoundTripper) {
