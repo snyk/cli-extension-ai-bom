@@ -37,7 +37,11 @@ func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) 
 	return RunAiBomWorkflow(invocationCtx, codeService, depGraphService)
 }
 
-func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code.CodeService, depGraphService depgraph.DepgraphService) ([]workflow.Data, error) {
+func RunAiBomWorkflow(
+	invocationCtx workflow.InvocationContext,
+	codeService code.CodeService,
+	depgraphService depgraph.DepgraphService,
+) ([]workflow.Data, error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
 
@@ -53,7 +57,7 @@ func RunAiBomWorkflow(invocationCtx workflow.InvocationContext, codeService code
 
 	logger.Debug().Msg("AI BOM workflow start")
 
-	depGraphResult, err := depGraphService.GetDepgraph(invocationCtx)
+	depGraphResult, err := depgraphService.GetDepgraph(invocationCtx)
 	if err != nil {
 		// We just log a warning here; no return as we want to still proceed even without depgraphs.
 		logger.Warn().Msg("Failed to get the depgraph")
