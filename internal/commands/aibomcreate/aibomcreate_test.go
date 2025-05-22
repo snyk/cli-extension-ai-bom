@@ -60,6 +60,29 @@ func TestAiBomWorkflow_HAPPY(t *testing.T) {
 	assert.Equal(t, exampleAIBOM, string(actual))
 }
 
+func TestAiBomWorkflow_HTML(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ctrl := gomock.NewController(t)
+	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
+	ictx.GetConfiguration().Set(utils.FlagHTML, true)
+	mockCodeService := codemock.NewMockCodeService(ctrl)
+	mockDepgraphService := depgraphmock.NewMockDepgraphService(ctrl)
+
+	mockDepgraphService.EXPECT().GetDepgraph(gomock.Any()).Times(1).Return(&depgraph.DepgraphResult{}, nil)
+	sarif := code.Sarif{Runs: []code.SarifRun{{Results: []code.SarifResult{{Message: code.SarifMessage{Text: exampleAIBOM}}}}}}
+	mockCodeService.EXPECT().Analyze(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
+		Return(&code.AnalysisResponse{Sarif: sarif}, nil, nil)
+
+	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService)
+	assert.Nil(t, err)
+	assert.Len(t, workflowData, 1)
+	aiBom := workflowData[0].GetPayload()
+	actual, ok := aiBom.([]byte)
+	assert.True(t, ok)
+	assert.Contains(t, string(actual), "<!DOCTYPE html>")
+	assert.Contains(t, string(actual), exampleAIBOM)
+}
+
 func TestAiBomWorkflow_DEPGRAPH_FAIL(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ctrl := gomock.NewController(t)
