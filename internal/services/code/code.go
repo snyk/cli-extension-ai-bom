@@ -284,6 +284,10 @@ func getFilesForPath(path string, logger *zerolog.Logger, maxThreads int) (<-cha
 	filter := frameworkUtils.NewFileFilter(path, logger, frameworkUtils.WithThreadNumber(maxThreads))
 
 	rules, err := filter.GetRules([]string{".gitignore", ".dcignore", ".snyk"})
+	// There seems to be an issue with GetRules where .snyk files are not being excluded.
+	// We can manually add this glob rule as a stop-gap.
+	rules = append(rules, "**/.[Ss][Nn][Yy][Kk]/**")
+	logger.Debug().Strs("filter_rules", rules).Msg("File filter rules")
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get file filter rules: %w", err)
 	}
