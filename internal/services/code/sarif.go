@@ -5,6 +5,8 @@ type SarifMessage struct {
 }
 
 type SarifResult struct {
+	RuleID  string       `json:"ruleId"`
+	Level   string       `json:"level"`
 	Message SarifMessage `json:"message"`
 }
 
