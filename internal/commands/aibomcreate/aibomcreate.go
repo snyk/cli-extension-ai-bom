@@ -127,7 +127,8 @@ func extractAiBomFromResult(response *code.AnalysisResponse, logger *zerolog.Log
 		if strings.Contains(result.Message.Text, "bomFormat") {
 			aiBomResults = append(aiBomResults, result)
 		} else {
-			logger.Warn().Msgf("unexpected result level: %s, ruleId: %s, message: %s", result.Level, result.RuleID, result.Message.Text)
+			logger.Warn().Msgf("unexpected result - level: %s, ruleId: %s, files: %s, message: %s",
+				result.Level, result.RuleID, buildLocationURIs(result.Locations), result.Message.Text)
 		}
 	}
 	if len(aiBomResults) != 1 {
@@ -135,6 +136,17 @@ func extractAiBomFromResult(response *code.AnalysisResponse, logger *zerolog.Log
 		return "", goErrors.New("Failed to extract AI-BOM from result.")
 	}
 	return aiBomResults[0].Message.Text, nil
+}
+
+func buildLocationURIs(locations []code.SarifLocation) string {
+	var uris []string
+	for _, loc := range locations {
+		uri := loc.PhysicalLocation.ArtifactLocation.URI
+		if uri != "" {
+			uris = append(uris, uri)
+		}
+	}
+	return strings.Join(uris, ", ")
 }
 
 //nolint:ireturn // Unable to change return type of external library
