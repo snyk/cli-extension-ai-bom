@@ -48,6 +48,11 @@ func TestAnalyze_Happy(t *testing.T) {
 	mockFiltersSuccess(mockRT)
 	mockBundleSuccess(mockRT)
 	mockBundleDepgraphsSuccess(mockRT)
+	mockAnalysisInProgress(mockRT, code.AnalysisStatusProgress)
+	mockAnalysisInProgress(mockRT, code.AnalysisStatusFetching)
+	mockAnalysisInProgress(mockRT, code.AnalysisStatusParsing)
+	mockAnalysisInProgress(mockRT, code.AnalysisStatusWaiting)
+	mockAnalysisInProgress(mockRT, code.AnalysisStatusAnalyzing)
 	mockAnalysisSuccess(mockRT)
 
 	resp, _, err := codeService.Analyze(getDir(), depGraphMap, clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
@@ -296,7 +301,7 @@ func TestAnalyze_AnalysisFailure(t *testing.T) {
 	resp, _, err := codeService.Analyze(getDir(), make(map[string][]byte), clientFactory, logger, ictx.GetConfiguration(), ictx.GetUserInterface())
 
 	assert.Equal(t, "SNYK-AI-BOM-0001", err.SnykError.ErrorCode)
-	assertSnykError(t, "Analysis has completed with status: FAILED.", err.SnykError)
+	assertSnykError(t, "Analysis has ended with status: FAILED.", err.SnykError)
 	assert.Nil(t, resp)
 }
 
@@ -388,6 +393,26 @@ func mockEmptyBundle(mockRT *httpmock.MockRoundTripper) {
 
 func mockBundleHTTPError(mockRT *httpmock.MockRoundTripper, err error) {
 	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/bundle")).Return(nil, err).Times(1)
+}
+
+func mockAnalysisInProgress(mockRT *httpmock.MockRoundTripper, status string) {
+	mockRT.EXPECT().RoundTrip(httpmock.ForRequest(http.MethodPost, "/analysis")).DoAndReturn(
+		func(r *http.Request) (*http.Response, error) {
+			if !checkRequestBundleHash(r, "my-new-bundle-hash") {
+				return nil, fmt.Errorf("bundle hash does not match expected value")
+			}
+			bodyBytes, _ := json.Marshal(code.AnalysisResponse{Status: status})
+			body := string(bodyBytes)
+
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(body)),
+				Header:     make(http.Header),
+			}
+			resp.Header.Set("Content-Type", "application/json")
+			return resp, nil
+		},
+	).Times(1)
 }
 
 func mockAnalysisSuccess(mockRT *httpmock.MockRoundTripper) {

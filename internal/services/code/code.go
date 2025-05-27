@@ -59,6 +59,9 @@ const (
 	AnalysisStatusComplete    = "COMPLETE"
 	AnalysisStatusAnalyzing   = "ANALYZING"
 	AnalysisStatusProgress    = "PROGRESS"
+	AnalysisStatusFetching    = "FETCHING"
+	AnalysisStatusParsing     = "PARSING"
+	AnalysisStatusStarting    = "STARTING"
 	AnalysisStatusWaiting     = "WAITING"
 	AnalysisStatusNotStarted  = "NOT_STARTED"
 )
@@ -128,17 +131,20 @@ func (cs *CodeServiceImpl) pollForAnalysis(
 
 	var resultMetaData *scan.ResultMetaData
 
-	// Poll until analysis status is failed or complete
+	// Poll until analysis status is unhealthy
 	analysisResp := AnalysisResponse{Status: AnalysisStatusNotStarted}
 	postURL := fmt.Sprintf("%s/analysis", SnykCodeAPI(config))
 	numberOfPolls := 0
 	ctx := context.Background()
 
-	healthyStatus := map[string]struct{}{
+	healthyStatuses := map[string]struct{}{
 		AnalysisStatusComplete:  {},
 		AnalysisStatusProgress:  {},
 		AnalysisStatusWaiting:   {},
 		AnalysisStatusAnalyzing: {},
+		AnalysisStatusFetching:  {},
+		AnalysisStatusParsing:   {},
+		AnalysisStatusStarting:  {},
 	}
 
 	for numberOfPolls <= cs.maxNumberOfPolls {
@@ -178,8 +184,8 @@ func (cs *CodeServiceImpl) pollForAnalysis(
 			return nil, nil, errors.NewInternalError("Error while building response for analysis.")
 		}
 		logger.Debug().Msg(fmt.Sprintf("analysis status: %s, SARIF received", analysisResp.Status))
-		if _, found := healthyStatus[analysisResp.Status]; !found {
-			return nil, nil, errors.NewInternalError(fmt.Sprintf("Analysis has completed with status: %s.", analysisResp.Status))
+		if _, found := healthyStatuses[analysisResp.Status]; !found {
+			return nil, nil, errors.NewInternalError(fmt.Sprintf("Analysis has ended with status: %s.", analysisResp.Status))
 		}
 		if analysisResp.Status == AnalysisStatusComplete {
 			logger.Debug().Msg("analysis is complete")
