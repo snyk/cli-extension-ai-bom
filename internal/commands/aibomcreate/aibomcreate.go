@@ -122,11 +122,31 @@ func extractAiBomFromResult(response *code.AnalysisResponse, logger *zerolog.Log
 		logger.Debug().Msgf("Failed to extract AI-BOM from result, %d runs in result, expected 1", len(response.Sarif.Runs))
 		return "", goErrors.New("Failed to extract AI-BOM from result.")
 	}
-	if len(response.Sarif.Runs[0].Results) != 1 {
-		logger.Debug().Msgf("Failed to extract AI-BOM from result, %d results in Runs[0], expected 1", len(response.Sarif.Runs[0].Results))
+	var aiBomResults []code.SarifResult
+	for _, result := range response.Sarif.Runs[0].Results {
+		if strings.Contains(result.Message.Text, "bomFormat") {
+			aiBomResults = append(aiBomResults, result)
+		} else {
+			logger.Warn().Msgf("unexpected result - level: %s, ruleId: %s, files: %s, message: %s",
+				result.Level, result.RuleID, buildLocationURIs(result.Locations), result.Message.Text)
+		}
+	}
+	if len(aiBomResults) != 1 {
+		logger.Debug().Msgf("Failed to extract AI-BOM from result, %d results in Runs[0], expected 1", len(aiBomResults))
 		return "", goErrors.New("Failed to extract AI-BOM from result.")
 	}
-	return response.Sarif.Runs[0].Results[0].Message.Text, nil
+	return aiBomResults[0].Message.Text, nil
+}
+
+func buildLocationURIs(locations []code.SarifLocation) string {
+	var uris []string
+	for _, loc := range locations {
+		uri := loc.PhysicalLocation.ArtifactLocation.URI
+		if uri != "" {
+			uris = append(uris, uri)
+		}
+	}
+	return strings.Join(uris, ", ")
 }
 
 //nolint:ireturn // Unable to change return type of external library

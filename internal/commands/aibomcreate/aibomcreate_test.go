@@ -105,6 +105,30 @@ func TestAiBomWorkflow_DEPGRAPH_FAIL(t *testing.T) {
 	assert.Equal(t, exampleAIBOM, string(actual))
 }
 
+func TestAiBomWorkflow_ERROR_IN_SARIF(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ctrl := gomock.NewController(t)
+	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
+	mockCodeService := codemock.NewMockCodeService(ctrl)
+	mockDepgraphService := depgraphmock.NewMockDepgraphService(ctrl)
+
+	mockDepgraphService.EXPECT().GetDepgraph(gomock.Any()).Times(1).Return(&depgraph.DepgraphResult{}, nil)
+	sarif := code.Sarif{Runs: []code.SarifRun{{Results: []code.SarifResult{
+		{Message: code.SarifMessage{Text: exampleAIBOM}},
+		{Message: code.SarifMessage{Text: "error"}},
+	}}}}
+	mockCodeService.EXPECT().Analyze(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
+		Return(&code.AnalysisResponse{Sarif: sarif}, nil, nil)
+
+	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService)
+	assert.Nil(t, err)
+	assert.Len(t, workflowData, 1)
+	aiBom := workflowData[0].GetPayload()
+	actual, ok := aiBom.([]byte)
+	assert.True(t, ok)
+	assert.Equal(t, exampleAIBOM, string(actual))
+}
+
 func TestAiBomWorkflow_ANALYSIS_FAIL(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
