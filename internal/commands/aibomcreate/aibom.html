@@ -454,6 +454,9 @@
         "machine-learning-model": "#32D74B",
         agent: "#11FFF8",
         tool: "#FF9F0A",
+        mcp_server: "#11FFF8",
+        mcp_client: "#11FFF8",
+        mcp_resource: "#FF9F0A",
         prompt: "#5856D6",
       };
       return colors[type] || "#fff";
@@ -481,6 +484,9 @@
         agent: "Agent",
         tool: "Tool",
         prompt: "Prompt",
+        mcp_server: "MCP Server",
+        mcp_client: "MCP Client",
+        mcp_resource: "MCP Resource",
       };
       return (
         labels[type] ||
@@ -494,15 +500,17 @@
     }
 
     function componentToType(component) {
+      const idPrefixToType = [
+        ["tool:", "tool"],
+        ["agent:", "agent"],
+        ["mcp-client:", "mcp_client"],
+        ["mcp-server:", "mcp_server"],
+        ["mcp-resource:", "mcp_resource"],
+        ["prompt:", "prompt"],
+      ];
       const id = component.id ?? component["bom-ref"] ?? "";
-      if (id.startsWith("tool:")) {
-        return "tool";
-      }
-      if (id.startsWith("agent:")) {
-        return "agent";
-      }
-      if (id.startsWith("prompt:")) {
-        return "prompt";
+      for (const [prefix, type] of idPrefixToType) {
+        if (id.startsWith(prefix)) return type;
       }
       return component.type;
     }
