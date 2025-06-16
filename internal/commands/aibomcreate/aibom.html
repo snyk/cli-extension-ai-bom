@@ -448,16 +448,26 @@
     }
 
     function getColor(type) {
+      const blue = "#3393F2";
+      const red = "#FF4F44";
+      const green = "#32D74B";
+      const cyan = "#11FFF8";
+      const indigo = "#5856D6";
+      const purple = "#CC65FF";
+      const pink = "#FF76F1";
+      const orange = "#FF9F0A";
+      const yolk = "#EBC816";
+      const yellow = "#E1FF00";
       const colors = {
-        data: "#3393F2",
-        library: "#CC65FF",
-        "machine-learning-model": "#32D74B",
-        agent: "#11FFF8",
-        tool: "#FF9F0A",
-        mcp_server: "#11FFF8",
-        mcp_client: "#11FFF8",
-        mcp_resource: "#FF9F0A",
-        prompt: "#5856D6",
+        data: cyan,
+        library: purple,
+        "machine-learning-model": green,
+        agent: blue,
+        tool: orange,
+        mcp_server: indigo,
+        mcp_client: blue,
+        mcp_resource: yolk,
+        prompt: indigo,
       };
       return colors[type] || "#fff";
     }
@@ -527,12 +537,16 @@
     }
 
     function getNodes(bom) {
+      function componentName(component) {
+        return component.version
+            ? `${component.name}@${component.version}`
+            : component.name;
+      }
       return (bom.components || []).map((component) => ({
         data: {
           id: getNodeId(component),
-          label: component.version
-            ? `${component.name}@${component.version}`
-            : component.name,
+          label: componentName(component),
+          content: `${getLabel(componentToType(component))}: ${componentName(component)}`,
           type: componentToType(component),
         },
       }));
@@ -608,7 +622,7 @@
             selector: "node",
             style: {
               label: "data(label)",
-              content: "data(label)",
+              content: "data(content)",
               "font-size": "16px",
               "font-family": "Space Grotesk",
               "text-valign": "bottom",
@@ -626,7 +640,7 @@
               "text-background-opacity": "1",
               "text-background-shape": "round-rectangle",
               "text-background-padding": "4px",
-              "text-max-width": "120px",
+              "text-max-width": "300px",
               "text-wrap": "ellipsis",
               "text-border-color": "rgba(9, 17, 37)",
               "text-border-width": "2px",
@@ -869,6 +883,19 @@
       });
     }
 
+    const legendTypeOrder = [
+      "application",
+      "machine-learning-model",
+      "data",
+      "library",
+      "agent",
+      "mcp_client",
+      "mcp_server",
+      "mcp_resource",
+      "tool",
+      "prompt",
+    ];
+
     function updateLegend() {
       if (!cy) {
         return;
@@ -880,7 +907,22 @@
       legend.innerHTML = "";
 
       const types = cy.nodes().map((node) => node.data("type"));
-      for (const type of [...new Set(types)].sort()) {
+      const sortedTypes = [...new Set(types)].sort((a, b) => {
+          const indexA = legendTypeOrder.indexOf(a);
+          const indexB = legendTypeOrder.indexOf(b);
+
+          if (indexA === -1 && indexB === -1) {
+            return a.localeCompare(b); // Both not in order, sort alphabetically
+          }
+          if (indexA === -1) {
+            return 1; // a is not in order, b is, so b comes first
+          }
+          if (indexB === -1) {
+            return -1; // b is not in order, a is, so a comes first
+          }
+          return indexA - indexB; // Both in order, sort by custom order
+        });
+      for (const type of sortedTypes) {
         const label = document.createElement("label");
         legend.appendChild(label);
 
