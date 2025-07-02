@@ -255,7 +255,10 @@ func uploadBundle(requestID,
 		}
 	}
 
-	return bundle.GetBundleHash(), nil
+	bundleHash := bundle.GetBundleHash()
+
+	logger.Debug().Msgf("BundleHash: %s", bundleHash)
+	return bundleHash, nil
 }
 
 func SnykCodeAPI(config configuration.Configuration) string {
