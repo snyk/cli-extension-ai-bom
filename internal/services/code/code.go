@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-uuid"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	codeclient "github.com/snyk/code-client-go"
 	codebundle "github.com/snyk/code-client-go/bundle"
@@ -37,6 +37,14 @@ type CodeService interface {
 		config configuration.Configuration,
 		userInterface ui.UserInterface,
 	) (*AnalysisResponse, *scan.ResultMetaData, *errors.AiBomError)
+	UploadBundle(
+		path string,
+		depgraphs map[string][]byte,
+		httpClient codeclienthttp.HTTPClient,
+		logger *zerolog.Logger,
+		config configuration.Configuration,
+		userInterface ui.UserInterface,
+	) (string, *errors.AiBomError)
 }
 
 // CodeServiceImpl is an implementation of our CodeService using open telemetry.
@@ -66,6 +74,33 @@ const (
 	AnalysisStatusNotStarted  = "NOT_STARTED"
 )
 
+func (cs *CodeServiceImpl) UploadBundle(
+	path string,
+	depgraphs map[string][]byte,
+	httpClient codeclienthttp.HTTPClient,
+	logger *zerolog.Logger,
+	config configuration.Configuration,
+	userInterface ui.UserInterface,
+) (string, *errors.AiBomError) {
+	bundleHash, err := uploadBundle(path, depgraphs, httpClient, logger, config, userInterface)
+	if err != nil {
+		logger.Debug().Err(err).Msg("error while uploading file bundle")
+		if strings.Contains(strings.ToLower(err.Error()), "authentication") {
+			return "", errors.NewUnauthorizedError("Upload failed with authentication error.")
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "no files to scan") {
+			return "", errors.NewNoSupportedFilesError()
+		}
+		return "", errors.NewInternalError(err.Error())
+	}
+	if bundleHash == "" {
+		logger.Debug().Msg("empty bundle hash to upload file bundle")
+		return "", errors.NewNoSupportedFilesError()
+	}
+	logger.Debug().Msg("successfully uploaded file bundle")
+	return bundleHash, nil
+}
+
 func (cs *CodeServiceImpl) Analyze(
 	path string,
 	depgraphs map[string][]byte,
@@ -78,13 +113,7 @@ func (cs *CodeServiceImpl) Analyze(
 		httpClientFunc,
 		codeclienthttp.WithLogger(logger),
 	)
-	requestID, err := uuid.GenerateUUID()
-	if err != nil {
-		logger.Debug().Err(err).Msg("error generating requestID")
-		return nil, nil, errors.NewInternalError("Error generating requestID.")
-	}
-	logger.Debug().Msgf("Request ID: %s", requestID)
-	bundleHash, err := uploadBundle(requestID, path, depgraphs, httpClient, logger, config, userInterface)
+	bundleHash, err := uploadBundle(path, depgraphs, httpClient, logger, config, userInterface)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error while uploading file bundle")
 		if strings.Contains(strings.ToLower(err.Error()), "authentication") {
@@ -198,7 +227,7 @@ func (cs *CodeServiceImpl) pollForAnalysis(
 	return nil, nil, errors.NewInternalError("Analysis polling timed out.")
 }
 
-func uploadBundle(requestID,
+func uploadBundle(
 	path string,
 	depgraphs map[string][]byte,
 	httpClient codeclienthttp.HTTPClient,
@@ -206,6 +235,8 @@ func uploadBundle(requestID,
 	config configuration.Configuration,
 	userInterface ui.UserInterface,
 ) (string, error) {
+	requestID := uuid.NewString()
+	logger.Debug().Msgf("Request ID: %s", requestID)
 	ctx := context.Background()
 
 	progressFactory := ProgressTrackerFactory{

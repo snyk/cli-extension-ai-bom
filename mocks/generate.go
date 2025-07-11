@@ -7,3 +7,4 @@ package mocks
 // Local library mocks
 //go:generate mockgen -package codemock -destination codemock/code_mock.go github.com/snyk/cli-extension-ai-bom/internal/services/code CodeService
 //go:generate mockgen -package depgraphmock -destination depgraphmock/depgraph_mock.go github.com/snyk/cli-extension-ai-bom/internal/services/depgraph DepgraphService
+//go:generate mockgen -package aibomclientmock -destination aibomclientmock/client_mock.go github.com/snyk/cli-extension-ai-bom/internal/services/ai-bom-client AiBomClient
