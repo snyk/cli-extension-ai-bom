@@ -70,6 +70,7 @@ linters-settings:
     default-signifies-exhaustive: true
   goconst:
     ignore-calls: false
+    min-occurrences: 5
   gocritic:
     enabled-tags:
       - diagnostic
