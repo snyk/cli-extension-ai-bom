@@ -11,8 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	aibom_errors "github.com/snyk/error-catalog-golang-public/aibom"
-	snyk_common_errors "github.com/snyk/error-catalog-golang-public/snyk"
+	internal_errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
 
 	aibomclient "github.com/snyk/cli-extension-ai-bom/internal/services/ai-bom-client"
 	"github.com/snyk/cli-extension-ai-bom/mocks/frameworkmock"
@@ -123,60 +122,56 @@ func TestGenerateAIBOM_Happy(t *testing.T) {
 }
 
 // CreateAIBOM tests.
-func TestGenerateAIBOM_CreateAIBOMUnauthorized(t *testing.T) {
-	// Create a test server that returns 401
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isCreateAIBOMReq(r) {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(http.StatusText(http.StatusUnauthorized)))
-		}
-	}))
-	defer server.Close()
+func TestGenerateAIBOM_CreateAIBOMAuthErrors(t *testing.T) {
+	tests := []struct {
+		name               string
+		statusCode         int
+		expectedErrorCode  string
+		expectedStatusText string
+	}{
+		{
+			name:               "Unauthorized",
+			statusCode:         http.StatusUnauthorized,
+			expectedErrorCode:  internal_errors.NewUnauthorizedError("").SnykError.ErrorCode,
+			expectedStatusText: "401",
+		},
+		{
+			name:               "Forbidden",
+			statusCode:         http.StatusForbidden,
+			expectedErrorCode:  internal_errors.NewForbiddenError("").SnykError.ErrorCode,
+			expectedStatusText: "403",
+		},
+	}
 
-	logger := loggermock.NewNoOpLogger()
-	ictx := frameworkmock.NewMockInvocationContext(t)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a test server that returns the specified status code
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if isCreateAIBOMReq(r) {
+					w.WriteHeader(tc.statusCode)
+					w.Write([]byte(http.StatusText(tc.statusCode)))
+				}
+			}))
+			defer server.Close()
 
-	client := aibomclient.NewAiBomClient(
-		logger,
-		ictx.GetUserInterface(),
-		userAgent,
-		server.URL,
-		token,
-	)
+			logger := loggermock.NewNoOpLogger()
+			ictx := frameworkmock.NewMockInvocationContext(t)
 
-	result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
+			client := aibomclient.NewAiBomClient(
+				logger,
+				ictx.GetUserInterface(),
+				userAgent,
+				server.URL,
+				token,
+			)
 
-	assert.Equal(t, "", result)
-	assert.Equal(t, snyk_common_errors.NewUnauthorisedError("").ErrorCode, err.SnykError.ErrorCode)
-	assert.Contains(t, err.SnykError.Detail, "expected status code 202 but got 401")
-}
+			result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
 
-func TestGenerateAIBOM_CreateAIBOMForbidden(t *testing.T) {
-	// Create a test server that returns 403
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isCreateAIBOMReq(r) {
-			w.WriteHeader(http.StatusForbidden)
-			w.Write([]byte(http.StatusText(http.StatusForbidden)))
-		}
-	}))
-	defer server.Close()
-
-	logger := loggermock.NewNoOpLogger()
-	ictx := frameworkmock.NewMockInvocationContext(t)
-
-	client := aibomclient.NewAiBomClient(
-		logger,
-		ictx.GetUserInterface(),
-		userAgent,
-		server.URL,
-		token,
-	)
-
-	result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
-
-	assert.Equal(t, "", result)
-	assert.Equal(t, aibom_errors.NewForbiddenError("").ErrorCode, err.SnykError.ErrorCode)
-	assert.Contains(t, err.SnykError.Detail, "expected status code 202 but got 403")
+			assert.Equal(t, "", result)
+			assert.Equal(t, tc.expectedErrorCode, err.SnykError.ErrorCode)
+			assert.Contains(t, err.SnykError.Detail, "expected status code 202 but got "+tc.expectedStatusText)
+		})
+	}
 }
 
 func TestGenerateAIBOM_CreateAIBOMHTTPError(t *testing.T) {
@@ -204,7 +199,7 @@ func TestGenerateAIBOM_CreateAIBOMHTTPError(t *testing.T) {
 	result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
 
 	assert.Equal(t, "", result)
-	assert.Equal(t, aibom_errors.NewInternalError("").ErrorCode, err.SnykError.ErrorCode)
+	assert.Equal(t, internal_errors.NewInternalError("").SnykError.ErrorCode, err.SnykError.ErrorCode)
 	assert.Contains(t, err.SnykError.Detail, "CreateAIBOM request HTTP error")
 }
 
@@ -255,7 +250,7 @@ func TestGenerateAIBOM_JobErrored(t *testing.T) {
 	result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
 
 	assert.Equal(t, "", result)
-	assert.Equal(t, aibom_errors.NewInternalError("").ErrorCode, err.SnykError.ErrorCode)
+	assert.Equal(t, internal_errors.NewInternalError("").SnykError.ErrorCode, err.SnykError.ErrorCode)
 	assert.Contains(t, err.SnykError.Detail, "Job is in errored state")
 }
 
@@ -302,7 +297,7 @@ func TestGenerateAIBOM_PollForAIBOMHTTPError(t *testing.T) {
 	result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
 
 	assert.Equal(t, "", result)
-	assert.Equal(t, aibom_errors.NewInternalError("").ErrorCode, err.SnykError.ErrorCode)
+	assert.Equal(t, internal_errors.NewInternalError("").SnykError.ErrorCode, err.SnykError.ErrorCode)
 	assert.Contains(t, err.SnykError.Detail, "GetAIBOMJob request HTTP error")
 }
 
@@ -317,19 +312,19 @@ func TestGenerateAIBOM_PollForAIBOMAuthAndNotFoundErrors(t *testing.T) {
 		{
 			name:           "Unauthorized",
 			statusCode:     http.StatusUnauthorized,
-			expectedErr:    snyk_common_errors.NewUnauthorisedError("").ErrorCode,
+			expectedErr:    internal_errors.NewUnauthorizedError("").SnykError.ErrorCode,
 			expectedDetail: "expected status code 200 or 303 but got 401",
 		},
 		{
 			name:           "Forbidden",
 			statusCode:     http.StatusForbidden,
-			expectedErr:    aibom_errors.NewForbiddenError("").ErrorCode,
+			expectedErr:    internal_errors.NewForbiddenError("").SnykError.ErrorCode,
 			expectedDetail: "expected status code 200 or 303 but got 403",
 		},
 		{
 			name:           "NotFound",
 			statusCode:     http.StatusNotFound,
-			expectedErr:    aibom_errors.NewInternalError("").ErrorCode,
+			expectedErr:    internal_errors.NewInternalError("").SnykError.ErrorCode,
 			expectedDetail: "expected status code 200 or 303 but got 404",
 		},
 	}
@@ -443,7 +438,7 @@ func TestGenerateAIBOM_GetAIBOMHTTPError(t *testing.T) {
 	result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
 
 	assert.Equal(t, "", result)
-	assert.Equal(t, aibom_errors.NewInternalError("").ErrorCode, err.SnykError.ErrorCode)
+	assert.Equal(t, internal_errors.NewInternalError("").SnykError.ErrorCode, err.SnykError.ErrorCode)
 	assert.Contains(t, err.SnykError.Detail, "GetAIBOM request HTTP error")
 }
 
@@ -458,19 +453,19 @@ func TestGenerateAIBOM_GetAIBOMAuthErrors(t *testing.T) {
 		{
 			name:           "Forbidden",
 			statusCode:     http.StatusForbidden,
-			expectedErr:    aibom_errors.NewForbiddenError("").ErrorCode,
+			expectedErr:    internal_errors.NewForbiddenError("").SnykError.ErrorCode,
 			expectedDetail: "expected status code 200 but got 403",
 		},
 		{
 			name:           "Unauthorized",
 			statusCode:     http.StatusUnauthorized,
-			expectedErr:    snyk_common_errors.NewUnauthorisedError("").ErrorCode,
+			expectedErr:    internal_errors.NewUnauthorizedError("").SnykError.ErrorCode,
 			expectedDetail: "expected status code 200 but got 401",
 		},
 		{
 			name:           "NotFound",
 			statusCode:     http.StatusNotFound,
-			expectedErr:    aibom_errors.NewInternalError("").ErrorCode,
+			expectedErr:    internal_errors.NewInternalError("").SnykError.ErrorCode,
 			expectedDetail: "expected status code 200 but got 404",
 		},
 	}
