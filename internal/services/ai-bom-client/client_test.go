@@ -32,7 +32,6 @@ func isGetAIBOMReq(r *http.Request) bool {
 
 const (
 	userAgent  = "test-user-agent"
-	token      = "test-token"
 	orgID      = "test-org-id"
 	bundleHash = "test-bundle-hash"
 )
@@ -109,10 +108,10 @@ func TestGenerateAIBOM_Happy(t *testing.T) {
 
 	client := aibomclient.NewAiBomClient(
 		logger,
+		ictx.GetNetworkAccess().GetHttpClient(),
 		ictx.GetUserInterface(),
 		userAgent,
 		server.URL, // Use the test server URL
-		token,
 	)
 
 	result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
@@ -159,10 +158,10 @@ func TestGenerateAIBOM_CreateAIBOMAuthErrors(t *testing.T) {
 
 			client := aibomclient.NewAiBomClient(
 				logger,
+				ictx.GetNetworkAccess().GetHttpClient(),
 				ictx.GetUserInterface(),
 				userAgent,
 				server.URL,
-				token,
 			)
 
 			result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
@@ -190,10 +189,10 @@ func TestGenerateAIBOM_CreateAIBOMHTTPError(t *testing.T) {
 
 	client := aibomclient.NewAiBomClient(
 		logger,
+		ictx.GetNetworkAccess().GetHttpClient(),
 		ictx.GetUserInterface(),
 		userAgent,
 		server.URL,
-		token,
 	)
 
 	result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
@@ -241,10 +240,10 @@ func TestGenerateAIBOM_JobErrored(t *testing.T) {
 
 	client := aibomclient.NewAiBomClient(
 		logger,
+		ictx.GetNetworkAccess().GetHttpClient(),
 		ictx.GetUserInterface(),
 		userAgent,
 		server.URL,
-		token,
 	)
 
 	result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
@@ -288,10 +287,10 @@ func TestGenerateAIBOM_PollForAIBOMHTTPError(t *testing.T) {
 
 	client := aibomclient.NewAiBomClient(
 		logger,
+		ictx.GetNetworkAccess().GetHttpClient(),
 		ictx.GetUserInterface(),
 		userAgent,
 		server.URL,
-		token,
 	)
 
 	result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
@@ -360,10 +359,10 @@ func TestGenerateAIBOM_PollForAIBOMAuthAndNotFoundErrors(t *testing.T) {
 
 			client := aibomclient.NewAiBomClient(
 				logger,
+				ictx.GetNetworkAccess().GetHttpClient(),
 				ictx.GetUserInterface(),
 				userAgent,
 				server.URL,
-				token,
 			)
 
 			result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
@@ -429,10 +428,10 @@ func TestGenerateAIBOM_GetAIBOMHTTPError(t *testing.T) {
 
 	client := aibomclient.NewAiBomClient(
 		logger,
+		ictx.GetNetworkAccess().GetHttpClient(),
 		ictx.GetUserInterface(),
 		userAgent,
 		server.URL,
-		token,
 	)
 
 	result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)
@@ -520,10 +519,10 @@ func TestGenerateAIBOM_GetAIBOMAuthErrors(t *testing.T) {
 
 			client := aibomclient.NewAiBomClient(
 				logger,
+				ictx.GetNetworkAccess().GetHttpClient(),
 				ictx.GetUserInterface(),
 				userAgent,
 				server.URL,
-				token,
 			)
 
 			result, err := client.GenerateAIBOM(context.Background(), orgID, bundleHash)

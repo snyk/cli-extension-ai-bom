@@ -29,7 +29,6 @@ type AiBomClient interface {
 type AIBOMClientImpl struct {
 	userAgent     string
 	baseURL       string
-	authToken     string
 	httpClient    *http.Client
 	logger        *zerolog.Logger
 	userInterface ui.UserInterface
@@ -44,12 +43,11 @@ const (
 
 func NewAiBomClient(
 	logger *zerolog.Logger,
+	httpClient *http.Client,
 	userInterface ui.UserInterface,
-	userAgent,
-	baseURL,
-	authToken string,
+	userAgent string,
+	baseURL string,
 ) *AIBOMClientImpl {
-	httpClient := http.Client{}
 	httpClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		// Return http.ErrUseLastResponse to not follow redirects
 		return http.ErrUseLastResponse
@@ -57,8 +55,7 @@ func NewAiBomClient(
 	return &AIBOMClientImpl{
 		userAgent:     userAgent,
 		baseURL:       baseURL,
-		authToken:     authToken,
-		httpClient:    &httpClient,
+		httpClient:    httpClient,
 		logger:        logger,
 		userInterface: userInterface,
 	}
@@ -363,7 +360,6 @@ func (c *AIBOMClientImpl) setCommonHeaders(url string, req *http.Request) {
 	requestID := uuid.New().String()
 	c.logger.Debug().Msgf("making ai-bom api request to url: %s, requestId: %s", url, requestID)
 	req.Header.Set("snyk-request-id", requestID)
-	req.Header.Set("Authorization", "token "+c.authToken)
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("Content-Type", "application/vnd.api+json")
 }

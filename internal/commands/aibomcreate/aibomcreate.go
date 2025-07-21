@@ -45,9 +45,7 @@ func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) 
 	ui := invocationCtx.GetUserInterface()
 	config := invocationCtx.GetConfiguration()
 	baseAPIURL := config.GetString(configuration.API_URL)
-	token := config.GetString(configuration.AUTHENTICATION_TOKEN)
-
-	aiBomClient := aiBomClient.NewAiBomClient(logger, ui, userAgent, baseAPIURL, token)
+	aiBomClient := aiBomClient.NewAiBomClient(logger, invocationCtx.GetNetworkAccess().GetHttpClient(), ui, userAgent, baseAPIURL)
 	return RunAiBomWorkflow(invocationCtx, codeService, depGraphService, aiBomClient)
 }
 
