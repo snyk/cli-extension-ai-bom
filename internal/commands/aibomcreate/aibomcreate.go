@@ -103,7 +103,7 @@ func RunAiBomWorkflow(
 	orgID := config.GetString(configuration.ORGANIZATION)
 	aiBomDoc, aiBomErr := aiBomClient.GenerateAIBOM(ctx, orgID, bundleHash)
 	if aiBomErr != nil {
-		logger.Debug().Err(aiBomErr.SnykError).Msg("error while generating AIBOM")
+		logger.Debug().Err(aiBomErr.SnykError).Msg("error while generating AI-BOM")
 		return nil, aiBomErr.SnykError
 	}
 	logger.Debug().Msg("Successfully generated AI BOM document.")

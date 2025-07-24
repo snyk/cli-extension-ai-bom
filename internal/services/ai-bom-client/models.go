@@ -103,7 +103,7 @@ type ErrorLink struct {
 
 // FileBundleStoreAttributes defines model for FileBundleStoreAttributes.
 type FileBundleStoreAttributes struct {
-	// BundleId The id of the bundle that has been uploaded by the user
+	// BundleId The id of the bundle that has been uploaded by the user, sha256 hash
 	BundleId string `json:"bundle_id"`
 }
 
@@ -218,7 +218,7 @@ type RelationshipObjectToOneData struct {
 
 // SCMBundleStoreAttributes defines model for SCMBundleStoreAttributes.
 type SCMBundleStoreAttributes struct {
-	TargetId string `json:"target_id"`
+	TargetId openapi_types.UUID `json:"target_id"`
 
 	// TargetVersion The branch or commit hash to scan
 	TargetVersion *string `json:"target_version,omitempty"`

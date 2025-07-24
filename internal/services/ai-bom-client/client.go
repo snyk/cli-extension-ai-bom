@@ -322,7 +322,7 @@ func (c *AIBOMClientImpl) getAIBOM(
 	}
 	aiBom := string(attributesBytes)
 
-	c.logger.Debug().Str("aiBom", string(attributesBytes)).Msg("got ai-bom")
+	c.logger.Debug().Str("aiBom", string(attributesBytes)).Msg("got AI-BOM")
 
 	return aiBom, nil
 }
