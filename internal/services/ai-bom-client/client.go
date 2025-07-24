@@ -98,6 +98,31 @@ func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, bundleHash s
 	return aiBom, nil
 }
 
+func (c *AIBOMClientImpl) aiBomErrorFromHTTPClientError(endPoint string, err error) *errors.AiBomError {
+	c.logger.Debug().Err(err).Msg(fmt.Sprintf("%s request HTTP error", endPoint))
+	if strings.Contains(strings.ToLower(err.Error()), "authentication") {
+		return errors.NewUnauthorizedError(fmt.Sprintf("%s request failed with authentication error.", endPoint))
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "forbidden") {
+		return errors.NewUnauthorizedError(fmt.Sprintf("%s request failed with forbidden error.", endPoint))
+	}
+	return errors.NewInternalError(fmt.Sprintf("%s request HTTP error: %s", endPoint, err.Error()))
+}
+
+func (c *AIBOMClientImpl) aiBomErrorFromHTTPStatusCode(endPoint string, statusCode int, bodyBytes []byte) *errors.AiBomError {
+	errMsg := fmt.Sprintf(
+		"unexpected status code %d for %s", statusCode, endPoint)
+	c.logger.Debug().Str("responseBody", string(bodyBytes)).Msg(errMsg)
+	switch statusCode {
+	case http.StatusUnauthorized:
+		return errors.NewUnauthorizedError(errMsg)
+	case http.StatusForbidden:
+		return errors.NewForbiddenError(errMsg)
+	default:
+		return errors.NewInternalError(errMsg)
+	}
+}
+
 func (c *AIBOMClientImpl) createAIBOM(
 	ctx context.Context,
 	orgID,
@@ -134,11 +159,7 @@ func (c *AIBOMClientImpl) createAIBOM(
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		c.logger.Debug().Err(err).Msg("CreateAIBOM request HTTP error")
-		if strings.Contains(strings.ToLower(err.Error()), "authentication") {
-			return "", errors.NewUnauthorizedError("CreateAIBOM request failed with authentication error.")
-		}
-		return "", errors.NewInternalError(fmt.Sprintf("CreateAIBOM request HTTP error: %s", err.Error()))
+		return "", c.aiBomErrorFromHTTPClientError("CreateAIBOM", err)
 	}
 
 	defer resp.Body.Close()
@@ -150,20 +171,7 @@ func (c *AIBOMClientImpl) createAIBOM(
 	}
 
 	if resp.StatusCode != http.StatusAccepted {
-		errMsg := fmt.Sprintf(
-			"expected status code %d but got %d for CreateAIBOM",
-			http.StatusAccepted, resp.StatusCode)
-		c.logger.Debug().Str(
-			"responseBody",
-			string(bodyBytes)).Msg(errMsg)
-		switch resp.StatusCode {
-		case http.StatusUnauthorized:
-			return "", errors.NewUnauthorizedError(errMsg)
-		case http.StatusForbidden:
-			return "", errors.NewForbiddenError(errMsg)
-		default:
-			return "", errors.NewInternalError(errMsg)
-		}
+		return "", c.aiBomErrorFromHTTPStatusCode("CreateAIBOM", resp.StatusCode, bodyBytes)
 	}
 
 	aiBomRespBody := CreateAiBomResponseBody{}
@@ -222,11 +230,7 @@ func (c *AIBOMClientImpl) fetchJobStatus(
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		c.logger.Debug().Err(err).Msg("GetAIBOMJob request HTTP error")
-		if strings.Contains(strings.ToLower(err.Error()), "authentication") {
-			return nil, errors.NewUnauthorizedError("GetAIBOMJob request failed with authentication error.")
-		}
-		return nil, errors.NewInternalError(fmt.Sprintf("GetAIBOMJob request HTTP error: %s", err.Error()))
+		return nil, c.aiBomErrorFromHTTPClientError("GetAIBOMJob", err)
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
@@ -237,7 +241,7 @@ func (c *AIBOMClientImpl) fetchJobStatus(
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusSeeOther {
-		return nil, c.handleJobStatusError(resp.StatusCode, bodyBytes)
+		return nil, c.aiBomErrorFromHTTPStatusCode("GetAIBOMJob", resp.StatusCode, bodyBytes)
 	}
 
 	var jobResp GetAiBomResponseJobBody
@@ -250,22 +254,6 @@ func (c *AIBOMClientImpl) fetchJobStatus(
 	return &jobResp, nil
 }
 
-func (c *AIBOMClientImpl) handleJobStatusError(statusCode int, bodyBytes []byte) *errors.AiBomError {
-	errMsg := fmt.Sprintf(
-		"expected status code %d or %d but got %d for getAIBOMJob",
-		http.StatusOK, http.StatusSeeOther, statusCode)
-	c.logger.Debug().Str("responseBody", string(bodyBytes)).Msg(errMsg)
-
-	switch statusCode {
-	case http.StatusUnauthorized:
-		return errors.NewUnauthorizedError(errMsg)
-	case http.StatusForbidden:
-		return errors.NewForbiddenError(errMsg)
-	default:
-		return errors.NewInternalError(errMsg)
-	}
-}
-
 func (c *AIBOMClientImpl) processJobResponse(
 	jobResp *GetAiBomResponseJobBody,
 ) (aiBomID string, shouldContinue bool, err *errors.AiBomError) {
@@ -275,15 +263,15 @@ func (c *AIBOMClientImpl) processJobResponse(
 	switch jobState {
 	case JobStateFinished:
 		if jobResp.Data.Relationships == nil {
-			return "", false, errors.NewInternalError("Finished ai_bom_job returned without relationships")
+			return "", false, errors.NewInternalError("Finished AI-BOM job returned without relationships")
 		}
 		aiBomID = jobResp.Data.Relationships.AiBom.Data.Id.String()
 		if aiBomID == "" {
-			return "", false, errors.NewInternalError("Finished ai_bom_job returned without an ai_bom ID")
+			return "", false, errors.NewInternalError("Finished AI-BOM job returned without an AI-BOM ID")
 		}
 		return aiBomID, false, nil
 	case JobStateErrored:
-		return "", false, errors.NewInternalError("Job is in errored state")
+		return "", false, errors.NewInternalError("Failed to execute job")
 	case JobStateProcessing:
 		return "", true, nil
 	default:
@@ -306,11 +294,7 @@ func (c *AIBOMClientImpl) getAIBOM(
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		c.logger.Debug().Err(err).Msg("GetAIBOM request HTTP error")
-		if strings.Contains(strings.ToLower(err.Error()), "authentication") {
-			return "", errors.NewUnauthorizedError("GetAIBOM request failed with authentication error.")
-		}
-		return "", errors.NewInternalError(fmt.Sprintf("GetAIBOM request HTTP error: %s", err.Error()))
+		return "", c.aiBomErrorFromHTTPClientError("GetAIBOM", err)
 	}
 	defer resp.Body.Close()
 
@@ -321,20 +305,7 @@ func (c *AIBOMClientImpl) getAIBOM(
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		errMsg := fmt.Sprintf(
-			"expected status code %d but got %d for getAIBOM",
-			http.StatusOK, resp.StatusCode)
-		c.logger.Debug().Str(
-			"responseBody",
-			string(bodyBytes)).Msg(errMsg)
-		switch resp.StatusCode {
-		case http.StatusUnauthorized:
-			return "", errors.NewUnauthorizedError(errMsg)
-		case http.StatusForbidden:
-			return "", errors.NewForbiddenError(errMsg)
-		default:
-			return "", errors.NewInternalError(errMsg)
-		}
+		return "", c.aiBomErrorFromHTTPStatusCode("GetAIBOM", resp.StatusCode, bodyBytes)
 	}
 
 	aiBomJobRespBody := GetAiBomResponseBody{}

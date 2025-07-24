@@ -168,7 +168,7 @@ func TestGenerateAIBOM_CreateAIBOMAuthErrors(t *testing.T) {
 
 			assert.Equal(t, "", result)
 			assert.Equal(t, tc.expectedErrorCode, err.SnykError.ErrorCode)
-			assert.Contains(t, err.SnykError.Detail, "expected status code 202 but got "+tc.expectedStatusText)
+			assert.Contains(t, err.SnykError.Detail, "unexpected status code "+tc.expectedStatusText+" for CreateAIBOM")
 		})
 	}
 }
@@ -250,7 +250,7 @@ func TestGenerateAIBOM_JobErrored(t *testing.T) {
 
 	assert.Equal(t, "", result)
 	assert.Equal(t, internal_errors.NewInternalError("").SnykError.ErrorCode, err.SnykError.ErrorCode)
-	assert.Contains(t, err.SnykError.Detail, "Job is in errored state")
+	assert.Contains(t, err.SnykError.Detail, "Failed to execute job")
 }
 
 func TestGenerateAIBOM_PollForAIBOMHTTPError(t *testing.T) {
@@ -312,19 +312,19 @@ func TestGenerateAIBOM_PollForAIBOMAuthAndNotFoundErrors(t *testing.T) {
 			name:           "Unauthorized",
 			statusCode:     http.StatusUnauthorized,
 			expectedErr:    internal_errors.NewUnauthorizedError("").SnykError.ErrorCode,
-			expectedDetail: "expected status code 200 or 303 but got 401",
+			expectedDetail: "unexpected status code 401 for GetAIBOMJob",
 		},
 		{
 			name:           "Forbidden",
 			statusCode:     http.StatusForbidden,
 			expectedErr:    internal_errors.NewForbiddenError("").SnykError.ErrorCode,
-			expectedDetail: "expected status code 200 or 303 but got 403",
+			expectedDetail: "unexpected status code 403 for GetAIBOMJob",
 		},
 		{
 			name:           "NotFound",
 			statusCode:     http.StatusNotFound,
 			expectedErr:    internal_errors.NewInternalError("").SnykError.ErrorCode,
-			expectedDetail: "expected status code 200 or 303 but got 404",
+			expectedDetail: "unexpected status code 404 for GetAIBOMJob",
 		},
 	}
 
@@ -453,19 +453,19 @@ func TestGenerateAIBOM_GetAIBOMAuthErrors(t *testing.T) {
 			name:           "Forbidden",
 			statusCode:     http.StatusForbidden,
 			expectedErr:    internal_errors.NewForbiddenError("").SnykError.ErrorCode,
-			expectedDetail: "expected status code 200 but got 403",
+			expectedDetail: "unexpected status code 403 for GetAIBOM",
 		},
 		{
 			name:           "Unauthorized",
 			statusCode:     http.StatusUnauthorized,
 			expectedErr:    internal_errors.NewUnauthorizedError("").SnykError.ErrorCode,
-			expectedDetail: "expected status code 200 but got 401",
+			expectedDetail: "unexpected status code 401 for GetAIBOM",
 		},
 		{
 			name:           "NotFound",
 			statusCode:     http.StatusNotFound,
 			expectedErr:    internal_errors.NewInternalError("").SnykError.ErrorCode,
-			expectedDetail: "expected status code 200 but got 404",
+			expectedDetail: "unexpected status code 404 for GetAIBOM",
 		},
 	}
 
