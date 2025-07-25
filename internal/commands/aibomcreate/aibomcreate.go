@@ -1,20 +1,20 @@
 package aibomcreate
 
 import (
-	goErrors "errors"
+	"context"
 	"fmt"
 	"os"
 	"strings"
 	"text/template"
 
-	"github.com/rs/zerolog"
-
 	"github.com/snyk/go-application-framework/pkg/configuration"
 	"github.com/snyk/go-application-framework/pkg/workflow"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/errors"
+	aiBomClient "github.com/snyk/cli-extension-ai-bom/internal/services/ai-bom-client"
 	"github.com/snyk/cli-extension-ai-bom/internal/services/code"
 	"github.com/snyk/cli-extension-ai-bom/internal/services/depgraph"
+
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
 	_ "embed"
@@ -36,10 +36,17 @@ func RegisterWorkflows(e workflow.Engine) error {
 	return nil
 }
 
+var userAgent = "cli-extension-ai-bom"
+
 func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (output []workflow.Data, err error) {
 	codeService := code.NewCodeServiceImpl()
 	depGraphService := depgraph.NewDepgraphServiceImpl()
-	return RunAiBomWorkflow(invocationCtx, codeService, depGraphService)
+	logger := invocationCtx.GetEnhancedLogger()
+	ui := invocationCtx.GetUserInterface()
+	config := invocationCtx.GetConfiguration()
+	baseAPIURL := config.GetString(configuration.API_URL)
+	aiBomClient := aiBomClient.NewAiBomClient(logger, invocationCtx.GetNetworkAccess().GetHttpClient(), ui, userAgent, baseAPIURL)
+	return RunAiBomWorkflow(invocationCtx, codeService, depGraphService, aiBomClient)
 }
 
 //go:embed aibom.html
@@ -49,6 +56,7 @@ func RunAiBomWorkflow(
 	invocationCtx workflow.InvocationContext,
 	codeService code.CodeService,
 	depgraphService depgraph.DepgraphService,
+	aiBomClient aiBomClient.AiBomClient,
 ) ([]workflow.Data, error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
@@ -82,19 +90,22 @@ func RunAiBomWorkflow(
 		}
 	}
 
-	response, resultMetaData, codeErr := codeService.Analyze(path, depGraphMap,
-		invocationCtx.GetNetworkAccess().GetHttpClient, logger, config, invocationCtx.GetUserInterface())
-	if codeErr != nil {
-		logger.Debug().Err(codeErr.SnykError).Msg("error while analyzing code")
-		return nil, codeErr.SnykError
-	}
-	logger.Debug().Msgf("Result metadata: %+v", resultMetaData)
-
-	aiBomDoc, err := extractAiBomFromResult(response, logger)
-	if err != nil {
-		return nil, errors.NewInternalError(err.Error()).SnykError
+	ui := invocationCtx.GetUserInterface()
+	bundleHash, bundleErr := codeService.UploadBundle(path, depGraphMap,
+		invocationCtx.GetNetworkAccess().GetHttpClient(), logger, config, ui)
+	if bundleErr != nil {
+		logger.Debug().Err(bundleErr.SnykError).Msg("error while uploading bundle")
+		return nil, bundleErr.SnykError
 	}
 
+	ctx := context.Background()
+
+	orgID := config.GetString(configuration.ORGANIZATION)
+	aiBomDoc, aiBomErr := aiBomClient.GenerateAIBOM(ctx, orgID, bundleHash)
+	if aiBomErr != nil {
+		logger.Debug().Err(aiBomErr.SnykError).Msg("error while generating AI-BOM")
+		return nil, aiBomErr.SnykError
+	}
 	logger.Debug().Msg("Successfully generated AI BOM document.")
 	workflowData := newWorkflowData("application/json", []byte(aiBomDoc))
 
@@ -115,38 +126,6 @@ func RunAiBomWorkflow(
 	}
 
 	return []workflow.Data{workflowData}, nil
-}
-
-func extractAiBomFromResult(response *code.AnalysisResponse, logger *zerolog.Logger) (output string, err error) {
-	if len(response.Sarif.Runs) != 1 {
-		logger.Debug().Msgf("Failed to extract AI-BOM from result, %d runs in result, expected 1", len(response.Sarif.Runs))
-		return "", goErrors.New("Failed to extract AI-BOM from result.")
-	}
-	var aiBomResults []code.SarifResult
-	for _, result := range response.Sarif.Runs[0].Results {
-		if strings.Contains(result.Message.Text, "bomFormat") {
-			aiBomResults = append(aiBomResults, result)
-		} else {
-			logger.Warn().Msgf("unexpected result - level: %s, ruleId: %s, files: %s, message: %s",
-				result.Level, result.RuleID, buildLocationURIs(result.Locations), result.Message.Text)
-		}
-	}
-	if len(aiBomResults) != 1 {
-		logger.Debug().Msgf("Failed to extract AI-BOM from result, %d results in Runs[0], expected 1", len(aiBomResults))
-		return "", goErrors.New("Failed to extract AI-BOM from result.")
-	}
-	return aiBomResults[0].Message.Text, nil
-}
-
-func buildLocationURIs(locations []code.SarifLocation) string {
-	var uris []string
-	for _, loc := range locations {
-		uri := loc.PhysicalLocation.ArtifactLocation.URI
-		if uri != "" {
-			uris = append(uris, uri)
-		}
-	}
-	return strings.Join(uris, ", ")
 }
 
 //nolint:ireturn // Unable to change return type of external library
