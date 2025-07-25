@@ -104,7 +104,7 @@ func (c *AIBOMClientImpl) aiBomErrorFromHTTPClientError(endPoint string, err err
 		return errors.NewUnauthorizedError(fmt.Sprintf("%s request failed with authentication error.", endPoint))
 	}
 	if strings.Contains(strings.ToLower(err.Error()), "forbidden") {
-		return errors.NewUnauthorizedError(fmt.Sprintf("%s request failed with forbidden error.", endPoint))
+		return errors.NewForbiddenError(fmt.Sprintf("%s request failed with forbidden error.", endPoint))
 	}
 	return errors.NewInternalError(fmt.Sprintf("%s request HTTP error: %s", endPoint, err.Error()))
 }
@@ -226,7 +226,6 @@ func (c *AIBOMClientImpl) fetchJobStatus(
 		return nil, errors.NewInternalError(fmt.Sprintf("Error building GetAIBOMJob request: %s", err.Error()))
 	}
 	c.setCommonHeaders(url, req)
-	req.Header.Set("Content-Type", "application/vnd.api+json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
