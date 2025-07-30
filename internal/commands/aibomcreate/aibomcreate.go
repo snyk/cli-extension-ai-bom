@@ -71,6 +71,17 @@ func RunAiBomWorkflow(
 		return nil, errors.NewCommandIsExperimentalError().SnykError
 	}
 
+	ctx := context.Background()
+	orgID := config.GetString(configuration.ORGANIZATION)
+
+	logger.Debug().Msg("checking api availability")
+	aiBomErr := aiBomClient.CheckAPIAvailability(ctx, orgID)
+
+	if aiBomErr != nil {
+		logger.Debug().Msg("api availability check failed")
+		return nil, aiBomErr.SnykError
+	}
+
 	logger.Debug().Msg("AI BOM workflow start")
 
 	depGraphResult, err := depgraphService.GetDepgraph(invocationCtx)
@@ -98,9 +109,6 @@ func RunAiBomWorkflow(
 		return nil, bundleErr.SnykError
 	}
 
-	ctx := context.Background()
-
-	orgID := config.GetString(configuration.ORGANIZATION)
 	aiBomDoc, aiBomErr := aiBomClient.GenerateAIBOM(ctx, orgID, bundleHash)
 	if aiBomErr != nil {
 		logger.Debug().Err(aiBomErr.SnykError).Msg("error while generating AI-BOM")

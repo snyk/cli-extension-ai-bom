@@ -17,8 +17,13 @@ import (
 	errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
 )
 
+const (
+	DryRunBundleHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+)
+
 //revive:disable:exported // The interface must be called AiBomClient to standardize.
 type AiBomClient interface {
+	CheckAPIAvailability(ctx context.Context, orgID string) *errors.AiBomError
 	GenerateAIBOM(
 		ctx context.Context,
 		orgID,
@@ -62,6 +67,11 @@ func NewAiBomClient(
 }
 
 var APIVersion = "2024-10-15"
+
+func (c *AIBOMClientImpl) CheckAPIAvailability(ctx context.Context, orgID string) *errors.AiBomError {
+	_, err := c.createAIBOM(ctx, orgID, DryRunBundleHash)
+	return err
+}
 
 func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, bundleHash string) (string, *errors.AiBomError) {
 	jobID, err := c.createAIBOM(ctx, orgID, bundleHash)

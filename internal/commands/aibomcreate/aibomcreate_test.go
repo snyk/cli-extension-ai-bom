@@ -52,6 +52,7 @@ func TestAiBomWorkflow_HAPPY(t *testing.T) {
 		Return("bundle-id", nil)
 	aiBomClient.EXPECT().
 		GenerateAIBOM(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(exampleAIBOM, nil)
+	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 
 	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService, aiBomClient)
 	assert.Nil(t, err)
@@ -74,6 +75,7 @@ func TestAiBomWorkflow_HTML(t *testing.T) {
 	mockDepgraphService.EXPECT().GetDepgraph(gomock.Any()).Times(1).Return(&depgraph.DepgraphResult{}, nil)
 	mockCodeService.EXPECT().UploadBundle(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
 		Return("bundle-id", nil)
+	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 	aiBomClient.EXPECT().
 		GenerateAIBOM(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(exampleAIBOM, nil)
 
@@ -98,6 +100,7 @@ func TestAiBomWorkflow_DEPGRAPH_FAIL(t *testing.T) {
 	mockDepgraphService.EXPECT().GetDepgraph(gomock.Any()).Times(1).Return(nil, fmt.Errorf("depgraphs error"))
 	mockCodeService.EXPECT().UploadBundle(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
 		Return("bundle-id", nil)
+	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 	aiBomClient.EXPECT().
 		GenerateAIBOM(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(exampleAIBOM, nil)
 
@@ -108,6 +111,20 @@ func TestAiBomWorkflow_DEPGRAPH_FAIL(t *testing.T) {
 	actual, ok := aiBom.([]byte)
 	assert.True(t, ok)
 	assert.Equal(t, exampleAIBOM, string(actual))
+}
+
+func TestAiBomWorkflow_APIUnavailable(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ctrl := gomock.NewController(t)
+	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
+	mockCodeService := codemock.NewMockCodeService(ctrl)
+	mockDepgraphService := depgraphmock.NewMockDepgraphService(ctrl)
+	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
+	unavailableError := errors.NewInternalError("unavailable")
+	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(unavailableError)
+
+	_, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService, aiBomClient)
+	assert.Equal(t, unavailableError.SnykError, err)
 }
 
 func TestAiBomWorkflow_UPLOAD_BUNDLE_FAIL(t *testing.T) {
@@ -121,6 +138,7 @@ func TestAiBomWorkflow_UPLOAD_BUNDLE_FAIL(t *testing.T) {
 	mockDepgraphService.EXPECT().GetDepgraph(gomock.Any()).Times(1).Return(&depgraph.DepgraphResult{}, nil)
 	mockCodeService.EXPECT().UploadBundle(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
 		Return("", uploadErr)
+	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 
 	_, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService, aiBomClient)
 	assert.Equal(t, uploadErr.SnykError, err)
@@ -137,6 +155,7 @@ func TestAiBomWorkflow_AIBOM_GENERATION_FAIL(t *testing.T) {
 	mockDepgraphService.EXPECT().GetDepgraph(gomock.Any()).Times(1).Return(&depgraph.DepgraphResult{}, nil)
 	mockCodeService.EXPECT().UploadBundle(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
 		Return("bundle-id", nil)
+	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 	aiBomClient.EXPECT().
 		GenerateAIBOM(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return("", aiBomErr)
 
