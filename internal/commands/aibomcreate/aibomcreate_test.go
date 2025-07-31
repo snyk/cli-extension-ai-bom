@@ -118,6 +118,7 @@ func TestAiBomWorkflow_APIUnavailable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
 	mockCodeService := codemock.NewMockCodeService(ctrl)
+	mockCodeService.EXPECT().UploadBundle(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 	mockDepgraphService := depgraphmock.NewMockDepgraphService(ctrl)
 	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
 	unavailableError := errors.NewInternalError("unavailable")
