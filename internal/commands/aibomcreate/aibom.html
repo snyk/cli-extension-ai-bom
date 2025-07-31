@@ -468,6 +468,7 @@
         mcp_client: blue,
         mcp_resource: yolk,
         prompt: indigo,
+        service: red,
       };
       return colors[type] || "#fff";
     }
@@ -497,6 +498,7 @@
         mcp_server: "MCP Server",
         mcp_client: "MCP Client",
         mcp_resource: "MCP Resource",
+        service: "Service",
       };
       return (
         labels[type] ||
@@ -517,6 +519,7 @@
         ["mcp-server:", "mcp_server"],
         ["mcp-resource:", "mcp_resource"],
         ["prompt:", "prompt"],
+        ["service:", "service"],
       ];
       const id = component.id ?? component["bom-ref"] ?? "";
       for (const [prefix, type] of idPrefixToType) {
@@ -536,13 +539,18 @@
       }
     }
 
+    function getAllComponents(bom) {
+      // Treat services as components for visualization
+      return [...(bom.components || []), ...(bom.services || [])];
+    }
+
     function getNodes(bom) {
       function componentName(component) {
         return component.version
             ? `${component.name}@${component.version}`
             : component.name;
       }
-      return (bom.components || []).map((component) => ({
+      return getAllComponents(bom).map((component) => ({
         data: {
           id: getNodeId(component),
           label: componentName(component),
@@ -580,7 +588,7 @@
         });
       }
 
-      for (const component of bom.components || []) {
+      for (const component of getAllComponents(bom)) {
         const nodeId = getNodeId(component);
         if (!nodeId || !knownNodeIds.has(nodeId)) {
           continue;
@@ -692,7 +700,7 @@
       document.getElementById("zoom-to-fit").style.display = "block";
 
       cy.on("tap", "node", (evt) => {
-        const component = bom.components.find(
+        const component = getAllComponents(bom).find(
           (c) => getNodeId(c) === evt.target.id()
         );
 
@@ -733,6 +741,11 @@
           general += attrPair("Manufacturer", manufacturer);
         }
 
+        if (component.provider && component.provider.name) {
+          const provider = component.provider.url ? `<a href="${component.provider.url}" target="_blank">${component.provider.name}</a>` : component.provider.name;
+          general += attrPair("Provider", provider);
+        }
+
         general += "</div>";
 
         detailsDiv.innerHTML += general;
@@ -747,6 +760,7 @@
             case "publisher":
             case "supplier":
             case "manufacturer":
+            case "provider":
             case "modelCard":
               break;
 
@@ -761,6 +775,16 @@
               }
               authors += "</ul></div></div>";
               detailsDiv.innerHTML += authors;
+              break;
+            }
+
+            case "endpoints": {
+              let endpoints = `<div class="attr-group"><div class="attr-group-attr"><div class="attr-group-attr-key">Endpoints</div><ul>`;
+              for (const endpoint of value) {
+                endpoints += `<li>${endpoint}</li>`;
+              }
+              endpoints += "</ul></div></div>";
+              detailsDiv.innerHTML += endpoints;
               break;
             }
 
@@ -894,6 +918,7 @@
       "mcp_resource",
       "tool",
       "prompt",
+      "service",
     ];
 
     function updateLegend() {
