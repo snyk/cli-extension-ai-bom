@@ -41,6 +41,20 @@ func (m *MockAiBomClient) EXPECT() *MockAiBomClientMockRecorder {
 	return m.recorder
 }
 
+// CheckAPIAvailability mocks base method.
+func (m *MockAiBomClient) CheckAPIAvailability(ctx context.Context, orgID string) *errors.AiBomError {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckAPIAvailability", ctx, orgID)
+	ret0, _ := ret[0].(*errors.AiBomError)
+	return ret0
+}
+
+// CheckAPIAvailability indicates an expected call of CheckAPIAvailability.
+func (mr *MockAiBomClientMockRecorder) CheckAPIAvailability(ctx, orgID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckAPIAvailability", reflect.TypeOf((*MockAiBomClient)(nil).CheckAPIAvailability), ctx, orgID)
+}
+
 // GenerateAIBOM mocks base method.
 func (m *MockAiBomClient) GenerateAIBOM(ctx context.Context, orgID, bundleHash string) (string, *errors.AiBomError) {
 	m.ctrl.T.Helper()
