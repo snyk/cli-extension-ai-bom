@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/snyk/go-application-framework/pkg/configuration"
+
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/aibomcreate"
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
@@ -173,4 +175,26 @@ func TestAiBomWorkflow_NO_EXPERIMENTAL(t *testing.T) {
 
 	_, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService, aiBomClient)
 	assert.EqualError(t, err, "Command is experimental")
+}
+
+func TestAiBomWorkflow_UNAUTHORIZED(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ctrl := gomock.NewController(t)
+	mockCodeService := codemock.NewMockCodeService(ctrl)
+	mockDepgraphService := depgraphmock.NewMockDepgraphService(ctrl)
+	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
+
+	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
+
+	// Unauthorized either won't have an orgId
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, "")
+	_, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService, aiBomClient)
+	assert.EqualError(t, err, "Authentication error")
+
+	// Or, Unauthorized users that provide an explicit orgId will be handled by the api availability check
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, "5ffb5f8b-8cd3-4cfc-bce6-d23d19d4fa11")
+	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).
+		Return(errors.NewUnauthorizedError(""))
+	_, err = aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService, aiBomClient)
+	assert.EqualError(t, err, "Authentication error")
 }
