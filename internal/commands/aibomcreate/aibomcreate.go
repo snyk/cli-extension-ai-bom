@@ -73,6 +73,14 @@ func RunAiBomWorkflow(
 
 	ctx := context.Background()
 	orgID := config.GetString(configuration.ORGANIZATION)
+	if orgID == "" {
+		logger.Debug().Msg("no org id found")
+		// This check captures unauthorized users that don't provide an explicit orgId.
+		// Without this check the orgId would be empty and the api availability check would fail with 404.
+		// Users that do provide an explicit orgId will be handled by the api availability check
+		return nil, errors.NewUnauthorizedError("").SnykError
+	}
+	logger.Debug().Msgf("running command with orgId: %s", orgID)
 
 	logger.Debug().Msg("checking api availability")
 	aiBomErr := aiBomClient.CheckAPIAvailability(ctx, orgID)
