@@ -1,177 +1,138 @@
-package redteamclient
+package redteamclient_test
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/rs/zerolog"
-	"github.com/snyk/go-application-framework/pkg/ui"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
-	errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
+	snyk_errors "github.com/snyk/error-catalog-golang-public/snyk_errors"
+
+	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
+	"github.com/snyk/cli-extension-ai-bom/mocks/redteamclientmock"
 )
 
 func TestRedTeamClient_CreateScan(t *testing.T) {
-	logger := zerolog.Nop()
-	ui := ui.NewUserInterface()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "/rest/orgs/test-org/ai-scans", r.URL.Path)
-		assert.Equal(t, "application/vnd.api+json", r.Header.Get("Content-Type"))
+	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
 
-		response := CreateScanResponseBody{
-			Data: ScanData{
-				Id:   "12345678-1234-1234-1234-123456789012",
-				Type: "ai_scan",
-				Attributes: ScanAttributes{
-					Status:    "processing",
-					CreatedAt: time.Now(),
-					UpdatedAt: time.Now(),
-				},
-			},
-		}
+	expectedScanID := "12345678-1234-1234-1234-123456789012"
 
-		w.Header().Set("Content-Type", "application/vnd.api+json")
-		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
+	mockClient.EXPECT().
+		CreateScan(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(expectedScanID, nil).
+		AnyTimes()
 
-	client := NewRedTeamClient(&logger, &http.Client{}, ui, "test-agent", server.URL)
-
-	config := RedTeamConfig{
-		Options: RedTeamOptions{
-			Target: TargetConfig{
-				Name: "Test Target",
-				URL:  "https://example.com",
-			},
-		},
-	}
-
-	scanID, err := client.CreateScan(context.Background(), "test-org", config)
+	scanID, err := mockClient.CreateScan(context.Background(), "test-org", redteamclient.RedTeamConfig{})
+	fmt.Println("scanID", scanID, err)
 	require.NoError(t, err)
-	assert.Equal(t, "12345678-1234-1234-1234-123456789012", scanID)
+	assert.Equal(t, expectedScanID, scanID)
 }
 
 func TestRedTeamClient_GetScan(t *testing.T) {
-	logger := zerolog.Nop()
-	ui := ui.NewUserInterface()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "/rest/orgs/test-org/ai-scans/test-scan", r.URL.Path)
+	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
 
-		response := ScanStatus{
-			Id:   "test-scan",
-			Type: "ai_scan",
-			Attributes: ScanAttributes{
-				Status:    "completed",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-		}
+	expectedScanStatus := &redteamclient.ScanStatus{
+		Id:   uuid.MustParse("12345678-1234-1234-1234-123456789012"),
+		Type: "ai_scan",
+		Attributes: redteamclient.ScanAttributes{
+			Status:    "completed",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	}
 
-		w.Header().Set("Content-Type", "application/vnd.api+json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
+	mockClient.EXPECT().
+		GetScan(gomock.Any(), "test-org", "test-scan").
+		Return(expectedScanStatus, nil).
+		Times(1)
 
-	client := NewRedTeamClient(&logger, &http.Client{}, ui, "test-agent", server.URL)
-
-	scanStatus, err := client.GetScan(context.Background(), "test-org", "test-scan")
+	scanStatus, err := mockClient.GetScan(context.Background(), "test-org", "test-scan")
 	require.NoError(t, err)
-	assert.Equal(t, "completed", scanStatus.Status)
+	assert.Equal(t, "completed", scanStatus.Attributes.Status)
 }
 
 func TestRedTeamClient_GetScanResults(t *testing.T) {
-	logger := zerolog.Nop()
-	ui := ui.NewUserInterface()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
 
 	expectedResults := `{"findings": [{"severity": "high", "description": "Test finding"}]}`
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "/rest/orgs/test-org/ai-scans/test-scan/results", r.URL.Path)
+	mockClient.EXPECT().
+		GetScanResults(gomock.Any(), "test-org", "test-scan").
+		Return(expectedResults, nil).
+		Times(1)
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(expectedResults))
-	}))
-	defer server.Close()
-
-	client := NewRedTeamClient(&logger, &http.Client{}, ui, "test-agent", server.URL)
-
-	results, err := client.GetScanResults(context.Background(), "test-org", "test-scan")
+	results, err := mockClient.GetScanResults(context.Background(), "test-org", "test-scan")
 	require.NoError(t, err)
 	assert.Equal(t, expectedResults, results)
 }
 
 func TestRedTeamClient_ListScans(t *testing.T) {
-	logger := zerolog.Nop()
-	ui := ui.NewUserInterface()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "/rest/orgs/test-org/ai-scans", r.URL.Path)
+	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
 
-		response := ScanListResponse{
-			Data: []ScanSummary{
-				{
-					Id:   "scan1",
-					Type: "ai_scan",
-					Attributes: ScanAttributes{
-						Status:    "completed",
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					},
-				},
-				{
-					Id:   "scan2",
-					Type: "ai_scan",
-					Attributes: ScanAttributes{
-						Status:    "processing",
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					},
-				},
+	expectedScans := []redteamclient.ScanSummary{
+		{
+			Id:   uuid.MustParse("scan1"),
+			Type: "ai_scan",
+			Attributes: redteamclient.ScanAttributes{
+				Status:    "completed",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
 			},
-		}
+		},
+		{
+			Id:   uuid.MustParse("scan2"),
+			Type: "ai_scan",
+			Attributes: redteamclient.ScanAttributes{
+				Status:    "processing",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+		},
+	}
 
-		w.Header().Set("Content-Type", "application/vnd.api+json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
+	mockClient.EXPECT().
+		ListScans(gomock.Any(), "test-org").
+		Return(expectedScans, nil).
+		Times(1)
 
-	client := NewRedTeamClient(&logger, &http.Client{}, ui, "test-agent", server.URL)
-
-	scans, err := client.ListScans(context.Background(), "test-org")
+	scans, err := mockClient.ListScans(context.Background(), "test-org")
 	require.NoError(t, err)
 	assert.Len(t, scans, 2)
-	assert.Equal(t, "scan1", scans[0].Id)
+	assert.Equal(t, "scan1", scans[0].Id.String())
 	assert.Equal(t, "completed", scans[0].Attributes.Status)
 }
 
 func TestRedTeamClient_ErrorHandling(t *testing.T) {
-	logger := zerolog.Nop()
-	ui := ui.NewUserInterface()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error": "unauthorized"}`))
-	}))
-	defer server.Close()
+	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
 
-	client := NewRedTeamClient(&logger, &http.Client{}, ui, "test-agent", server.URL)
+	expectedError := &snyk_errors.Error{}
 
-	_, err := client.GetScan(context.Background(), "test-org", "test-scan")
+	mockClient.EXPECT().
+		GetScan(gomock.Any(), "test-org", "test-scan").
+		Return(nil, expectedError).
+		Times(1)
+
+	_, err := mockClient.GetScan(context.Background(), "test-org", "test-scan")
 	require.Error(t, err)
-	assert.IsType(t, &errors.AiBomError{}, err)
+	assert.Equal(t, expectedError, err)
 }

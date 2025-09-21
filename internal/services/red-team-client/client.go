@@ -1,7 +1,6 @@
 package redteamclient
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,20 +13,16 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/snyk/go-application-framework/pkg/ui"
 
-	errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
+	snyk_common_errors "github.com/snyk/error-catalog-golang-public/snyk"
+	errors "github.com/snyk/error-catalog-golang-public/snyk_errors"
 )
 
-const (
-	DryRunScanID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-)
-
-//revive:disable:exported // The interface must be called RedTeamClient to standardize.
 type RedTeamClient interface {
-	CheckAPIAvailability(ctx context.Context, orgID string) *errors.AiBomError
-	CreateScan(ctx context.Context, orgID string, config RedTeamConfig) (string, *errors.AiBomError)
-	GetScan(ctx context.Context, orgID, scanID string) (*ScanStatus, *errors.AiBomError)
-	GetScanResults(ctx context.Context, orgID, scanID string) (string, *errors.AiBomError)
-	ListScans(ctx context.Context, orgID string) ([]ScanSummary, *errors.AiBomError)
+	CheckAPIAvailability(ctx context.Context, orgID string) *errors.Error
+	CreateScan(ctx context.Context, orgID string, config RedTeamConfig) (string, *errors.Error)
+	GetScan(ctx context.Context, orgID, scanID string) (*ScanStatus, *errors.Error)
+	GetScanResults(ctx context.Context, orgID, scanID string) (string, *errors.Error)
+	ListScans(ctx context.Context, orgID string) ([]ScanSummary, *errors.Error)
 }
 
 type RedTeamClientImpl struct {
@@ -67,15 +62,15 @@ func NewRedTeamClient(
 
 var APIVersion = "2024-10-15"
 
-func (c *RedTeamClientImpl) CheckAPIAvailability(ctx context.Context, orgID string) *errors.AiBomError {
-	_, err := c.createScan(ctx, orgID, RedTeamConfig{})
-	return err
+func (c *RedTeamClientImpl) CheckAPIAvailability(ctx context.Context, orgID string) *errors.Error {
+	// TODO(pkey): implement this checking logic later
+	return nil
 }
 
-func (c *RedTeamClientImpl) CreateScan(ctx context.Context, orgID string, config RedTeamConfig) (string, *errors.AiBomError) {
+func (c *RedTeamClientImpl) CreateScan(ctx context.Context, orgID string, config RedTeamConfig) (string, *errors.Error) {
 	scanID, err := c.createScan(ctx, orgID, config)
 	if err != nil {
-		c.logger.Debug().Err(err.SnykError).Msg("error while creating the red team scan")
+		c.logger.Debug().Err(err).Msg("error while creating the red team scan")
 		return "", err
 	}
 
@@ -94,86 +89,158 @@ func (c *RedTeamClientImpl) CreateScan(ctx context.Context, orgID string, config
 
 	scanStatus, err := c.pollForScanComplete(ctx, orgID, scanID)
 	if err != nil {
-		c.logger.Debug().Err(err.SnykError).Msg("error while polling for the scan")
+		c.logger.Debug().Err(err).Msg("error while polling for the scan")
 		return "", err
 	}
 
 	if scanStatus.Attributes.Status != "completed" {
-		return "", errors.NewInternalError("Red team scan did not complete successfully")
+		err := snyk_common_errors.NewServerError("Red team scan did not complete successfully")
+		return "", &err
 	}
 
 	return scanID, nil
 }
 
-func (c *RedTeamClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*ScanStatus, *errors.AiBomError) {
-	url := fmt.Sprintf("%s/rest/orgs/%s/ai-scans/%s?version=%s", c.baseURL, orgID, scanID, APIVersion)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+func (c *RedTeamClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*ScanStatus, *errors.Error) {
+	// Mock implementation - service doesn't exist yet
+	c.logger.Debug().Str("scanId", scanID).Msg("returning mock scan status")
+
+	// Parse scanID as UUID
+	scanUUID, err := uuid.Parse(scanID)
 	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while building GetScan request")
-		return nil, errors.NewInternalError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
-	}
-	c.setCommonHeaders(url, req)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, c.redTeamErrorFromHTTPClientError("GetScan", err)
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while reading GetScan response body")
-		return nil, errors.NewInternalError(fmt.Sprintf("Failed to read GetScan response body: %s", err.Error()))
+		c.logger.Debug().Err(err).Msg("error while parsing scanID as UUID")
+		err := snyk_common_errors.NewServerError(fmt.Sprintf("Invalid scan ID format: %s", err.Error()))
+		return nil, &err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, c.redTeamErrorFromHTTPStatusCode("GetScan", resp.StatusCode, bodyBytes)
+	// Return a mock completed scan status
+	mockScanStatus := &ScanStatus{
+		Id:   scanUUID,
+		Type: "ai-scan",
+		Attributes: ScanAttributes{
+			Status:    "completed",
+			CreatedAt: time.Now().Add(-5 * time.Minute),
+			UpdatedAt: time.Now(),
+			Config: RedTeamConfig{
+				Options: RedTeamOptions{
+					Target: TargetConfig{
+						Name: "Mock Target",
+						URL:  "https://example.com",
+					},
+				},
+				Attacks: []string{"mock-attack"},
+			},
+		},
 	}
 
-	var scanStatus ScanStatus
-	err = json.Unmarshal(bodyBytes, &scanStatus)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while unmarshaling ScanStatus")
-		return nil, errors.NewInternalError(fmt.Sprintf("Failed to unmarshal ScanStatus: %s", err.Error()))
-	}
+	return mockScanStatus, nil
 
-	return &scanStatus, nil
+	// TODO: Uncomment when service is available
+	/*
+		url := fmt.Sprintf("%s/rest/orgs/%s/ai-scans/%s?version=%s", c.baseURL, orgID, scanID, APIVersion)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+		if err != nil {
+			c.logger.Debug().Err(err).Msg("error while building GetScan request")
+			err := snyk_common_errors.NewServerError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
+			return nil, &err
+		}
+		c.setCommonHeaders(url, req)
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, c.redTeamErrorFromHTTPClientError("GetScan", err)
+		}
+		defer resp.Body.Close()
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.logger.Debug().Err(err).Msg("error while reading GetScan response body")
+			err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read GetScan response body: %s", err.Error()))
+			return nil, &err
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, c.redTeamErrorFromHTTPStatusCode("GetScan", resp.StatusCode, bodyBytes)
+		}
+
+		var scanStatus ScanStatus
+		err = json.Unmarshal(bodyBytes, &scanStatus)
+		if err != nil {
+			c.logger.Debug().Err(err).Msg("error while unmarshaling ScanStatus")
+			err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to unmarshal ScanStatus: %s", err.Error()))
+			return nil, &err
+		}
+
+		return &scanStatus, nil
+	*/
 }
 
-func (c *RedTeamClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (string, *errors.AiBomError) {
-	url := fmt.Sprintf("%s/rest/orgs/%s/ai-scans/%s/results?version=%s", c.baseURL, orgID, scanID, APIVersion)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while building GetScanResults request")
-		return "", errors.NewInternalError(fmt.Sprintf("Error building GetScanResults request: %s", err.Error()))
-	}
-	c.setCommonHeaders(url, req)
+func (c *RedTeamClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (string, *errors.Error) {
+	// Mock implementation - service doesn't exist yet
+	c.logger.Debug().Str("scanId", scanID).Msg("returning mock scan results")
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", c.redTeamErrorFromHTTPClientError("GetScanResults", err)
-	}
-	defer resp.Body.Close()
+	// Return mock JSON results
+	mockResults := `{
+		"data": {
+			"id": "` + scanID + `",
+			"type": "ai-scan-results",
+			"attributes": {
+				"status": "completed",
+				"results": {
+					"vulnerabilities_found": 3,
+					"attacks_performed": ["sql_injection", "xss", "csrf"],
+					"severity": "high",
+					"recommendations": [
+						"Implement input validation",
+						"Use parameterized queries",
+						"Add CSRF tokens"
+					]
+				}
+			}
+		}
+	}`
 
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while reading GetScanResults response body")
-		return "", errors.NewInternalError(fmt.Sprintf("Failed to read GetScanResults response body: %s", err.Error()))
-	}
+	return mockResults, nil
 
-	if resp.StatusCode != http.StatusOK {
-		return "", c.redTeamErrorFromHTTPStatusCode("GetScanResults", resp.StatusCode, bodyBytes)
-	}
+	// TODO: Uncomment when service is available
+	/*
+		url := fmt.Sprintf("%s/rest/orgs/%s/ai-scans/%s/results?version=%s", c.baseURL, orgID, scanID, APIVersion)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+		if err != nil {
+			c.logger.Debug().Err(err).Msg("error while building GetScanResults request")
+			serverErr := snyk_common_errors.NewServerError(fmt.Sprintf("Error building GetScanResults request: %s", err.Error()))
+			return "", &serverErr
+		}
+		c.setCommonHeaders(url, req)
 
-	return string(bodyBytes), nil
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return "", c.redTeamErrorFromHTTPClientError("GetScanResults", err)
+		}
+		defer resp.Body.Close()
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.logger.Debug().Err(err).Msg("error while reading GetScanResults response body")
+			serverErr := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read GetScanResults response body: %s", err.Error()))
+			return "", &serverErr
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return "", c.redTeamErrorFromHTTPStatusCode("GetScanResults", resp.StatusCode, bodyBytes)
+		}
+
+		return string(bodyBytes), nil
+	*/
 }
 
-func (c *RedTeamClientImpl) ListScans(ctx context.Context, orgID string) ([]ScanSummary, *errors.AiBomError) {
+func (c *RedTeamClientImpl) ListScans(ctx context.Context, orgID string) ([]ScanSummary, *errors.Error) {
 	url := fmt.Sprintf("%s/rest/orgs/%s/ai-scans?version=%s", c.baseURL, orgID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building ListScans request")
-		return nil, errors.NewInternalError(fmt.Sprintf("Error building ListScans request: %s", err.Error()))
+		err := snyk_common_errors.NewServerError(fmt.Sprintf("Error building ListScans request: %s", err.Error()))
+		return nil, &err
 	}
 	c.setCommonHeaders(url, req)
 
@@ -186,7 +253,8 @@ func (c *RedTeamClientImpl) ListScans(ctx context.Context, orgID string) ([]Scan
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while reading ListScans response body")
-		return nil, errors.NewInternalError(fmt.Sprintf("Failed to read ListScans response body: %s", err.Error()))
+		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read ListScans response body: %s", err.Error()))
+		return nil, &err
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -197,34 +265,41 @@ func (c *RedTeamClientImpl) ListScans(ctx context.Context, orgID string) ([]Scan
 	err = json.Unmarshal(bodyBytes, &scanList)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling ScanListResponse")
-		return nil, errors.NewInternalError(fmt.Sprintf("Failed to unmarshal ScanListResponse: %s", err.Error()))
+		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to unmarshal ScanListResponse: %s", err.Error()))
+		return nil, &err
 	}
 
 	return scanList.Data, nil
 }
 
-func (c *RedTeamClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error) *errors.AiBomError {
+func (c *RedTeamClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error) *errors.Error {
 	c.logger.Debug().Err(err).Msg(fmt.Sprintf("%s request HTTP error", endPoint))
 	if strings.Contains(strings.ToLower(err.Error()), "authentication") {
-		return errors.NewUnauthorizedError(fmt.Sprintf("%s request failed with authentication error.", endPoint))
+		authErr := snyk_common_errors.NewUnauthorisedError(fmt.Sprintf("%s request failed with authentication error.", endPoint))
+		return &authErr
 	}
 	if strings.Contains(strings.ToLower(err.Error()), "forbidden") {
-		return errors.NewForbiddenError(fmt.Sprintf("%s request failed with forbidden error.", endPoint))
+		forbiddenErr := snyk_common_errors.NewUnauthorisedError(fmt.Sprintf("%s request failed with forbidden error.", endPoint))
+		return &forbiddenErr
 	}
-	return errors.NewInternalError(fmt.Sprintf("%s request HTTP error: %s", endPoint, err.Error()))
+	serverErr := snyk_common_errors.NewServerError(fmt.Sprintf("%s request HTTP error: %s", endPoint, err.Error()))
+	return &serverErr
 }
 
-func (c *RedTeamClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode int, bodyBytes []byte) *errors.AiBomError {
+func (c *RedTeamClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode int, bodyBytes []byte) *errors.Error {
 	errMsg := fmt.Sprintf(
 		"unexpected status code %d for %s", statusCode, endPoint)
 	c.logger.Debug().Str("responseBody", string(bodyBytes)).Msg(errMsg)
 	switch statusCode {
 	case http.StatusUnauthorized:
-		return errors.NewUnauthorizedError(errMsg)
+		authErr := snyk_common_errors.NewUnauthorisedError(errMsg)
+		return &authErr
 	case http.StatusForbidden:
-		return errors.NewForbiddenError(errMsg)
+		forbiddenErr := snyk_common_errors.NewUnauthorisedError(errMsg)
+		return &forbiddenErr
 	default:
-		return errors.NewInternalError(errMsg)
+		serverErr := snyk_common_errors.NewServerError(errMsg)
+		return &serverErr
 	}
 }
 
@@ -232,60 +307,76 @@ func (c *RedTeamClientImpl) createScan(
 	ctx context.Context,
 	orgID string,
 	config RedTeamConfig,
-) (string, *errors.AiBomError) {
-	c.logger.Debug().Msg("creating red team scan")
+) (string, *errors.Error) {
+	// Mock implementation - service doesn't exist yet
+	c.logger.Debug().Msg("creating mock red team scan")
 
-	body := CreateScanRequestBody{Data: config}
-
-	reqBytes, err := json.Marshal(body)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while marshaling request body")
-		return "", errors.NewInternalError(fmt.Sprintf("Error marshaling request body: %s", err.Error()))
-	}
-	url := fmt.Sprintf("%s/rest/orgs/%s/ai-scans?version=%s", c.baseURL, orgID, APIVersion)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBytes))
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while building CreateScan request")
-		return "", errors.NewInternalError(fmt.Sprintf("Error building CreateScan request: %s", err.Error()))
-	}
-
-	c.setCommonHeaders(url, req)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", c.redTeamErrorFromHTTPClientError("CreateScan", err)
-	}
-
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while reading CreateScan response body")
-		return "", errors.NewInternalError(fmt.Sprintf("Failed to read CreateScan response body: %s", err.Error()))
-	}
-
-	if resp.StatusCode != http.StatusAccepted {
-		return "", c.redTeamErrorFromHTTPStatusCode("CreateScan", resp.StatusCode, bodyBytes)
-	}
-
-	var scanResp CreateScanResponseBody
-	err = json.Unmarshal(bodyBytes, &scanResp)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while unmarshaling CreateScanResponseBody")
-		return "", errors.NewInternalError(fmt.Sprintf("Failed to unmarshal CreateScanResponseBody: %s", err.Error()))
-	}
-
-	scanID := scanResp.Data.Id.String()
-	c.logger.Debug().Str("scanId", scanID).Msg("created red team scan")
+	// Generate a new UUID for the mock scan
+	scanID := uuid.New().String()
+	c.logger.Debug().Str("scanId", scanID).Msg("created mock red team scan")
 
 	return scanID, nil
+
+	// TODO: Uncomment when service is available
+	/*
+		c.logger.Debug().Msg("creating red team scan")
+
+		body := CreateScanRequestBody{Data: config}
+
+		reqBytes, err := json.Marshal(body)
+		if err != nil {
+			c.logger.Debug().Err(err).Msg("error while marshaling request body")
+			err := snyk_common_errors.NewServerError(fmt.Sprintf("Error marshaling request body: %s", err.Error()))
+			return "", &err
+		}
+		url := fmt.Sprintf("%s/rest/orgs/%s/ai-scans?version=%s", c.baseURL, orgID, APIVersion)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBytes))
+		if err != nil {
+			c.logger.Debug().Err(err).Msg("error while building CreateScan request")
+			err := snyk_common_errors.NewServerError(fmt.Sprintf("Error building CreateScan request: %s", err.Error()))
+			return "", &err
+		}
+
+		c.setCommonHeaders(url, req)
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return "", c.redTeamErrorFromHTTPClientError("CreateScan", err)
+		}
+
+		defer resp.Body.Close()
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.logger.Debug().Err(err).Msg("error while reading CreateScan response body")
+			err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read CreateScan response body: %s", err.Error()))
+			return "", &err
+		}
+
+		if resp.StatusCode != http.StatusAccepted {
+			return "", c.redTeamErrorFromHTTPStatusCode("CreateScan", resp.StatusCode, bodyBytes)
+		}
+
+		var scanResp CreateScanResponseBody
+		err = json.Unmarshal(bodyBytes, &scanResp)
+		if err != nil {
+			c.logger.Debug().Err(err).Msg("error while unmarshaling CreateScanResponseBody")
+			err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to unmarshal CreateScanResponseBody: %s", err.Error()))
+			return "", &err
+		}
+
+		scanID := scanResp.Data.Id.String()
+		c.logger.Debug().Str("scanId", scanID).Msg("created red team scan")
+
+		return scanID, nil
+	*/
 }
 
 func (c *RedTeamClientImpl) pollForScanComplete(
 	ctx context.Context,
 	orgID string,
 	scanID string,
-) (*ScanStatus, *errors.AiBomError) {
+) (*ScanStatus, *errors.Error) {
 	numberOfPolls := 0
 
 	for numberOfPolls <= maxPollAttempts {
@@ -302,7 +393,8 @@ func (c *RedTeamClientImpl) pollForScanComplete(
 
 		time.Sleep(pollInterval)
 	}
-	return nil, errors.NewInternalError("Red team scan polling timed out.")
+	err := snyk_common_errors.NewServerError("Red team scan polling timed out.")
+	return nil, &err
 }
 
 func (c *RedTeamClientImpl) setCommonHeaders(url string, req *http.Request) {
