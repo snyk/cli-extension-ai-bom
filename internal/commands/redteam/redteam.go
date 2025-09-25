@@ -28,7 +28,7 @@ func RegisterWorkflows(e workflow.Engine) error {
 	flagset.Bool(utils.FlagExperimental, false, "This is an experiment feature that will contain breaking changes in future revisions")
 
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
-	if _, err := e.Register(WorkflowID, configuration, RedTeamWorkflow); err != nil {
+	if _, err := e.Register(WorkflowID, configuration, Workflow); err != nil {
 		return fmt.Errorf("error while registering red team workflow: %w", err)
 	}
 	return nil
@@ -36,7 +36,7 @@ func RegisterWorkflows(e workflow.Engine) error {
 
 var userAgent = "cli-extension-ai-bom-redteam"
 
-func RedTeamWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (output []workflow.Data, err error) {
+func Workflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (output []workflow.Data, err error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	ui := invocationCtx.GetUserInterface()
 	config := invocationCtx.GetConfiguration()
@@ -45,13 +45,13 @@ func RedTeamWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data
 	return RunRedTeamWorkflow(invocationCtx, redTeamClient)
 }
 
-// RedTeamConfig represents the configuration structure for red team scans.
-type RedTeamConfig struct {
-	Options RedTeamOptions `yaml:"options"`
-	Attacks []string       `yaml:"attacks,omitempty"`
+// Config represents the configuration structure for red team scans.
+type Config struct {
+	Options Options  `yaml:"options"`
+	Attacks []string `yaml:"attacks,omitempty"`
 }
 
-type RedTeamOptions struct {
+type Options struct {
 	Target TargetConfig `yaml:"target"`
 }
 
@@ -80,8 +80,6 @@ func RunRedTeamWorkflow(
 		return nil, cli_errors.NewCommandIsExperimentalError("")
 	}
 
-	ctx := context.Background()
-
 	orgID := config.GetString(configuration.ORGANIZATION)
 
 	if orgID == "" {
@@ -90,19 +88,10 @@ func RunRedTeamWorkflow(
 	}
 	logger.Debug().Msgf("running command with orgId: %s", orgID)
 
-	logger.Debug().Msg("checking api availability")
-
-	apiErr := redTeamClient.CheckAPIAvailability(ctx, orgID)
-
-	if apiErr != nil {
-		logger.Debug().Msg("api availability check failed")
-		// TODO: check if this doesn't need to be custom
-		return nil, apiErr
-	}
-
 	return handleRunScanCommand(invocationCtx, redTeamClient)
 }
 
+//nolint:govet,staticcheck // *errors.Error can be nil
 func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClient redteamclient.RedTeamClient) ([]workflow.Data, error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
@@ -116,7 +105,9 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 
 	// Check if config file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return []workflow.Data{newWorkflowData("text/plain", []byte("Configuration file not found. Follow the documents (link to docs) to create one."))}, nil
+		message := "Configuration file not found. Please create redteam.yaml file in the current directory. " +
+			"See the documentation (link here) on how to create one."
+		return []workflow.Data{newWorkflowData("text/plain", []byte(message))}, nil
 	}
 
 	// Load configuration
@@ -126,7 +117,7 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 		return nil, errors.NewInternalError("Error reading configuration file").SnykError
 	}
 
-	var redTeamConfig RedTeamConfig
+	var redTeamConfig Config
 	err = yaml.Unmarshal(configData, &redTeamConfig)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error while unmarshaling config")
@@ -148,21 +139,29 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 		Attacks: redTeamConfig.Attacks,
 	}
 
+	logger.Debug().Msg("checking endpoint availability")
+
+	apiErr := redTeamClient.CheckEndpointAvailability(ctx, orgID, &clientConfig)
+
+	if apiErr != nil {
+		logger.Debug().Msg("endpoint availability check failed")
+		// TODO: check if this doesn't need to be custom
+		return nil, apiErr
+	}
+
 	logger.Debug().Msg("Starting red team scan")
-	scanID, err := redTeamClient.CreateScan(ctx, orgID, clientConfig)
-	// if False {
-	// 	logger.Debug().Err(err).Msg("error while creating scan")
-	// 	return nil, err
-	// }
+
+	scanID, err := redTeamClient.CreateScan(ctx, orgID, &clientConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create scan: %w", err)
+	}
 
 	logger.Info().Msgf("Red team scan started with ID: %s", scanID)
 
-	// Get the results
 	results, err := redTeamClient.GetScanResults(ctx, orgID, scanID)
-	// if err != nil {
-	// 	logger.Debug().Err(err).Msg("error while getting scan results")
-	// 	return nil, err
-	// }
+	if err != nil {
+		return nil, fmt.Errorf("failed to get scan results: %w", err)
+	}
 
 	workflowData := newWorkflowData("application/json", []byte(results))
 	return []workflow.Data{workflowData}, nil

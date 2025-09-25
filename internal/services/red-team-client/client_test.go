@@ -2,7 +2,6 @@ package redteamclient_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -15,6 +14,11 @@ import (
 
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 	"github.com/snyk/cli-extension-ai-bom/mocks/redteamclientmock"
+)
+
+const (
+	testOrgID  = "test-org"
+	testScanID = "test-scan"
 )
 
 func TestRedTeamClient_CreateScan(t *testing.T) {
@@ -30,8 +34,7 @@ func TestRedTeamClient_CreateScan(t *testing.T) {
 		Return(expectedScanID, nil).
 		AnyTimes()
 
-	scanID, err := mockClient.CreateScan(context.Background(), "test-org", redteamclient.RedTeamConfig{})
-	fmt.Println("scanID", scanID, err)
+	scanID, err := mockClient.CreateScan(context.Background(), testOrgID, &redteamclient.RedTeamConfig{})
 	require.NoError(t, err)
 	assert.Equal(t, expectedScanID, scanID)
 }
@@ -43,7 +46,7 @@ func TestRedTeamClient_GetScan(t *testing.T) {
 	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
 
 	expectedScanStatus := &redteamclient.ScanStatus{
-		Id:   uuid.MustParse("12345678-1234-1234-1234-123456789012"),
+		ID:   uuid.MustParse("12345678-1234-1234-1234-123456789012"),
 		Type: "ai_scan",
 		Attributes: redteamclient.ScanAttributes{
 			Status:    "completed",
@@ -53,11 +56,11 @@ func TestRedTeamClient_GetScan(t *testing.T) {
 	}
 
 	mockClient.EXPECT().
-		GetScan(gomock.Any(), "test-org", "test-scan").
+		GetScan(gomock.Any(), testOrgID, testScanID).
 		Return(expectedScanStatus, nil).
 		Times(1)
 
-	scanStatus, err := mockClient.GetScan(context.Background(), "test-org", "test-scan")
+	scanStatus, err := mockClient.GetScan(context.Background(), testOrgID, testScanID)
 	require.NoError(t, err)
 	assert.Equal(t, "completed", scanStatus.Attributes.Status)
 }
@@ -71,11 +74,11 @@ func TestRedTeamClient_GetScanResults(t *testing.T) {
 	expectedResults := `{"findings": [{"severity": "high", "description": "Test finding"}]}`
 
 	mockClient.EXPECT().
-		GetScanResults(gomock.Any(), "test-org", "test-scan").
+		GetScanResults(gomock.Any(), testOrgID, testScanID).
 		Return(expectedResults, nil).
 		Times(1)
 
-	results, err := mockClient.GetScanResults(context.Background(), "test-org", "test-scan")
+	results, err := mockClient.GetScanResults(context.Background(), testOrgID, testScanID)
 	require.NoError(t, err)
 	assert.Equal(t, expectedResults, results)
 }
@@ -88,7 +91,7 @@ func TestRedTeamClient_ListScans(t *testing.T) {
 
 	expectedScans := []redteamclient.ScanSummary{
 		{
-			Id:   uuid.MustParse("scan1"),
+			ID:   uuid.MustParse("scan1"),
 			Type: "ai_scan",
 			Attributes: redteamclient.ScanAttributes{
 				Status:    "completed",
@@ -97,7 +100,7 @@ func TestRedTeamClient_ListScans(t *testing.T) {
 			},
 		},
 		{
-			Id:   uuid.MustParse("scan2"),
+			ID:   uuid.MustParse("scan2"),
 			Type: "ai_scan",
 			Attributes: redteamclient.ScanAttributes{
 				Status:    "processing",
@@ -108,14 +111,14 @@ func TestRedTeamClient_ListScans(t *testing.T) {
 	}
 
 	mockClient.EXPECT().
-		ListScans(gomock.Any(), "test-org").
+		ListScans(gomock.Any(), testOrgID).
 		Return(expectedScans, nil).
 		Times(1)
 
-	scans, err := mockClient.ListScans(context.Background(), "test-org")
+	scans, err := mockClient.ListScans(context.Background(), testOrgID)
 	require.NoError(t, err)
 	assert.Len(t, scans, 2)
-	assert.Equal(t, "scan1", scans[0].Id.String())
+	assert.Equal(t, "scan1", scans[0].ID.String())
 	assert.Equal(t, "completed", scans[0].Attributes.Status)
 }
 
@@ -128,11 +131,11 @@ func TestRedTeamClient_ErrorHandling(t *testing.T) {
 	expectedError := &snyk_errors.Error{}
 
 	mockClient.EXPECT().
-		GetScan(gomock.Any(), "test-org", "test-scan").
+		GetScan(gomock.Any(), testOrgID, testScanID).
 		Return(nil, expectedError).
 		Times(1)
 
-	_, err := mockClient.GetScan(context.Background(), "test-org", "test-scan")
+	_, err := mockClient.GetScan(context.Background(), testOrgID, testScanID)
 	require.Error(t, err)
 	assert.Equal(t, expectedError, err)
 }
