@@ -2,6 +2,7 @@ package redteam
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -91,7 +92,6 @@ func RunRedTeamWorkflow(
 	return handleRunScanCommand(invocationCtx, redTeamClient)
 }
 
-//nolint:govet,staticcheck // *errors.Error can be nil
 func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClient redteamclient.RedTeamClient) ([]workflow.Data, error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
@@ -104,23 +104,23 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 	}
 
 	// Check if config file exists
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	if _, configFileErr := os.Stat(configPath); os.IsNotExist(configFileErr) {
 		message := "Configuration file not found. Please create redteam.yaml file in the current directory. " +
 			"See the documentation (link here) on how to create one."
 		return []workflow.Data{newWorkflowData("text/plain", []byte(message))}, nil
 	}
 
 	// Load configuration
-	configData, err := os.ReadFile(configPath)
-	if err != nil {
-		logger.Debug().Err(err).Msg("error while reading config file")
+	configData, configErr := os.ReadFile(configPath)
+	if configErr != nil {
+		logger.Debug().Err(configErr).Msg("error while reading config file")
 		return nil, errors.NewInternalError("Error reading configuration file").SnykError
 	}
 
 	var redTeamConfig Config
-	err = yaml.Unmarshal(configData, &redTeamConfig)
-	if err != nil {
-		logger.Debug().Err(err).Msg("error while unmarshaling config")
+	yamlErr := yaml.Unmarshal(configData, &redTeamConfig)
+	if yamlErr != nil {
+		logger.Debug().Err(yamlErr).Msg("error while unmarshaling config")
 		return nil, snyk_common_errors.NewServerError("Error parsing configuration file")
 	}
 
@@ -139,35 +139,37 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 		Attacks: redTeamConfig.Attacks,
 	}
 
-	logger.Debug().Msg("checking endpoint availability")
-
-	apiErr := redTeamClient.CheckEndpointAvailability(ctx, orgID, &clientConfig)
+	apiErr := redTeamClient.ValidateTarget(ctx, orgID, &clientConfig)
 
 	if apiErr != nil {
-		logger.Debug().Msg("endpoint availability check failed")
-		// TODO: check if this doesn't need to be custom
+		logger.Debug().Msg("Target is not available or misconfigured")
 		return nil, apiErr
 	}
 
 	logger.Debug().Msg("Starting red team scan")
 
-	scanID, err := redTeamClient.CreateScan(ctx, orgID, &clientConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create scan: %w", err)
+	scanID, scanErr := redTeamClient.RunScan(ctx, orgID, &clientConfig)
+
+	if scanErr != nil {
+		return nil, fmt.Errorf("failed to create scan: %w", scanErr)
 	}
 
 	logger.Info().Msgf("Red team scan started with ID: %s", scanID)
 
-	results, err := redTeamClient.GetScanResults(ctx, orgID, scanID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get scan results: %w", err)
+	results, resultsErr := redTeamClient.GetScanResults(ctx, orgID, scanID)
+	if resultsErr != nil {
+		return nil, fmt.Errorf("failed to get scan results: %w", resultsErr)
 	}
 
-	workflowData := newWorkflowData("application/json", []byte(results))
+	resultsBytes, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal scan results: %w", err)
+	}
+
+	workflowData := newWorkflowData("application/json", resultsBytes)
 	return []workflow.Data{workflowData}, nil
 }
 
-//nolint:ireturn // Unable to change return type of external library
 func newWorkflowData(contentType string, data []byte) workflow.Data {
 	return workflow.NewData(
 		workflow.NewTypeIdentifier(WorkflowID, "redteam"),

@@ -28,7 +28,7 @@ const (
 type MockRedTeamClient struct {
 	scans              []redteamclient.ScanSummary
 	scanStatus         *redteamclient.ScanStatus
-	scanResults        string
+	scanResults        redteamclient.ScanResultsData
 	createError        error
 	getError           error
 	listError          error
@@ -44,7 +44,7 @@ func (m *MockRedTeamClient) CheckAPIAvailability(_ context.Context, _ string) *e
 	return nil
 }
 
-func (m *MockRedTeamClient) CreateScan(_ context.Context, _ string, _ *redteamclient.RedTeamConfig) (string, *errors.Error) {
+func (m *MockRedTeamClient) RunScan(_ context.Context, _ string, _ *redteamclient.RedTeamConfig) (string, *errors.Error) {
 	if m.createError != nil {
 		err := snyk_common_errors.NewServerError(m.createError.Error())
 		return "", &err
@@ -52,15 +52,15 @@ func (m *MockRedTeamClient) CreateScan(_ context.Context, _ string, _ *redteamcl
 	return "test-scan-id", nil
 }
 
-func (m *MockRedTeamClient) GetScan(_ context.Context, _, _ string) (*redteamclient.ScanStatus, *errors.Error) {
+func (m *MockRedTeamClient) GetScan(_ context.Context, _, _ string) (*redteamclient.ScanData, *errors.Error) {
 	if m.getError != nil {
 		err := snyk_common_errors.NewServerError(m.getError.Error())
 		return nil, &err
 	}
-	return m.scanStatus, nil
+	return m.scanData, nil
 }
 
-func (m *MockRedTeamClient) GetScanResults(_ context.Context, _, _ string) (string, *errors.Error) {
+func (m *MockRedTeamClient) GetScanResults(_ context.Context, _, _ string) (redteamclient.ScanResultsData, *errors.Error) {
 	if m.resultsError != nil {
 		err := snyk_common_errors.NewServerError(m.resultsError.Error())
 		return "", &err
@@ -76,7 +76,7 @@ func (m *MockRedTeamClient) ListScans(_ context.Context, _ string) ([]redteamcli
 	return m.scans, nil
 }
 
-func (m *MockRedTeamClient) CheckEndpointAvailability(_ context.Context, _ string, _ *redteamclient.RedTeamConfig) *errors.Error {
+func (m *MockRedTeamClient) ValidateTarget(_ context.Context, _ string, _ *redteamclient.RedTeamConfig) *errors.Error {
 	if m.checkEndpointError != nil {
 		err := snyk_common_errors.NewServerError(m.checkEndpointError.Error())
 		return &err
@@ -91,7 +91,7 @@ func TestRunRedTeamWorkflow_GetScanCommand(t *testing.T) {
 	ictx.GetConfiguration().Set("scan-id", "test-scan-id")
 
 	mockClient := &MockRedTeamClient{
-		scanStatus: &redteamclient.ScanStatus{
+		scanData: &redteamclient.ScanData{
 			ID:   uuid.New(),
 			Type: "ai_scan",
 			Attributes: redteamclient.ScanAttributes{

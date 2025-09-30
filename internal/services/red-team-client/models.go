@@ -33,6 +33,17 @@ type CreateScanResponseBody struct {
 	Jsonapi JSONAPI  `json:"jsonapi"`
 }
 
+type GetScanResponseBody struct {
+	Data    ScanData `json:"data"`
+	Jsonapi JSONAPI  `json:"jsonapi"`
+}
+
+type GetScanResponseData struct {
+	ID         uuid.UUID      `json:"id"`
+	Type       string         `json:"type"`
+	Attributes ScanAttributes `json:"attributes"`
+}
+
 type ScanData struct {
 	ID         uuid.UUID      `json:"id"`
 	Type       string         `json:"type"`
@@ -68,7 +79,7 @@ type JSONAPI struct {
 	Version string `json:"version"`
 }
 
-type ScanResultsResponse struct {
+type GetScanResultsResponseBody struct {
 	Data    ScanResultsData `json:"data"`
 	Jsonapi JSONAPI         `json:"jsonapi"`
 }

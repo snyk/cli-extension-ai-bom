@@ -30,11 +30,11 @@ func TestRedTeamClient_CreateScan(t *testing.T) {
 	expectedScanID := "12345678-1234-1234-1234-123456789012"
 
 	mockClient.EXPECT().
-		CreateScan(gomock.Any(), gomock.Any(), gomock.Any()).
+		RunScan(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(expectedScanID, nil).
 		AnyTimes()
 
-	scanID, err := mockClient.CreateScan(context.Background(), testOrgID, &redteamclient.RedTeamConfig{})
+	scanID, err := mockClient.RunScan(context.Background(), testOrgID, &redteamclient.RedTeamConfig{})
 	require.NoError(t, err)
 	assert.Equal(t, expectedScanID, scanID)
 }
