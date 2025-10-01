@@ -45,9 +45,8 @@ func TestRedTeamClient_GetScan(t *testing.T) {
 
 	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
 
-	expectedScanStatus := &redteamclient.ScanStatus{
-		ID:   uuid.MustParse("12345678-1234-1234-1234-123456789012"),
-		Type: "ai_scan",
+	expectedScanStatus := &redteamclient.ScanData{
+		ID: uuid.MustParse("12345678-1234-1234-1234-123456789012"),
 		Attributes: redteamclient.ScanAttributes{
 			Status:    "completed",
 			CreatedAt: time.Now(),
@@ -60,9 +59,9 @@ func TestRedTeamClient_GetScan(t *testing.T) {
 		Return(expectedScanStatus, nil).
 		Times(1)
 
-	scanStatus, err := mockClient.GetScan(context.Background(), testOrgID, testScanID)
+	scanData, err := mockClient.GetScan(context.Background(), testOrgID, testScanID)
 	require.NoError(t, err)
-	assert.Equal(t, "completed", scanStatus.Attributes.Status)
+	assert.Equal(t, "completed", scanData.Attributes.Status)
 }
 
 func TestRedTeamClient_GetScanResults(t *testing.T) {
@@ -89,10 +88,9 @@ func TestRedTeamClient_ListScans(t *testing.T) {
 
 	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
 
-	expectedScans := []redteamclient.ScanSummary{
+	expectedScans := []redteamclient.ScanData{
 		{
-			ID:   uuid.MustParse("scan1"),
-			Type: "ai_scan",
+			ID: uuid.MustParse("scan1"),
 			Attributes: redteamclient.ScanAttributes{
 				Status:    "completed",
 				CreatedAt: time.Now(),
@@ -100,8 +98,7 @@ func TestRedTeamClient_ListScans(t *testing.T) {
 			},
 		},
 		{
-			ID:   uuid.MustParse("scan2"),
-			Type: "ai_scan",
+			ID: uuid.MustParse("scan2"),
 			Attributes: redteamclient.ScanAttributes{
 				Status:    "processing",
 				CreatedAt: time.Now(),

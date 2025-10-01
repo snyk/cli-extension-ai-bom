@@ -170,6 +170,7 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 	return []workflow.Data{workflowData}, nil
 }
 
+//nolint:ireturn // Unable to change return type of external library
 func newWorkflowData(contentType string, data []byte) workflow.Data {
 	return workflow.NewData(
 		workflow.NewTypeIdentifier(WorkflowID, "redteam"),

@@ -26,8 +26,7 @@ const (
 
 // MockRedTeamClient implements the RedTeamClient interface for testing.
 type MockRedTeamClient struct {
-	scans              []redteamclient.ScanSummary
-	scanStatus         *redteamclient.ScanStatus
+	scanData           []redteamclient.ScanData
 	scanResults        redteamclient.ScanResultsData
 	createError        error
 	getError           error
@@ -57,23 +56,23 @@ func (m *MockRedTeamClient) GetScan(_ context.Context, _, _ string) (*redteamcli
 		err := snyk_common_errors.NewServerError(m.getError.Error())
 		return nil, &err
 	}
-	return m.scanData, nil
+	return &m.scanData[0], nil
 }
 
 func (m *MockRedTeamClient) GetScanResults(_ context.Context, _, _ string) (redteamclient.ScanResultsData, *errors.Error) {
 	if m.resultsError != nil {
 		err := snyk_common_errors.NewServerError(m.resultsError.Error())
-		return "", &err
+		return redteamclient.ScanResultsData{}, &err
 	}
 	return m.scanResults, nil
 }
 
-func (m *MockRedTeamClient) ListScans(_ context.Context, _ string) ([]redteamclient.ScanSummary, *errors.Error) {
+func (m *MockRedTeamClient) ListScans(_ context.Context, _ string) ([]redteamclient.ScanData, *errors.Error) {
 	if m.listError != nil {
 		err := snyk_common_errors.NewServerError(m.listError.Error())
 		return nil, &err
 	}
-	return m.scans, nil
+	return m.scanData, nil
 }
 
 func (m *MockRedTeamClient) ValidateTarget(_ context.Context, _ string, _ *redteamclient.RedTeamConfig) *errors.Error {
@@ -91,16 +90,16 @@ func TestRunRedTeamWorkflow_GetScanCommand(t *testing.T) {
 	ictx.GetConfiguration().Set("scan-id", "test-scan-id")
 
 	mockClient := &MockRedTeamClient{
-		scanData: &redteamclient.ScanData{
-			ID:   uuid.New(),
-			Type: "ai_scan",
-			Attributes: redteamclient.ScanAttributes{
-				Status:    "completed",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
+		scanData: []redteamclient.ScanData{
+			{
+				ID: uuid.New(),
+				Attributes: redteamclient.ScanAttributes{
+					Status:    redteamclient.ScanStatusCompleted,
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				},
 			},
 		},
-		scanResults: `{"findings": [{"severity": "high", "description": "Test finding"}]}`,
 	}
 
 	originalArgs := os.Args
@@ -134,7 +133,20 @@ options:
 	ictx.GetConfiguration().Set("config", "test-redteam.yaml")
 
 	mockClient := &MockRedTeamClient{
-		scanResults: `{"findings": [{"severity": "high", "description": "Test finding"}]}`,
+		scanResults: redteamclient.ScanResultsData{
+			ID: uuid.New(),
+			Attributes: redteamclient.ScanAttributes{
+				Status:    redteamclient.ScanStatusCompleted,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+			Vulnerabilities: []redteamclient.Vulnerability{
+				{
+					VID: "test-vid",
+					URL: "test-url",
+				},
+			},
+		},
 	}
 
 	originalArgs := os.Args

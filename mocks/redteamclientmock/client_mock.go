@@ -86,10 +86,10 @@ func (mr *MockRedTeamClientMockRecorder) RunScan(ctx, orgID, config any) *gomock
 }
 
 // GetScan mocks base method.
-func (m *MockRedTeamClient) GetScan(ctx context.Context, orgID, scanID string) (*redteamclient.ScanStatus, *snyk_errors.Error) {
+func (m *MockRedTeamClient) GetScan(ctx context.Context, orgID, scanID string) (*redteamclient.ScanData, *snyk_errors.Error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetScan", ctx, orgID, scanID)
-	ret0, _ := ret[0].(*redteamclient.ScanStatus)
+	ret0, _ := ret[0].(*redteamclient.ScanData)
 	ret1, _ := ret[1].(*snyk_errors.Error)
 	return ret0, ret1
 }
@@ -116,10 +116,10 @@ func (mr *MockRedTeamClientMockRecorder) GetScanResults(ctx, orgID, scanID any) 
 }
 
 // ListScans mocks base method.
-func (m *MockRedTeamClient) ListScans(ctx context.Context, orgID string) ([]redteamclient.ScanSummary, *snyk_errors.Error) {
+func (m *MockRedTeamClient) ListScans(ctx context.Context, orgID string) ([]redteamclient.ScanData, *snyk_errors.Error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListScans", ctx, orgID)
-	ret0, _ := ret[0].([]redteamclient.ScanSummary)
+	ret0, _ := ret[0].([]redteamclient.ScanData)
 	ret1, _ := ret[1].(*snyk_errors.Error)
 	return ret0, ret1
 }

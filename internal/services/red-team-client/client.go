@@ -23,7 +23,7 @@ type RedTeamClient interface {
 	RunScan(ctx context.Context, orgID string, config *RedTeamConfig) (string, *errors.Error)
 	GetScan(ctx context.Context, orgID, scanID string) (*ScanData, *errors.Error)
 	GetScanResults(ctx context.Context, orgID, scanID string) (ScanResultsData, *errors.Error)
-	ListScans(ctx context.Context, orgID string) ([]ScanSummary, *errors.Error)
+	ListScans(ctx context.Context, orgID string) ([]ScanData, *errors.Error)
 }
 
 type ClientImpl struct {
@@ -64,8 +64,8 @@ func NewRedTeamClient(
 
 var APIVersion = "2024-10-15"
 
-func (c *ClientImpl) ValidateTarget(ctx context.Context, orgID string, config *RedTeamConfig) *errors.Error {
-	//TODO(pkey): implement a check that the target is available before running the scan
+func (c *ClientImpl) ValidateTarget(_ context.Context, _ string, _ *RedTeamConfig) *errors.Error {
+	// TODO(pkey): implement a check that the target is available before running the scan
 	return nil
 }
 
@@ -86,7 +86,6 @@ func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamC
 	}()
 
 	scanID, err := c.createScan(ctx, orgID, config)
-
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while creating scan")
 		return "", err
@@ -98,7 +97,7 @@ func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamC
 		return "", err
 	}
 
-	if scanStatus.Attributes.Status != "completed" {
+	if scanStatus.Attributes.Status != ScanStatusCompleted {
 		err := snyk_common_errors.NewServerError("Red team scan did not complete successfully")
 		return "", &err
 	}
@@ -111,7 +110,7 @@ func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamC
 	return scanID, nil
 }
 
-func (c *ClientImpl) GetScan(ctx context.Context, orgID string, scanID string) (*ScanData, *errors.Error) {
+func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*ScanData, *errors.Error) {
 	_, err := uuid.Parse(scanID)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while parsing scanID as UUID")
@@ -121,7 +120,6 @@ func (c *ClientImpl) GetScan(ctx context.Context, orgID string, scanID string) (
 
 	url := fmt.Sprintf("%s/hidden/orgs/%s/ai_scans/%s?version=%s", c.baseURL, orgID, scanID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
-
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building GetScan request")
 		err := snyk_common_errors.NewServerError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
@@ -137,6 +135,11 @@ func (c *ClientImpl) GetScan(ctx context.Context, orgID string, scanID string) (
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while reading GetScan response body")
+		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Failed to read GetScan response body: %s", err.Error()))
+		return nil, &badRequestErr
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, c.redTeamErrorFromHTTPStatusCode("GetScan", resp.StatusCode, bodyBytes)
@@ -170,7 +173,6 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 
 	url := fmt.Sprintf("%s/hidden/orgs/%s/ai_scans/%s/vulnerabilities?version=%s", c.baseURL, orgID, scanID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
-
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building GetScan request")
 		err := snyk_common_errors.NewServerError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
@@ -187,7 +189,6 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
-
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while reading GetScanResults response body")
 		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Failed to read GetScanResults response body: %s", err.Error()))
@@ -208,17 +209,14 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 
 	progressBar.SetTitle("Scan results retrieved")
 
-	c.logger.Debug().Msgf("scanRespBody: %+v", scanRespBody)
-
 	if err := progressBar.UpdateProgress(1.0); err != nil {
 		c.logger.Debug().Err(err).Msg("Failed to update progress bar")
 	}
 
-	// TODO: might want to change this
 	return scanRespBody.Data, nil
 }
 
-func (c *ClientImpl) ListScans(ctx context.Context, orgID string) ([]ScanSummary, *errors.Error) {
+func (c *ClientImpl) ListScans(ctx context.Context, orgID string) ([]ScanData, *errors.Error) {
 	url := fmt.Sprintf("%s/rest/orgs/%s/ai_scans?version=%s", c.baseURL, orgID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
@@ -299,7 +297,6 @@ func (c *ClientImpl) createScan(
 	body := CreateScanRequestBody{Data: data}
 
 	reqBytes, err := json.Marshal(body)
-
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while marshaling request body")
 		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Error marshaling request body: %s", err.Error()))
@@ -308,7 +305,6 @@ func (c *ClientImpl) createScan(
 
 	url := fmt.Sprintf("%s/hidden/orgs/%s/ai_scans?version=%s", c.baseURL, orgID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBytes))
-
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building red team scan request")
 		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Error building red team request: %s", err.Error()))
