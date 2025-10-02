@@ -3,6 +3,7 @@ package redteamclient
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -97,7 +98,7 @@ func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamC
 		return "", err
 	}
 
-	if scanStatus.Attributes.Status != ScanStatusCompleted {
+	if scanStatus.Status != "completed" {
 		err := snyk_common_errors.NewServerError("Red team scan did not complete successfully")
 		return "", &err
 	}
@@ -111,12 +112,6 @@ func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamC
 }
 
 func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*ScanData, *errors.Error) {
-	_, err := uuid.Parse(scanID)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while parsing scanID as UUID")
-		err := snyk_common_errors.NewServerError(fmt.Sprintf("Invalid scan ID format: %s", err.Error()))
-		return nil, &err
-	}
 
 	url := fmt.Sprintf("%s/hidden/orgs/%s/ai_scans/%s?version=%s", c.baseURL, orgID, scanID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
@@ -211,6 +206,10 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 
 	if err := progressBar.UpdateProgress(1.0); err != nil {
 		c.logger.Debug().Err(err).Msg("Failed to update progress bar")
+	}
+
+	for i := range scanRespBody.Data.Results {
+		c.decodeVulnerabilityRequestsAndResponses(&scanRespBody.Data.Results[i])
 	}
 
 	return scanRespBody.Data, nil
@@ -339,7 +338,7 @@ func (c *ClientImpl) createScan(
 		return "", &badRequestErr
 	}
 
-	scanID := scanRespBody.Data.ID.String()
+	scanID := scanRespBody.Data.ID
 	c.logger.Debug().Str("scanID", scanID).Msg("created red team scan")
 
 	return scanID, nil
@@ -361,7 +360,7 @@ func (c *ClientImpl) pollForScanComplete(
 			return nil, err
 		}
 
-		if scanData.Attributes.Status == "completed" || scanData.Attributes.Status == "failed" {
+		if scanData.Status == "completed" || scanData.Status == "failed" {
 			return scanData, nil
 		}
 
@@ -377,4 +376,29 @@ func (c *ClientImpl) setCommonHeaders(url string, req *http.Request) {
 	req.Header.Set("snyk-request-id", requestID)
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("Content-Type", "application/vnd.api+json")
+}
+
+func (c *ClientImpl) decodeBase64Strings(encodedStrings []string) []string {
+	decodedStrings := make([]string, 0, len(encodedStrings))
+
+	for _, encoded := range encodedStrings {
+		decoded, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			c.logger.Debug().Err(err).Str("encoded", encoded).Msg("failed to decode base64 string, using original")
+			decodedStrings = append(decodedStrings, encoded)
+		} else {
+			decodedStrings = append(decodedStrings, string(decoded))
+		}
+	}
+
+	return decodedStrings
+}
+
+func (c *ClientImpl) decodeVulnerabilityRequestsAndResponses(vulnerability *AIVulnerability) {
+	if len(vulnerability.Requests) > 0 {
+		vulnerability.Requests = c.decodeBase64Strings(vulnerability.Requests)
+	}
+	if len(vulnerability.Responses) > 0 {
+		vulnerability.Responses = c.decodeBase64Strings(vulnerability.Responses)
+	}
 }

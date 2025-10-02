@@ -2,97 +2,113 @@ package redteamclient
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
-
-type JSONAPI struct {
-	Version string `json:"version"`
-}
 
 type RedTeamConfig struct {
-	Options RedTeamOptions `json:"options"`
-	Attacks []string       `json:"attacks,omitempty"`
+	Target  AIScanTarget  `json:"target" yaml:"target"`
+	Options AIScanOptions `json:"options" yaml:"options"`
 }
 
-type RedTeamOptions struct {
-	Target TargetConfig `json:"target"`
+type AIScanTarget struct {
+	URL  string `json:"url" yaml:"url"`
+	Name string `json:"name" yaml:"name"`
 }
 
-type TargetConfig struct {
-	Name             string            `json:"name"`
-	URL              string            `json:"url"`
-	Method           string            `json:"method,omitempty"`
-	Headers          map[string]string `json:"headers,omitempty"`
-	ResponseSelector string            `json:"response_selector,omitempty"`
-	RequestTemplate  string            `json:"request_template,omitempty"`
+type AIScanOptions struct {
+	Settings        AIScanSettings `json:"settings" yaml:"settings"`
+	Vulnerabilities []string       `json:"vulnerabilities" yaml:"vulnerabilities"`
 }
 
-type ScanData struct {
-	ID         uuid.UUID      `json:"id"`
-	Attributes ScanAttributes `json:"attributes"`
+type AIScanSettings struct {
+	Headers             string `json:"headers,omitempty" yaml:"headers,omitempty"`
+	ResponseSelector    string `json:"response_selector" yaml:"response_selector"`
+	RequestBodyTemplate string `json:"request_body_template" yaml:"request_body_template"`
 }
 
-type ScanStatus string
-
-// TODO: verify statuses.
-const (
-	ScanStatusQueued    ScanStatus = "queued"
-	ScanStatusFailed    ScanStatus = "failed"
-	ScanStatusCompleted ScanStatus = "completed"
-	ScanStatusStarted   ScanStatus = "started"
-	ScanStatusCanceled  ScanStatus = "canceled"
-)
-
-type ScanAttributes struct {
-	Status    ScanStatus    `json:"status"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
-	Config    RedTeamConfig `json:"config"`
+type AIScan struct {
+	ID        string        `json:"id"`
+	Status    string        `json:"status"`
+	Created   time.Time     `json:"created"`
+	Started   *time.Time    `json:"started,omitempty"`
+	Completed *time.Time    `json:"completed,omitempty"`
+	Target    AIScanTarget  `json:"target"`
+	Criticals *int          `json:"criticals,omitempty"`
+	Highs     *int          `json:"highs,omitempty"`
+	Mediums   *int          `json:"mediums,omitempty"`
+	Lows      *int          `json:"lows,omitempty"`
+	Options   AIScanOptions `json:"options"`
 }
 
-type ScanResultsData struct {
-	ID              uuid.UUID       `json:"id"`
-	Attributes      ScanAttributes  `json:"attributes"`
-	Vulnerabilities []Vulnerability `json:"vulnerabilities"`
+// ScanData is an alias for AIScan to maintain compatibility with existing client code
+type ScanData = AIScan
+
+type AIVulnerability struct {
+	ID         string                   `json:"vid"`
+	URL        string                   `json:"url"`
+	Severity   string                   `json:"severity"`
+	Confidence *float64                 `json:"confidence,omitempty"`
+	Input      *VulnerabilityInput      `json:"input,omitempty"`
+	CVSS       *VulnerabilityCVSS       `json:"cvss,omitempty"`
+	Evidence   *AIVulnerabilityEvidence `json:"evidence,omitempty"`
+	Requests   []string                 `json:"requests,omitempty"`
+	Responses  []string                 `json:"responses,omitempty"`
 }
 
-type VulnerabilitySeverity string
-
-const (
-	// VulnerabilitySeverityLow represents a low severity vulnerability.
-	VulnerabilitySeverityLow VulnerabilitySeverity = "low"
-	// VulnerabilitySeverityMedium represents a medium severity vulnerability.
-	VulnerabilitySeverityMedium VulnerabilitySeverity = "medium"
-	// VulnerabilitySeverityHigh represents a high severity vulnerability.
-	VulnerabilitySeverityHigh VulnerabilitySeverity = "high"
-	// VulnerabilitySeverityCritical represents a critical severity vulnerability.
-	VulnerabilitySeverityCritical VulnerabilitySeverity = "critical"
-)
-
-// Vulnerability represents an ai scan vulnerability.
-type Vulnerability struct {
-	VID        string                  `json:"vid"`
-	URL        string                  `json:"url"`
-	Severity   VulnerabilitySeverity   `json:"severity"`
-	Confidence float64                 `json:"confidence"`
-	Evidence   []VulnerabilityEvidence `json:"evidence"`
-	Requests   []string                `json:"requests"`
-	Responses  []string                `json:"responses"`
+type AIVulnerabilityEvidence struct {
+	Type    string       `json:"type"`
+	Content *interface{} `json:"content,omitempty"`
 }
 
-// VulnerabilityCVSS implements the CVSS structure for a vulnerability.
+type VulnerabilityInput struct {
+	Type  string `json:"type"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
 type VulnerabilityCVSS struct {
 	Vector string  `json:"vector"`
 	Score  float64 `json:"score"`
 }
 
-// VulnerabilityEvidence implements the evidence structure for a vulnerability.
-type VulnerabilityEvidence struct {
-	Type    string      `json:"type"`
-	Content interface{} `json:"content"`
+type AIVulnerabilityDefinition struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
 }
 
+type AIVulnerabilityRequestResponsePair struct {
+	Request  *string `json:"request,omitempty"`
+	Response *string `json:"response,omitempty"`
+}
+
+type ScanResultsData struct {
+	ID      string            `json:"id"`
+	Results []AIVulnerability `json:"results"`
+}
+
+// Vulnerability is an alias for AIVulnerability to maintain compatibility
+type Vulnerability = AIVulnerability
+
+type CreateAIScanRequest struct {
+	Data RedTeamConfig `json:"data"`
+}
+
+type CreateAIScanResponse struct {
+	Data    AIScan  `json:"data"`
+	Jsonapi JSONAPI `json:"jsonapi"`
+}
+
+type GetAIScanResponse struct {
+	Data    AIScan  `json:"data"`
+	Jsonapi JSONAPI `json:"jsonapi"`
+}
+
+type GetAIVulnerabilitiesResponse struct {
+	Data    []AIVulnerability `json:"data"`
+	Jsonapi JSONAPI           `json:"jsonapi"`
+}
+
+// Legacy response types for backward compatibility
 type ScanListResponse struct {
 	Data    []ScanData `json:"data"`
 	Jsonapi JSONAPI    `json:"jsonapi"`
@@ -102,17 +118,15 @@ type CreateScanRequestBody struct {
 	Data RedTeamConfig `json:"data"`
 }
 
-type CreateScanResponseBody struct {
-	Data    ScanData `json:"data"`
-	Jsonapi JSONAPI  `json:"jsonapi"`
-}
+type CreateScanResponseBody = CreateAIScanResponse
 
-type GetScanResponseBody struct {
-	Data    ScanData `json:"data"`
-	Jsonapi JSONAPI  `json:"jsonapi"`
-}
+type GetScanResponseBody = GetAIScanResponse
 
 type GetScanResultsResponseBody struct {
 	Data    ScanResultsData `json:"data"`
 	Jsonapi JSONAPI         `json:"jsonapi"`
+}
+
+type JSONAPI struct {
+	Version string `json:"version"`
 }

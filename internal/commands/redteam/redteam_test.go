@@ -115,13 +115,15 @@ func TestRunRedTeamWorkflow_GetScanCommand(t *testing.T) {
 func TestRunRedTeamWorkflow_CreateScanCommand(t *testing.T) {
 	// Create a test config file
 	configContent := `
+target:
+  name: "Test Target"
+  url: "https://example.com"
 options:
-  target:
-    name: "Test Target"
-    url: "https://example.com"
-    method: "POST"
-    headers:
-      Content-Type: "application/json"
+  settings:
+    headers: "Content-Type: application/json"
+    request_body_template: "{\"message\": \"{{prompt}}\"}"
+    response_selector: "response"
+  vulnerabilities: ""
 `
 	err := os.WriteFile("test-redteam.yaml", []byte(configContent), 0o600)
 	require.NoError(t, err)

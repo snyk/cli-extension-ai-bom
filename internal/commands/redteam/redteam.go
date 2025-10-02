@@ -46,25 +46,6 @@ func Workflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (outp
 	return RunRedTeamWorkflow(invocationCtx, redTeamClient)
 }
 
-// Config represents the configuration structure for red team scans.
-type Config struct {
-	Options Options  `yaml:"options"`
-	Attacks []string `yaml:"attacks,omitempty"`
-}
-
-type Options struct {
-	Target TargetConfig `yaml:"target"`
-}
-
-type TargetConfig struct {
-	Name             string            `yaml:"name"`
-	URL              string            `yaml:"url"`
-	Method           string            `yaml:"method,omitempty"`
-	Headers          map[string]string `yaml:"headers,omitempty"`
-	ResponseSelector string            `yaml:"response_selector,omitempty"`
-	RequestTemplate  string            `yaml:"request_template,omitempty"`
-}
-
 func RunRedTeamWorkflow(
 	invocationCtx workflow.InvocationContext,
 	redTeamClient redteamclient.RedTeamClient,
@@ -117,26 +98,28 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 		return nil, errors.NewInternalError("Error reading configuration file").SnykError
 	}
 
-	var redTeamConfig Config
+	var redTeamConfig redteamclient.RedTeamConfig
+
 	yamlErr := yaml.Unmarshal(configData, &redTeamConfig)
 	if yamlErr != nil {
 		logger.Debug().Err(yamlErr).Msg("error while unmarshaling config")
 		return nil, snyk_common_errors.NewServerError("Error parsing configuration file")
 	}
 
-	// Convert to client config
 	clientConfig := redteamclient.RedTeamConfig{
-		Options: redteamclient.RedTeamOptions{
-			Target: redteamclient.TargetConfig{
-				Name:             redTeamConfig.Options.Target.Name,
-				URL:              redTeamConfig.Options.Target.URL,
-				Method:           redTeamConfig.Options.Target.Method,
-				Headers:          redTeamConfig.Options.Target.Headers,
-				ResponseSelector: redTeamConfig.Options.Target.ResponseSelector,
-				RequestTemplate:  redTeamConfig.Options.Target.RequestTemplate,
-			},
+		Target: redteamclient.AIScanTarget{
+			Name: redTeamConfig.Target.Name,
+			URL:  redTeamConfig.Target.URL,
 		},
-		Attacks: redTeamConfig.Attacks,
+		Options: redteamclient.AIScanOptions{
+			Settings: redteamclient.AIScanSettings{
+				Headers:             redTeamConfig.Options.Settings.Headers,
+				ResponseSelector:    redTeamConfig.Options.Settings.ResponseSelector,
+				RequestBodyTemplate: redTeamConfig.Options.Settings.RequestBodyTemplate,
+			},
+			// TODO: what is this for?
+			Vulnerabilities: redTeamConfig.Options.Vulnerabilities,
+		},
 	}
 
 	apiErr := redTeamClient.ValidateTarget(ctx, orgID, &clientConfig)
@@ -157,6 +140,7 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 	logger.Info().Msgf("Red team scan started with ID: %s", scanID)
 
 	results, resultsErr := redTeamClient.GetScanResults(ctx, orgID, scanID)
+	logger.Debug().Msgf("Red team scan results: %+v", results)
 	if resultsErr != nil {
 		return nil, fmt.Errorf("failed to get scan results: %w", resultsErr)
 	}
