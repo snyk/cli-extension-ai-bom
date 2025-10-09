@@ -68,13 +68,8 @@ type AIVulnerability struct {
 	Confidence *float64                             `json:"confidence,omitempty"`
 	Input      *VulnerabilityInput                  `json:"input,omitempty"`
 	CVSS       *VulnerabilityCVSS                   `json:"cvss,omitempty"`
-	Evidence   *AIVulnerabilityEvidence             `json:"evidence,omitempty"`
+	Evidence   string                               `json:"evidence,omitempty"`
 	Turns      []AIVulnerabilityRequestResponsePair `json:"turns,omitempty"`
-}
-
-type AIVulnerabilityEvidence struct {
-	Type    string                 `json:"type"`
-	Content map[string]interface{} `json:"content,omitempty"`
 }
 
 type VulnerabilityInput struct {
