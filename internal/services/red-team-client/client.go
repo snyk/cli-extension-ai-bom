@@ -22,9 +22,9 @@ import (
 type RedTeamClient interface {
 	ValidateTarget(ctx context.Context, orgID string, config *RedTeamConfig) *errors.Error
 	RunScan(ctx context.Context, orgID string, config *RedTeamConfig) (string, *errors.Error)
-	GetScan(ctx context.Context, orgID, scanID string) (*ScanData, *errors.Error)
-	GetScanResults(ctx context.Context, orgID, scanID string) (ScanResultsData, *errors.Error)
-	ListScans(ctx context.Context, orgID string) ([]ScanData, *errors.Error)
+	GetScan(ctx context.Context, orgID, scanID string) (*AIScan, *errors.Error)
+	GetScanResults(ctx context.Context, orgID, scanID string) (GetAIVulnerabilitiesResponseData, *errors.Error)
+	ListScans(ctx context.Context, orgID string) ([]AIScan, *errors.Error)
 }
 
 type ClientImpl struct {
@@ -72,7 +72,7 @@ func (c *ClientImpl) ValidateTarget(_ context.Context, _ string, _ *RedTeamConfi
 
 func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamConfig) (string, *errors.Error) {
 	progressBar := c.userInterface.NewProgressBar()
-	progressBar.SetTitle("Creating a scan...")
+	progressBar.SetTitle("Running a scan...")
 	progressErr := progressBar.UpdateProgress(ui.InfiniteProgress)
 
 	if progressErr != nil {
@@ -111,8 +111,7 @@ func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamC
 	return scanID, nil
 }
 
-func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*ScanData, *errors.Error) {
-
+func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*AIScan, *errors.Error) {
 	url := fmt.Sprintf("%s/hidden/orgs/%s/ai_scans/%s?version=%s", c.baseURL, orgID, scanID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
@@ -140,7 +139,7 @@ func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*ScanDa
 		return nil, c.redTeamErrorFromHTTPStatusCode("GetScan", resp.StatusCode, bodyBytes)
 	}
 
-	scanRespBody := GetScanResponseBody{}
+	scanRespBody := GetAIScanResponse{}
 	err = json.Unmarshal(bodyBytes, &scanRespBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling GetScanResponseBody")
@@ -151,7 +150,7 @@ func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*ScanDa
 	return &scanRespBody.Data, nil
 }
 
-func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (ScanResultsData, *errors.Error) {
+func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (GetAIVulnerabilitiesResponseData, *errors.Error) {
 	progressBar := c.userInterface.NewProgressBar()
 	progressBar.SetTitle("Getting scan results...")
 	progressErr := progressBar.UpdateProgress(ui.InfiniteProgress)
@@ -171,14 +170,14 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building GetScan request")
 		err := snyk_common_errors.NewServerError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
-		return ScanResultsData{}, &err
+		return GetAIVulnerabilitiesResponseData{}, &err
 	}
 
 	c.setCommonHeaders(url, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return ScanResultsData{}, c.redTeamErrorFromHTTPClientError("GetScanResults", err)
+		return GetAIVulnerabilitiesResponseData{}, c.redTeamErrorFromHTTPClientError("GetScanResults", err)
 	}
 
 	defer resp.Body.Close()
@@ -187,19 +186,19 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while reading GetScanResults response body")
 		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Failed to read GetScanResults response body: %s", err.Error()))
-		return ScanResultsData{}, &badRequestErr
+		return GetAIVulnerabilitiesResponseData{}, &badRequestErr
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return ScanResultsData{}, c.redTeamErrorFromHTTPStatusCode("GetScanResults", resp.StatusCode, bodyBytes)
+		return GetAIVulnerabilitiesResponseData{}, c.redTeamErrorFromHTTPStatusCode("GetScanResults", resp.StatusCode, bodyBytes)
 	}
 
-	scanRespBody := GetScanResultsResponseBody{}
+	scanRespBody := GetAIVulnerabilitiesResponseBody{}
 	err = json.Unmarshal(bodyBytes, &scanRespBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling GetScanResultsResponseBody")
 		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Failed to unmarshal GetScanResultsResponseBody: %s", err.Error()))
-		return ScanResultsData{}, &badRequestErr
+		return GetAIVulnerabilitiesResponseData{}, &badRequestErr
 	}
 
 	progressBar.SetTitle("Scan results retrieved")
@@ -215,7 +214,7 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 	return scanRespBody.Data, nil
 }
 
-func (c *ClientImpl) ListScans(ctx context.Context, orgID string) ([]ScanData, *errors.Error) {
+func (c *ClientImpl) ListScans(ctx context.Context, orgID string) ([]AIScan, *errors.Error) {
 	url := fmt.Sprintf("%s/rest/orgs/%s/ai_scans?version=%s", c.baseURL, orgID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
@@ -242,7 +241,7 @@ func (c *ClientImpl) ListScans(ctx context.Context, orgID string) ([]ScanData, *
 		return nil, c.redTeamErrorFromHTTPStatusCode("ListScans", resp.StatusCode, bodyBytes)
 	}
 
-	var scanList ScanListResponse
+	var scanList AIScanListResponse
 	err = json.Unmarshal(bodyBytes, &scanList)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling ScanListResponse")
@@ -291,9 +290,21 @@ func (c *ClientImpl) createScan(
 ) (string, *errors.Error) {
 	c.logger.Debug().Msg("creating red team scan")
 
-	data := *redTeamConfig
+	request := CreateAIScanRequest{
+		Data: CreateAIScanRequestData{
+			Target: AIScanTarget{
+				Name:     redTeamConfig.Target.Name,
+				Type:     redTeamConfig.Target.Type,
+				Context:  redTeamConfig.Target.Context,
+				Settings: redTeamConfig.Target.Settings,
+			},
+			Options: AIScanOptions{
+				VulnDefinitions: redTeamConfig.Options.VulnDefinitions,
+			},
+		},
+	}
 
-	body := CreateScanRequestBody{Data: data}
+	body := request
 
 	reqBytes, err := json.Marshal(body)
 	if err != nil {
@@ -330,7 +341,7 @@ func (c *ClientImpl) createScan(
 		return "", c.redTeamErrorFromHTTPStatusCode("RunScan", resp.StatusCode, bodyBytes)
 	}
 
-	scanRespBody := CreateScanResponseBody{}
+	scanRespBody := CreateAIScanResponse{}
 	err = json.Unmarshal(bodyBytes, &scanRespBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling CreateScanResponseBody")
@@ -348,7 +359,7 @@ func (c *ClientImpl) pollForScanComplete(
 	ctx context.Context,
 	orgID string,
 	scanID string,
-) (*ScanData, *errors.Error) {
+) (*AIScan, *errors.Error) {
 	numberOfPolls := 0
 
 	for numberOfPolls <= maxPollAttempts {
@@ -376,6 +387,7 @@ func (c *ClientImpl) setCommonHeaders(url string, req *http.Request) {
 	req.Header.Set("snyk-request-id", requestID)
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("Content-Type", "application/vnd.api+json")
+	req.Header.Set("X-Cerberus-Auth-Principal-Id", "69DB8855-4527-4190-B50D-60205A8B32C8")
 }
 
 func (c *ClientImpl) decodeBase64Strings(encodedStrings []string) []string {
@@ -395,10 +407,18 @@ func (c *ClientImpl) decodeBase64Strings(encodedStrings []string) []string {
 }
 
 func (c *ClientImpl) decodeVulnerabilityRequestsAndResponses(vulnerability *AIVulnerability) {
-	if len(vulnerability.Requests) > 0 {
-		vulnerability.Requests = c.decodeBase64Strings(vulnerability.Requests)
-	}
-	if len(vulnerability.Responses) > 0 {
-		vulnerability.Responses = c.decodeBase64Strings(vulnerability.Responses)
+	for i := range vulnerability.Turns {
+		if vulnerability.Turns[i].Request != nil {
+			decoded := c.decodeBase64Strings([]string{*vulnerability.Turns[i].Request})
+			if len(decoded) > 0 {
+				vulnerability.Turns[i].Request = &decoded[0]
+			}
+		}
+		if vulnerability.Turns[i].Response != nil {
+			decoded := c.decodeBase64Strings([]string{*vulnerability.Turns[i].Response})
+			if len(decoded) > 0 {
+				vulnerability.Turns[i].Response = &decoded[0]
+			}
+		}
 	}
 }

@@ -108,17 +108,13 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 
 	clientConfig := redteamclient.RedTeamConfig{
 		Target: redteamclient.AIScanTarget{
-			Name: redTeamConfig.Target.Name,
-			URL:  redTeamConfig.Target.URL,
+			Name:     redTeamConfig.Target.Name,
+			Type:     redTeamConfig.Target.Type,
+			Context:  redTeamConfig.Target.Context,
+			Settings: redTeamConfig.Target.Settings,
 		},
 		Options: redteamclient.AIScanOptions{
-			Settings: redteamclient.AIScanSettings{
-				Headers:             redTeamConfig.Options.Settings.Headers,
-				ResponseSelector:    redTeamConfig.Options.Settings.ResponseSelector,
-				RequestBodyTemplate: redTeamConfig.Options.Settings.RequestBodyTemplate,
-			},
-			// TODO: what is this for?
-			Vulnerabilities: redTeamConfig.Options.Vulnerabilities,
+			VulnDefinitions: redTeamConfig.Options.VulnDefinitions,
 		},
 	}
 
@@ -154,8 +150,7 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 	return []workflow.Data{workflowData}, nil
 }
 
-//nolint:ireturn // Unable to change return type of external library
-func newWorkflowData(contentType string, data []byte) workflow.Data {
+func newWorkflowData(contentType string, data []byte) workflow.Data { //nolint:ireturn // Unable to change return type of external library
 	return workflow.NewData(
 		workflow.NewTypeIdentifier(WorkflowID, "redteam"),
 		contentType,

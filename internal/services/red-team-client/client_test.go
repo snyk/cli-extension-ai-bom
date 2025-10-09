@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -30,12 +29,12 @@ func TestRedTeamClient_CreateScan(t *testing.T) {
 	expectedScanID := "12345678-1234-1234-1234-123456789012"
 
 	mockClient.EXPECT().
-		RunScan(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(expectedScanID, nil).
-		AnyTimes()
+		RunScan(gomock.Any(), testOrgID, gomock.Any()).
+		Return(expectedScanID, (*snyk_errors.Error)(nil)).
+		Times(1)
 
 	scanID, err := mockClient.RunScan(context.Background(), testOrgID, &redteamclient.RedTeamConfig{})
-	require.NoError(t, err)
+	assert.Nil(t, err)
 	assert.Equal(t, expectedScanID, scanID)
 }
 
@@ -45,13 +44,10 @@ func TestRedTeamClient_GetScan(t *testing.T) {
 
 	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
 
-	expectedScanStatus := &redteamclient.ScanData{
-		ID: uuid.MustParse("12345678-1234-1234-1234-123456789012"),
-		Attributes: redteamclient.ScanAttributes{
-			Status:    "completed",
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
+	expectedScanStatus := &redteamclient.AIScan{
+		ID:      "12345678-1234-1234-1234-123456789012",
+		Status:  "completed",
+		Created: func() *time.Time { t := time.Now(); return &t }(),
 	}
 
 	mockClient.EXPECT().
@@ -60,8 +56,11 @@ func TestRedTeamClient_GetScan(t *testing.T) {
 		Times(1)
 
 	scanData, err := mockClient.GetScan(context.Background(), testOrgID, testScanID)
-	require.NoError(t, err)
-	assert.Equal(t, "completed", scanData.Attributes.Status)
+	t.Logf("GetScan returned: scanData=%+v, err=%v", scanData, err)
+	if err != nil {
+		t.Fatalf("GetScan returned error: %v", err)
+	}
+	assert.Equal(t, "completed", scanData.Status)
 }
 
 func TestRedTeamClient_GetScanResults(t *testing.T) {
@@ -70,7 +69,16 @@ func TestRedTeamClient_GetScanResults(t *testing.T) {
 
 	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
 
-	expectedResults := `{"findings": [{"severity": "high", "description": "Test finding"}]}`
+	expectedResults := redteamclient.GetAIVulnerabilitiesResponseData{
+		ID: "test-scan",
+		Results: []redteamclient.AIVulnerability{
+			{
+				ID:       "vuln1",
+				Severity: "high",
+				URL:      "https://example.com",
+			},
+		},
+	}
 
 	mockClient.EXPECT().
 		GetScanResults(gomock.Any(), testOrgID, testScanID).
@@ -78,7 +86,10 @@ func TestRedTeamClient_GetScanResults(t *testing.T) {
 		Times(1)
 
 	results, err := mockClient.GetScanResults(context.Background(), testOrgID, testScanID)
-	require.NoError(t, err)
+	t.Logf("GetScanResults returned: results=%+v, err=%v", results, err)
+	if err != nil {
+		t.Fatalf("GetScanResults returned error: %v", err)
+	}
 	assert.Equal(t, expectedResults, results)
 }
 
@@ -88,22 +99,16 @@ func TestRedTeamClient_ListScans(t *testing.T) {
 
 	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
 
-	expectedScans := []redteamclient.ScanData{
+	expectedScans := []redteamclient.AIScan{
 		{
-			ID: uuid.MustParse("scan1"),
-			Attributes: redteamclient.ScanAttributes{
-				Status:    "completed",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
+			ID:      "scan1",
+			Status:  "completed",
+			Created: func() *time.Time { t := time.Now(); return &t }(),
 		},
 		{
-			ID: uuid.MustParse("scan2"),
-			Attributes: redteamclient.ScanAttributes{
-				Status:    "processing",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
+			ID:      "scan2",
+			Status:  "processing",
+			Created: func() *time.Time { t := time.Now(); return &t }(),
 		},
 	}
 
@@ -113,10 +118,13 @@ func TestRedTeamClient_ListScans(t *testing.T) {
 		Times(1)
 
 	scans, err := mockClient.ListScans(context.Background(), testOrgID)
-	require.NoError(t, err)
+	t.Logf("ListScans returned: scans=%+v, err=%v", scans, err)
+	if err != nil {
+		t.Fatalf("ListScans returned error: %v", err)
+	}
 	assert.Len(t, scans, 2)
-	assert.Equal(t, "scan1", scans[0].ID.String())
-	assert.Equal(t, "completed", scans[0].Attributes.Status)
+	assert.Equal(t, "scan1", scans[0].ID)
+	assert.Equal(t, "completed", scans[0].Status)
 }
 
 func TestRedTeamClient_ErrorHandling(t *testing.T) {

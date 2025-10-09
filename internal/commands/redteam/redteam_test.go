@@ -12,6 +12,7 @@ import (
 
 	snyk_common_errors "github.com/snyk/error-catalog-golang-public/snyk"
 	errors "github.com/snyk/error-catalog-golang-public/snyk_errors"
+	"github.com/snyk/go-application-framework/pkg/configuration"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/redteam"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
@@ -26,8 +27,8 @@ const (
 
 // MockRedTeamClient implements the RedTeamClient interface for testing.
 type MockRedTeamClient struct {
-	scanData           []redteamclient.ScanData
-	scanResults        redteamclient.ScanResultsData
+	scanData           []redteamclient.AIScan
+	scanResults        redteamclient.GetAIVulnerabilitiesResponseData
 	createError        error
 	getError           error
 	listError          error
@@ -51,7 +52,7 @@ func (m *MockRedTeamClient) RunScan(_ context.Context, _ string, _ *redteamclien
 	return "test-scan-id", nil
 }
 
-func (m *MockRedTeamClient) GetScan(_ context.Context, _, _ string) (*redteamclient.ScanData, *errors.Error) {
+func (m *MockRedTeamClient) GetScan(_ context.Context, _, _ string) (*redteamclient.AIScan, *errors.Error) {
 	if m.getError != nil {
 		err := snyk_common_errors.NewServerError(m.getError.Error())
 		return nil, &err
@@ -59,15 +60,15 @@ func (m *MockRedTeamClient) GetScan(_ context.Context, _, _ string) (*redteamcli
 	return &m.scanData[0], nil
 }
 
-func (m *MockRedTeamClient) GetScanResults(_ context.Context, _, _ string) (redteamclient.ScanResultsData, *errors.Error) {
+func (m *MockRedTeamClient) GetScanResults(_ context.Context, _, _ string) (redteamclient.GetAIVulnerabilitiesResponseData, *errors.Error) {
 	if m.resultsError != nil {
 		err := snyk_common_errors.NewServerError(m.resultsError.Error())
-		return redteamclient.ScanResultsData{}, &err
+		return redteamclient.GetAIVulnerabilitiesResponseData{}, &err
 	}
 	return m.scanResults, nil
 }
 
-func (m *MockRedTeamClient) ListScans(_ context.Context, _ string) ([]redteamclient.ScanData, *errors.Error) {
+func (m *MockRedTeamClient) ListScans(_ context.Context, _ string) ([]redteamclient.AIScan, *errors.Error) {
 	if m.listError != nil {
 		err := snyk_common_errors.NewServerError(m.listError.Error())
 		return nil, &err
@@ -90,14 +91,11 @@ func TestRunRedTeamWorkflow_GetScanCommand(t *testing.T) {
 	ictx.GetConfiguration().Set("scan-id", "test-scan-id")
 
 	mockClient := &MockRedTeamClient{
-		scanData: []redteamclient.ScanData{
+		scanData: []redteamclient.AIScan{
 			{
-				ID: uuid.New(),
-				Attributes: redteamclient.ScanAttributes{
-					Status:    redteamclient.ScanStatusCompleted,
-					CreatedAt: time.Now(),
-					UpdatedAt: time.Now(),
-				},
+				ID:      uuid.New().String(),
+				Status:  "completed",
+				Created: &[]time.Time{time.Now()}[0],
 			},
 		},
 	}
@@ -135,16 +133,11 @@ options:
 	ictx.GetConfiguration().Set("config", "test-redteam.yaml")
 
 	mockClient := &MockRedTeamClient{
-		scanResults: redteamclient.ScanResultsData{
-			ID: uuid.New(),
-			Attributes: redteamclient.ScanAttributes{
-				Status:    redteamclient.ScanStatusCompleted,
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-			Vulnerabilities: []redteamclient.Vulnerability{
+		scanResults: redteamclient.GetAIVulnerabilitiesResponseData{
+			ID: uuid.New().String(),
+			Results: []redteamclient.AIVulnerability{
 				{
-					VID: "test-vid",
+					ID:  "test-vid",
 					URL: "test-url",
 				},
 			},
@@ -179,7 +172,8 @@ func TestRunRedTeamWorkflow_ExperimentalFlagRequired(t *testing.T) {
 func TestRunRedTeamWorkflow_NoOrgID(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
-	// Don't set organization, leave it empty
+	// Explicitly clear the organization to test the error case
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, "")
 
 	mockClient := &MockRedTeamClient{}
 
