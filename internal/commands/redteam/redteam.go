@@ -86,8 +86,22 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 
 	// Check if config file exists
 	if _, configFileErr := os.Stat(configPath); os.IsNotExist(configFileErr) {
-		message := "Configuration file not found. Please create redteam.yaml file in the current directory. " +
-			"See the documentation (link here) on how to create one."
+		// TODO(pkey): move to GitBook docs
+		message := `
+Configuration file not found. Please create redteam.yaml file in the current directory. Example redteam.yaml configuration:
+
+target:
+	name: <required, name your target> // Can be anything you want
+	type: <required, e.g., api or socket_io> // The type of target to scan
+	context:
+		purpose: '<describe the use-case or intent>' // The use case for the app. The more information you provide, the better the scan will be.
+	settings:
+		url: '<required, e.g., https://vulnerable-app.com/chat/completions>' // The URL to scan
+		response_selector: '<required, e.g., response>' // The path to the response in the JSON response payload
+		request_body_template: '<required, e.g., {"message": "{{prompt}}"}>' // The request body template to use for the scan
+
+For more details, refer to the documentation.
+		`
 		return []workflow.Data{newWorkflowData("text/plain", []byte(message))}, nil
 	}
 
