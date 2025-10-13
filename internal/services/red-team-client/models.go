@@ -30,10 +30,10 @@ type AIScanOptionsVulnDefinitions struct {
 }
 
 type AIScanSettings struct {
-	URL                       string                 `json:"url" yaml:"url" validate:"required"`
+	URL                       string                 `json:"url" yaml:"url" validate:"required,url"`
 	Headers                   []AIScanSettingsHeader `json:"headers,omitempty" yaml:"headers,omitempty"`
 	ResponseSelector          string                 `json:"response_selector" yaml:"response_selector" validate:"required"`
-	RequestBodyTemplate       string                 `json:"request_body_template" yaml:"request_body_template" validate:"required"`
+	RequestBodyTemplate       string                 `json:"request_body_template" yaml:"request_body_template" validate:"required,json"`
 	SocketIOPath              string                 `json:"socketio_path,omitempty" yaml:"socketio_path,omitempty"`
 	SocketIONamespace         string                 `json:"socketio_namespace,omitempty" yaml:"socketio_namespace,omitempty"`
 	SocketIOSendEventName     string                 `json:"socketio_send_event_name,omitempty" yaml:"socketio_send_event_name,omitempty"`

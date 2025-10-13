@@ -20,6 +20,8 @@ import (
 
 	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v3"
+
+	"github.com/go-playground/validator/v10"
 )
 
 var WorkflowID = workflow.NewWorkflowIdentifier("redteam")
@@ -118,6 +120,14 @@ For more details, refer to the documentation.
 	if yamlErr != nil {
 		logger.Debug().Err(yamlErr).Msg("error while unmarshaling config")
 		return nil, snyk_common_errors.NewServerError("Error parsing configuration file")
+	}
+
+	validate := validator.New()
+
+	clientConfigErr := validate.Struct(redTeamConfig)
+
+	if clientConfigErr != nil {
+		return nil, cli_errors.NewValidationFailureError(clientConfigErr.Error())
 	}
 
 	clientConfig := redteamclient.RedTeamConfig{

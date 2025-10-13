@@ -23,6 +23,7 @@ const (
 	experimentalKey = "experimental"
 	testOrgID       = "test-org"
 	testScanID      = "test-scan"
+	configFlag      = "config"
 )
 
 // MockRedTeamClient implements the RedTeamClient interface for testing.
@@ -111,17 +112,16 @@ func TestRunRedTeamWorkflow_GetScanCommand(t *testing.T) {
 }
 
 func TestRunRedTeamWorkflow_CreateScanCommand(t *testing.T) {
-	// Create a test config file
 	configContent := `
 target:
   name: "Test Target"
-  url: "https://example.com"
-options:
+  type: api
+  context:
+    purpose: "Testing chatbot"
   settings:
-    headers: "Content-Type: application/json"
-    request_body_template: "{\"message\": \"{{prompt}}\"}"
+    url: "https://example.com"
     response_selector: "response"
-  vulnerabilities: ""
+    request_body_template: "{\"message\": \"{{prompt}}\"}"
 `
 	err := os.WriteFile("test-redteam.yaml", []byte(configContent), 0o600)
 	require.NoError(t, err)
@@ -185,4 +185,201 @@ func TestRunRedTeamWorkflow_NoOrgID(t *testing.T) {
 	require.Error(t, err)
 	// Just check that we get an error, the exact message might be wrapped
 	assert.NotNil(t, err)
+}
+
+func TestHandleRunScanCommand_ConfigFileNotFound(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, "nonexistent-config.yaml")
+
+	mockClient := &MockRedTeamClient{}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "text/plain", results[0].GetContentType())
+
+	payload, ok := results[0].GetPayload().([]byte)
+	require.True(t, ok, "expected payload to be []byte")
+	content := string(payload)
+	assert.Contains(t, content, "Configuration file not found")
+	assert.Contains(t, content, "redteam.yaml")
+}
+
+func TestHandleRunScanCommand_InvalidYAML(t *testing.T) {
+	configContent := `
+target:
+  name: "Test Target"
+  type: api
+  - invalid yaml syntax
+`
+	err := os.WriteFile("test-invalid.yaml", []byte(configContent), 0o600)
+	require.NoError(t, err)
+	defer os.Remove("test-invalid.yaml")
+
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, "test-invalid.yaml")
+
+	mockClient := &MockRedTeamClient{}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.Error(t, err)
+}
+
+func TestHandleRunScanCommand_ValidationFailure_MissingRequiredFields(t *testing.T) {
+	configContent := `
+target:
+  name: "Test Target"
+  type: api
+`
+	err := os.WriteFile("test-validation.yaml", []byte(configContent), 0o600)
+	require.NoError(t, err)
+	defer os.Remove("test-validation.yaml")
+
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, "test-validation.yaml")
+
+	mockClient := &MockRedTeamClient{}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "validation")
+}
+
+func TestHandleRunScanCommand_ValidationFailure_InvalidTargetType(t *testing.T) {
+	configContent := `
+target:
+  name: "Test Target"
+  type: invalid_type
+  settings:
+    url: "https://example.com"
+    response_selector: "response"
+    request_body_template: "{\"message\": \"test\"}"
+`
+	err := os.WriteFile("test-invalid-type.yaml", []byte(configContent), 0o600)
+	require.NoError(t, err)
+	defer os.Remove("test-invalid-type.yaml")
+
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, "test-invalid-type.yaml")
+
+	mockClient := &MockRedTeamClient{}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "validation")
+}
+
+func TestHandleRunScanCommand_ValidationFailure_InvalidURL(t *testing.T) {
+	configContent := `
+target:
+  name: "Test Target"
+  type: api
+  settings:
+    url: "not-a-valid-url"
+    response_selector: "response"
+    request_body_template: "{\"message\": \"test\"}"
+`
+	err := os.WriteFile("test-invalid-url.yaml", []byte(configContent), 0o600)
+	require.NoError(t, err)
+	defer os.Remove("test-invalid-url.yaml")
+
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, "test-invalid-url.yaml")
+
+	mockClient := &MockRedTeamClient{}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "validation")
+}
+
+func TestHandleRunScanCommand_ValidationFailure_InvalidJSON(t *testing.T) {
+	configContent := `
+target:
+  name: "Test Target"
+  type: api
+  settings:
+    url: "https://example.com"
+    response_selector: "response"
+    request_body_template: "not valid json"
+`
+	err := os.WriteFile("test-invalid-json.yaml", []byte(configContent), 0o600)
+	require.NoError(t, err)
+	defer os.Remove("test-invalid-json.yaml")
+
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, "test-invalid-json.yaml")
+
+	mockClient := &MockRedTeamClient{}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "validation")
+}
+
+func TestHandleRunScanCommand_ValidateTargetError(t *testing.T) {
+	configContent := `
+target:
+  name: "Test Target"
+  type: api
+  settings:
+    url: "https://example.com"
+    response_selector: "response"
+    request_body_template: "{\"message\": \"test\"}"
+`
+	err := os.WriteFile("test-validate-error.yaml", []byte(configContent), 0o600)
+	require.NoError(t, err)
+	defer os.Remove("test-validate-error.yaml")
+
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, "test-validate-error.yaml")
+
+	mockClient := &MockRedTeamClient{
+		checkEndpointError: assert.AnError,
+	}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.Error(t, err)
 }
