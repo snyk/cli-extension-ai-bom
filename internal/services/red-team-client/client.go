@@ -387,7 +387,6 @@ func (c *ClientImpl) setCommonHeaders(url string, req *http.Request) {
 	req.Header.Set("snyk-request-id", requestID)
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("Content-Type", "application/vnd.api+json")
-	req.Header.Set("X-Cerberus-Auth-Principal-Id", "69DB8855-4527-4190-B50D-60205A8B32C8")
 }
 
 func (c *ClientImpl) decodeBase64Strings(encodedStrings []string) []string {
