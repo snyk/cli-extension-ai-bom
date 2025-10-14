@@ -3,7 +3,6 @@ package redteamclient
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -38,8 +37,9 @@ type ClientImpl struct {
 var _ RedTeamClient = (*ClientImpl)(nil)
 
 const (
-	maxPollAttempts      = 7200
-	pollInterval         = 500 * time.Millisecond
+	maxPollAttempts = 720
+	pollInterval    = 5000 * time.Millisecond
+
 	failedProgressBarMsg = "Failed to update progress bar"
 )
 
@@ -118,6 +118,11 @@ func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*AIScan
 		c.logger.Debug().Err(err).Msg("error while building GetScan request")
 		err := snyk_common_errors.NewServerError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
 		return nil, &err
+	}
+
+	// Make the request retry-able for HTTP/2
+	req.GetBody = func() (io.ReadCloser, error) {
+		return http.NoBody, nil
 	}
 
 	c.setCommonHeaders(url, req)
@@ -205,10 +210,6 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 
 	if err := progressBar.UpdateProgress(1.0); err != nil {
 		c.logger.Debug().Err(err).Msg("Failed to update progress bar")
-	}
-
-	for i := range scanRespBody.Data.Results {
-		c.decodeVulnerabilityRequestsAndResponses(&scanRespBody.Data.Results[i])
 	}
 
 	return scanRespBody.Data, nil
@@ -363,7 +364,6 @@ func (c *ClientImpl) pollForScanComplete(
 	numberOfPolls := 0
 
 	for numberOfPolls <= maxPollAttempts {
-		time.Sleep(2 * time.Second)
 		numberOfPolls++
 
 		scanData, err := c.GetScan(ctx, orgID, scanID)
@@ -387,37 +387,4 @@ func (c *ClientImpl) setCommonHeaders(url string, req *http.Request) {
 	req.Header.Set("snyk-request-id", requestID)
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("Content-Type", "application/vnd.api+json")
-}
-
-func (c *ClientImpl) decodeBase64Strings(encodedStrings []string) []string {
-	decodedStrings := make([]string, 0, len(encodedStrings))
-
-	for _, encoded := range encodedStrings {
-		decoded, err := base64.StdEncoding.DecodeString(encoded)
-		if err != nil {
-			c.logger.Debug().Err(err).Str("encoded", encoded).Msg("failed to decode base64 string, using original")
-			decodedStrings = append(decodedStrings, encoded)
-		} else {
-			decodedStrings = append(decodedStrings, string(decoded))
-		}
-	}
-
-	return decodedStrings
-}
-
-func (c *ClientImpl) decodeVulnerabilityRequestsAndResponses(vulnerability *AIVulnerability) {
-	for i := range vulnerability.Turns {
-		if vulnerability.Turns[i].Request != nil {
-			decoded := c.decodeBase64Strings([]string{*vulnerability.Turns[i].Request})
-			if len(decoded) > 0 {
-				vulnerability.Turns[i].Request = &decoded[0]
-			}
-		}
-		if vulnerability.Turns[i].Response != nil {
-			decoded := c.decodeBase64Strings([]string{*vulnerability.Turns[i].Response})
-			if len(decoded) > 0 {
-				vulnerability.Turns[i].Response = &decoded[0]
-			}
-		}
-	}
 }
