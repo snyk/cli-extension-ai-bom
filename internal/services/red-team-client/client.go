@@ -130,8 +130,8 @@ func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*AIScan
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while reading GetScan response body")
-		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Failed to read GetScan response body: %s", err.Error()))
-		return nil, &badRequestErr
+		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read GetScan response body: %s", err.Error()))
+		return nil, &err
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -142,8 +142,8 @@ func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*AIScan
 	err = json.Unmarshal(bodyBytes, &scanRespBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling GetScanResponseBody")
-		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Failed to unmarshal GetScanResponseBody: %s", err.Error()))
-		return nil, &badRequestErr
+		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to unmarshal GetScanResponseBody: %s", err.Error()))
+		return nil, &err
 	}
 
 	return &scanRespBody.Data, nil
@@ -168,7 +168,7 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building GetScan request")
-		err := snyk_common_errors.NewServerError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
+		err := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
 		return GetAIVulnerabilitiesResponseData{}, &err
 	}
 
@@ -184,8 +184,8 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while reading GetScanResults response body")
-		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Failed to read GetScanResults response body: %s", err.Error()))
-		return GetAIVulnerabilitiesResponseData{}, &badRequestErr
+		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read GetScanResults response body: %s", err.Error()))
+		return GetAIVulnerabilitiesResponseData{}, &err
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -196,8 +196,8 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 	err = json.Unmarshal(bodyBytes, &scanRespBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling GetScanResultsResponseBody")
-		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Failed to unmarshal GetScanResultsResponseBody: %s", err.Error()))
-		return GetAIVulnerabilitiesResponseData{}, &badRequestErr
+		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to unmarshal GetScanResultsResponseBody: %s", err.Error()))
+		return GetAIVulnerabilitiesResponseData{}, &err
 	}
 
 	progressBar.SetTitle("Scan results retrieved")
@@ -207,37 +207,6 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 	}
 
 	return scanRespBody.Data, nil
-}
-
-func (c *ClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error) *errors.Error {
-	c.logger.Debug().Err(err).Msg(fmt.Sprintf("%s request HTTP error", endPoint))
-	if strings.Contains(strings.ToLower(err.Error()), "authentication") {
-		authErr := snyk_common_errors.NewUnauthorisedError(fmt.Sprintf("%s request failed with authentication error.", endPoint))
-		return &authErr
-	}
-	if strings.Contains(strings.ToLower(err.Error()), "forbidden") {
-		forbiddenErr := snyk_common_errors.NewUnauthorisedError(fmt.Sprintf("%s request failed with forbidden error.", endPoint))
-		return &forbiddenErr
-	}
-	serverErr := snyk_common_errors.NewServerError(fmt.Sprintf("%s request HTTP error: %s", endPoint, err.Error()))
-	return &serverErr
-}
-
-func (c *ClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode int, bodyBytes []byte) *errors.Error {
-	errMsg := fmt.Sprintf(
-		"unexpected status code %d for %s", statusCode, endPoint)
-	c.logger.Debug().Str("responseBody", string(bodyBytes)).Msg(errMsg)
-	switch statusCode {
-	case http.StatusUnauthorized:
-		authErr := snyk_common_errors.NewUnauthorisedError(errMsg)
-		return &authErr
-	case http.StatusForbidden:
-		forbiddenErr := snyk_common_errors.NewUnauthorisedError(errMsg)
-		return &forbiddenErr
-	default:
-		serverErr := snyk_common_errors.NewServerError(errMsg)
-		return &serverErr
-	}
 }
 
 func (c *ClientImpl) createScan(
@@ -290,8 +259,8 @@ func (c *ClientImpl) createScan(
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while reading RunScan response body")
-		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Failed to read RunScan response body: %s", err.Error()))
-		return "", &badRequestErr
+		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read RunScan response body: %s", err.Error()))
+		return "", &err
 	}
 
 	if resp.StatusCode != http.StatusCreated {
@@ -302,8 +271,8 @@ func (c *ClientImpl) createScan(
 	err = json.Unmarshal(bodyBytes, &scanRespBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling CreateScanResponseBody")
-		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Failed to unmarshal CreateScanResponseBody: %s", err.Error()))
-		return "", &badRequestErr
+		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to unmarshal CreateScanResponseBody: %s", err.Error()))
+		return "", &err
 	}
 
 	scanID := scanRespBody.Data.ID
@@ -343,4 +312,28 @@ func (c *ClientImpl) setCommonHeaders(url string, req *http.Request) {
 	req.Header.Set("snyk-request-id", requestID)
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("Content-Type", "application/vnd.api+json")
+}
+
+func (c *ClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error) *errors.Error {
+	c.logger.Debug().Err(err).Msg(fmt.Sprintf("%s request HTTP error", endPoint))
+	if strings.Contains(strings.ToLower(err.Error()), "authentication") {
+		authErr := snyk_common_errors.NewUnauthorisedError(fmt.Sprintf("%s request failed with authentication error.", endPoint))
+		return &authErr
+	}
+	serverErr := snyk_common_errors.NewServerError(fmt.Sprintf("%s request HTTP error: %s", endPoint, err.Error()))
+	return &serverErr
+}
+
+func (c *ClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode int, bodyBytes []byte) *errors.Error {
+	errMsg := fmt.Sprintf(
+		"unexpected status code %d for %s", statusCode, endPoint)
+	c.logger.Debug().Str("responseBody", string(bodyBytes)).Msg(errMsg)
+	switch statusCode {
+	case http.StatusUnauthorized:
+		authErr := snyk_common_errors.NewUnauthorisedError(errMsg)
+		return &authErr
+	default:
+		serverErr := snyk_common_errors.NewServerError(errMsg)
+		return &serverErr
+	}
 }
