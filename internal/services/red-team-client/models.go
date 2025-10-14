@@ -130,11 +130,6 @@ type GetAIVulnerabilitiesResponse struct {
 	Jsonapi JSONAPI                          `json:"jsonapi"`
 }
 
-type CancelAIScanResponse struct {
-	Data    AIScan  `json:"data"`
-	Jsonapi JSONAPI `json:"jsonapi"`
-}
-
 type JSONAPI struct {
 	Version string `json:"version"`
 }
