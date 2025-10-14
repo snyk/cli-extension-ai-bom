@@ -110,7 +110,6 @@ For more details, refer to the documentation.
 		return []workflow.Data{newWorkflowData("text/plain", []byte(message))}, nil
 	}
 
-	// Load configuration
 	configData, configErr := os.ReadFile(configPath)
 	if configErr != nil {
 		logger.Debug().Err(configErr).Msg("error while reading config file")
@@ -145,14 +144,8 @@ For more details, refer to the documentation.
 		},
 	}
 
-	apiErr := redTeamClient.ValidateTarget(ctx, orgID, &clientConfig)
-
-	if apiErr != nil {
-		logger.Debug().Msg("Target is not available or misconfigured")
-		return nil, apiErr
-	}
-
 	logger.Debug().Msg("Starting red team scan")
+
 	scanID, scanErr := redTeamClient.RunScan(ctx, orgID, &clientConfig)
 
 	if scanErr != nil {

@@ -19,11 +19,9 @@ import (
 )
 
 type RedTeamClient interface {
-	ValidateTarget(ctx context.Context, orgID string, config *RedTeamConfig) *errors.Error
 	RunScan(ctx context.Context, orgID string, config *RedTeamConfig) (string, *errors.Error)
 	GetScan(ctx context.Context, orgID, scanID string) (*AIScan, *errors.Error)
 	GetScanResults(ctx context.Context, orgID, scanID string) (GetAIVulnerabilitiesResponseData, *errors.Error)
-	ListScans(ctx context.Context, orgID string) ([]AIScan, *errors.Error)
 }
 
 type ClientImpl struct {
@@ -64,11 +62,6 @@ func NewRedTeamClient(
 }
 
 var APIVersion = "2024-10-15"
-
-func (c *ClientImpl) ValidateTarget(_ context.Context, _ string, _ *RedTeamConfig) *errors.Error {
-	// TODO(pkey): implement a check that the target is available before running the scan
-	return nil
-}
 
 func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamConfig) (string, *errors.Error) {
 	progressBar := c.userInterface.NewProgressBar()
@@ -214,44 +207,6 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 	}
 
 	return scanRespBody.Data, nil
-}
-
-func (c *ClientImpl) ListScans(ctx context.Context, orgID string) ([]AIScan, *errors.Error) {
-	url := fmt.Sprintf("%s/rest/orgs/%s/ai_scans?version=%s", c.baseURL, orgID, APIVersion)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while building ListScans request")
-		err := snyk_common_errors.NewServerError(fmt.Sprintf("Error building ListScans request: %s", err.Error()))
-		return nil, &err
-	}
-	c.setCommonHeaders(url, req)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, c.redTeamErrorFromHTTPClientError("ListScans", err)
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while reading ListScans response body")
-		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read ListScans response body: %s", err.Error()))
-		return nil, &err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, c.redTeamErrorFromHTTPStatusCode("ListScans", resp.StatusCode, bodyBytes)
-	}
-
-	var scanList AIScanListResponse
-	err = json.Unmarshal(bodyBytes, &scanList)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while unmarshaling ScanListResponse")
-		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to unmarshal ScanListResponse: %s", err.Error()))
-		return nil, &err
-	}
-
-	return scanList.Data, nil
 }
 
 func (c *ClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error) *errors.Error {

@@ -91,39 +91,6 @@ func TestRedTeamClient_GetScanResults(t *testing.T) {
 	assert.Equal(t, expectedResults, results)
 }
 
-func TestRedTeamClient_ListScans(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
-
-	expectedScans := []redteamclient.AIScan{
-		{
-			ID:      "scan1",
-			Status:  redteamclient.ScanStatusCompleted,
-			Created: func() *time.Time { t := time.Now(); return &t }(),
-		},
-		{
-			ID:      "scan2",
-			Status:  redteamclient.ScanStatusStarted,
-			Created: func() *time.Time { t := time.Now(); return &t }(),
-		},
-	}
-
-	mockClient.EXPECT().
-		ListScans(gomock.Any(), testOrgID).
-		Return(expectedScans, nil).
-		Times(1)
-
-	scans, err := mockClient.ListScans(context.Background(), testOrgID)
-	if err != nil {
-		t.Fatalf("ListScans returned error: %v", err)
-	}
-	assert.Len(t, scans, 2)
-	assert.Equal(t, "scan1", scans[0].ID)
-	assert.Equal(t, redteamclient.ScanStatusCompleted, scans[0].Status)
-}
-
 func TestRedTeamClient_ErrorHandling(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
