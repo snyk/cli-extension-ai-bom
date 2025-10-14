@@ -29,6 +29,7 @@ var WorkflowID = workflow.NewWorkflowIdentifier("redteam")
 func RegisterWorkflows(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom-redteam", pflag.ExitOnError)
 	flagset.Bool(utils.FlagExperimental, false, "This is an experiment feature that will contain breaking changes in future revisions")
+	flagset.String(utils.FlagConfig, "redteam.yaml", "Path to the red team configuration file")
 
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
 	if _, err := e.Register(WorkflowID, configuration, Workflow); err != nil {
@@ -56,8 +57,8 @@ func RunRedTeamWorkflow(
 	config := invocationCtx.GetConfiguration()
 
 	config.Set(configuration.RAW_CMD_ARGS, os.Args[1:])
-	experimental := config.GetBool(utils.FlagExperimental)
 
+	experimental := config.GetBool(utils.FlagExperimental)
 	// As this is an experimental feature, we only want to continue if the experimental flag is set
 	if !experimental {
 		logger.Debug().Msg("Required experimental flag is not present")
@@ -65,12 +66,11 @@ func RunRedTeamWorkflow(
 	}
 
 	orgID := config.GetString(configuration.ORGANIZATION)
-
 	if orgID == "" {
-		logger.Debug().Msg("no org id found")
+		logger.Debug().Msg("No organization id is found.")
+		// This shouldn't really happen unless customer has explicitly unset the orgId.
 		return nil, snyk_common_errors.NewUnauthorisedError("")
 	}
-	logger.Debug().Msgf("running command with orgId: %s", orgID)
 
 	return handleRunScanCommand(invocationCtx, redTeamClient)
 }
@@ -79,10 +79,12 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
 	ctx := context.Background()
+
 	orgID := config.GetString(configuration.ORGANIZATION)
 
-	configPath := config.GetString("config")
+	configPath := config.GetString(utils.FlagConfig)
 	if configPath == "" {
+		logger.Debug().Msg("No config path provided, using default value.")
 		configPath = "redteam.yaml"
 	}
 
@@ -90,7 +92,8 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 	if _, configFileErr := os.Stat(configPath); os.IsNotExist(configFileErr) {
 		// TODO(pkey): move to GitBook docs
 		message := `
-Configuration file not found. Please create redteam.yaml file in the current directory. Example redteam.yaml configuration:
+Configuration file not found. Please create either a redteam.yaml file in the current directory
+ or use the --config flag to specify a custom path. Example configuration:
 
 target:
 	name: <required, name your target> // Can be anything you want

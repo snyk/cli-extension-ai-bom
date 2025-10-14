@@ -383,3 +383,37 @@ target:
 	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
 	require.Error(t, err)
 }
+
+func TestHandleRunScanCommand_CustomConfigPathDoesNotExist(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, "path-that-does-not-exist/test-custom-config.yaml")
+
+	mockClient := &MockRedTeamClient{}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	payload, _ := results[0].GetPayload().([]byte)
+	assert.Contains(t, string(payload), "Configuration file not found")
+}
+
+func TestHandleRunScanCommand_CustomConfig(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, "testdata/custom/path/test-custom-config.yaml")
+
+	mockClient := &MockRedTeamClient{}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	assert.NoError(t, err)
+}
