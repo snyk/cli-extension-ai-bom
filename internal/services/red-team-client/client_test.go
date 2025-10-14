@@ -2,130 +2,123 @@ package redteamclient_test
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
-	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/snyk/cli-extension-ai-bom/mocks/frameworkmock"
+	"github.com/snyk/cli-extension-ai-bom/mocks/loggermock"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
-
-	snyk_errors "github.com/snyk/error-catalog-golang-public/snyk_errors"
 
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
-	"github.com/snyk/cli-extension-ai-bom/mocks/redteamclientmock"
 )
+
+func isCreateAIScanReq(r *http.Request) bool {
+	return r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/ai_scans")
+}
+
+func isGetAIScanReq(r *http.Request) bool {
+	return r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/ai_scans/")
+}
+
+func isGetAIScanResultsReq(r *http.Request) bool {
+	return r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/ai_scans/%s/vulnerabilities")
+}
 
 const (
-	testOrgID  = "test-org"
-	testScanID = "test-scan"
+	userAgent = "test-user-agent"
+	orgID     = "test-org-id"
 )
 
-func ptr(s string) *string {
-	return &s
-}
-
-func TestRedTeamClient_CreateScan(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
-
-	expectedScanID := "12345678-1234-1234-1234-123456789012"
-
-	mockClient.EXPECT().
-		RunScan(gomock.Any(), testOrgID, gomock.Any()).
-		Return(expectedScanID, (*snyk_errors.Error)(nil)).
-		Times(1)
-
-	scanID, err := mockClient.RunScan(context.Background(), testOrgID, &redteamclient.RedTeamConfig{})
-	assert.Nil(t, err)
-	assert.Equal(t, expectedScanID, scanID)
-}
-
-func TestRedTeamClient_GetScan(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
-
-	expectedScanStatus := &redteamclient.AIScan{
-		ID:      "12345678-1234-1234-1234-123456789012",
-		Status:  redteamclient.ScanStatusCompleted,
-		Created: func() *time.Time { t := time.Now(); return &t }(),
-	}
-
-	mockClient.EXPECT().
-		GetScan(gomock.Any(), testOrgID, testScanID).
-		Return(expectedScanStatus, nil).
-		Times(1)
-
-	scanData, err := mockClient.GetScan(context.Background(), testOrgID, testScanID)
-	if err != nil {
-		t.Fatalf("GetScan returned error: %v", err)
-	}
-	assert.Equal(t, redteamclient.ScanStatusCompleted, scanData.Status)
-}
-
-func TestRedTeamClient_GetScanResults(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
-
-	expectedResults := redteamclient.GetAIVulnerabilitiesResponseData{
-		ID: "test-scan",
-		Results: []redteamclient.AIVulnerability{
-			{
-				ID:       "vuln1",
-				Severity: "high",
-				URL:      "https://example.com",
-				Turns: []redteamclient.Turn{
-					{
-						Request:  ptr("test request"),
-						Response: ptr("test response"),
-					},
-				},
-				Evidence: redteamclient.AIVulnerabilityEvidence{
-					Type: "text",
-					Content: redteamclient.AIVulnerabilityEvidenceContent{
-						Reason: "test reason",
-					},
-				},
-				Definition: redteamclient.AIVulnerabilityDefinition{
-					ID:          "vuln1",
-					Name:        "test vulnerability",
-					Description: "test description",
-				},
-			},
+var defaultConfig = redteamclient.RedTeamConfig{
+	Target: redteamclient.AIScanTarget{
+		Name: "test-target",
+		Type: "test-type",
+		Settings: redteamclient.AIScanSettings{
+			URL: "test-url",
 		},
-	}
-
-	mockClient.EXPECT().
-		GetScanResults(gomock.Any(), testOrgID, testScanID).
-		Return(expectedResults, nil).
-		Times(1)
-
-	results, err := mockClient.GetScanResults(context.Background(), testOrgID, testScanID)
-	if err != nil {
-		t.Fatalf("GetScanResults returned error: %v", err)
-	}
-	assert.Equal(t, expectedResults, results)
+	},
 }
 
-func TestRedTeamClient_ErrorHandling(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestRedTeamClient_RunScan_Happy(t *testing.T) {
+	pollCount := 0
+	var scanID string
 
-	mockClient := redteamclientmock.NewMockRedTeamClient(ctrl)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case isCreateAIScanReq(r):
+			scanID = uuid.New().String()
+			response := redteamclient.CreateAIScanResponse{
+				Data: redteamclient.AIScan{
+					ID: scanID,
+				},
+			}
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(response)
 
-	expectedError := &snyk_errors.Error{}
+		case isGetAIScanReq(r):
+			pollCount++
+			if pollCount < 3 {
+				// Return processing status
+				response := redteamclient.GetAIScanResponse{
+					Data: redteamclient.AIScan{
+						Status: redteamclient.AIScanStatusStarted,
+					},
+				}
+				json.NewEncoder(w).Encode(response)
+			} else {
+				response := redteamclient.GetAIScanResponse{
+					Data: redteamclient.AIScan{
+						Status: redteamclient.AIScanStatusCompleted,
+					},
+				}
+				json.NewEncoder(w).Encode(response)
+			}
 
-	mockClient.EXPECT().
-		GetScan(gomock.Any(), testOrgID, testScanID).
-		Return(nil, expectedError).
-		Times(1)
+		case isGetAIScanResultsReq(r):
+			// Handle getAIBOM
+			response := redteamclient.GetAIVulnerabilitiesResponse{
+				Data: redteamclient.GetAIVulnerabilitiesResponseData{
+					ID: uuid.New().String(),
+					Results: []redteamclient.AIVulnerability{
+						{
+							ID: uuid.New().String(),
+							Definition: redteamclient.AIVulnerabilityDefinition{
+								ID:          uuid.New().String(),
+								Name:        "test-vulnerability",
+								Description: "test-vulnerability-description",
+							},
+							Severity: "high",
+						},
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(response)
 
-	_, err := mockClient.GetScan(context.Background(), testOrgID, testScanID)
-	require.Error(t, err)
-	assert.Equal(t, expectedError, err)
+		default:
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	client := redteamclient.NewRedTeamClient(
+		logger,
+		ictx.GetNetworkAccess().GetHttpClient(),
+		ictx.GetUserInterface(),
+		userAgent,
+		server.URL, // Use the test server URL
+	)
+
+	result, err := client.RunScan(context.Background(), orgID, &defaultConfig)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, result)
+	assert.Equal(t, scanID, result)
 }

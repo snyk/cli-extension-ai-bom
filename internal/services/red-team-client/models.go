@@ -7,12 +7,12 @@ import (
 type AIScanStatus string
 
 const (
-	ScanStatusQueued    AIScanStatus = "queued"
-	ScanStatusSubmitted AIScanStatus = "submitted"
-	ScanStatusStarted   AIScanStatus = "started"
-	ScanStatusCompleted AIScanStatus = "completed"
-	ScanStatusFailed    AIScanStatus = "failed"
-	ScanStatusCanceled  AIScanStatus = "canceled"
+	AIScanStatusQueued    AIScanStatus = "queued"
+	AIScanStatusSubmitted AIScanStatus = "submitted"
+	AIScanStatusStarted   AIScanStatus = "started"
+	AIScanStatusCompleted AIScanStatus = "completed"
+	AIScanStatusFailed    AIScanStatus = "failed"
+	AIScanStatusCanceled  AIScanStatus = "canceled"
 )
 
 type RedTeamConfig struct {

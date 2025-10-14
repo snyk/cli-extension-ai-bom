@@ -91,7 +91,7 @@ func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamC
 		return "", err
 	}
 
-	if scanStatus.Status == ScanStatusFailed {
+	if scanStatus.Status == AIScanStatusFailed {
 		err := snyk_common_errors.NewServerError("Red team scan has failed.")
 		// TODO(pkey): update based on feedback value
 		return "", &err
@@ -327,7 +327,7 @@ func (c *ClientImpl) pollForScanComplete(
 			return nil, err
 		}
 
-		if scanData.Status == ScanStatusCompleted || scanData.Status == ScanStatusFailed {
+		if scanData.Status == AIScanStatusCompleted || scanData.Status == AIScanStatusFailed {
 			return scanData, nil
 		}
 

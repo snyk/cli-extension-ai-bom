@@ -95,7 +95,7 @@ func TestRunRedTeamWorkflow_GetScanCommand(t *testing.T) {
 		scanData: []redteamclient.AIScan{
 			{
 				ID:      uuid.New().String(),
-				Status:  redteamclient.ScanStatusCompleted,
+				Status:  redteamclient.AIScanStatusCompleted,
 				Created: &[]time.Time{time.Now()}[0],
 			},
 		},
