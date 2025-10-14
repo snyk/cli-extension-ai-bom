@@ -20,6 +20,10 @@ const (
 	testScanID = "test-scan"
 )
 
+func ptr(s string) *string {
+	return &s
+}
+
 func TestRedTeamClient_CreateScan(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -75,6 +79,23 @@ func TestRedTeamClient_GetScanResults(t *testing.T) {
 				ID:       "vuln1",
 				Severity: "high",
 				URL:      "https://example.com",
+				Turns: []redteamclient.Turn{
+					{
+						Request:  ptr("test request"),
+						Response: ptr("test response"),
+					},
+				},
+				Evidence: redteamclient.AIVulnerabilityEvidence{
+					Type: "text",
+					Content: redteamclient.AIVulnerabilityEvidenceContent{
+						Reason: "test reason",
+					},
+				},
+				Definition: redteamclient.AIVulnerabilityDefinition{
+					ID:          "vuln1",
+					Name:        "test vulnerability",
+					Description: "test description",
+				},
 			},
 		},
 	}

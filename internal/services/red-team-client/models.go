@@ -4,15 +4,15 @@ import (
 	"time"
 )
 
-type ScanStatus string
+type AIScanStatus string
 
 const (
-	ScanStatusQueued    ScanStatus = "queued"
-	ScanStatusSubmitted ScanStatus = "submitted"
-	ScanStatusStarted   ScanStatus = "started"
-	ScanStatusCompleted ScanStatus = "completed"
-	ScanStatusFailed    ScanStatus = "failed"
-	ScanStatusCanceled  ScanStatus = "canceled"
+	ScanStatusQueued    AIScanStatus = "queued"
+	ScanStatusSubmitted AIScanStatus = "submitted"
+	ScanStatusStarted   AIScanStatus = "started"
+	ScanStatusCompleted AIScanStatus = "completed"
+	ScanStatusFailed    AIScanStatus = "failed"
+	ScanStatusCanceled  AIScanStatus = "canceled"
 )
 
 type RedTeamConfig struct {
@@ -26,7 +26,7 @@ type AIScanContext struct {
 
 type AIScanTarget struct {
 	Name     string         `json:"name" yaml:"name" validate:"required"`
-	Type     string         `json:"type" yaml:"type" validate:"required,oneof=api socket_io"`
+	Type     string         `json:"type" yaml:"type" validate:"required"`
 	Context  AIScanContext  `json:"context" yaml:"context"`
 	Settings AIScanSettings `json:"settings" yaml:"settings" validate:"required"`
 }
@@ -53,14 +53,14 @@ type AIScanSettings struct {
 
 // AIScanSettingsHeaders represents the headers for an AI scan.
 type AIScanSettingsHeader struct {
-	Name  string `json:"name" yaml:"name"`
-	Value string `json:"value" yaml:"value"`
+	Name  string `json:"name" yaml:"name" validate:"required"`
+	Value string `json:"value" yaml:"value" validate:"required"`
 }
 
 type AIScan struct {
 	ID        string        `json:"id"`
 	Type      string        `json:"type"`
-	Status    ScanStatus    `json:"status"`
+	Status    AIScanStatus  `json:"status"`
 	Created   *time.Time    `json:"created"`
 	Started   *time.Time    `json:"started"`
 	Completed *time.Time    `json:"completed"`
@@ -73,30 +73,32 @@ type AIScan struct {
 }
 
 type AIVulnerability struct {
-	ID         string                               `json:"id"`
-	URL        string                               `json:"url"`
-	Severity   string                               `json:"severity"`
-	Confidence *float64                             `json:"confidence,omitempty"`
-	Input      *VulnerabilityInput                  `json:"input,omitempty"`
-	CVSS       *VulnerabilityCVSS                   `json:"cvss,omitempty"`
-	Evidence   string                               `json:"evidence,omitempty"`
-	Turns      []AIVulnerabilityRequestResponsePair `json:"turns,omitempty"`
+	ID         string                    `json:"id"`
+	Definition AIVulnerabilityDefinition `json:"definition"`
+	Severity   string                    `json:"severity"`
+	URL        string                    `json:"url"`
+	Turns      []Turn                    `json:"turns,omitempty"`
+	Evidence   AIVulnerabilityEvidence   `json:"evidence,omitempty"`
 }
 
-type VulnerabilityInput struct {
-	Type  string `json:"type"`
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-type VulnerabilityCVSS struct {
-	Vector string  `json:"vector"`
-	Score  float64 `json:"score"`
-}
-
-type AIVulnerabilityRequestResponsePair struct {
+type Turn struct {
 	Request  *string `json:"request,omitempty"`
 	Response *string `json:"response,omitempty"`
+}
+
+type AIVulnerabilityEvidence struct {
+	Type    string                         `json:"type"`
+	Content AIVulnerabilityEvidenceContent `json:"content"`
+}
+
+type AIVulnerabilityEvidenceContent struct {
+	Reason string `json:"reason"`
+}
+
+type AIVulnerabilityDefinition struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 type CreateAIScanRequest struct {
@@ -131,16 +133,6 @@ type GetAIVulnerabilitiesResponse struct {
 type CancelAIScanResponse struct {
 	Data    AIScan  `json:"data"`
 	Jsonapi JSONAPI `json:"jsonapi"`
-}
-
-type AIScanListResponse struct {
-	Data    []AIScan `json:"data"`
-	Jsonapi JSONAPI  `json:"jsonapi"`
-}
-
-type GetAIVulnerabilitiesResponseBody struct {
-	Data    GetAIVulnerabilitiesResponseData `json:"data"`
-	Jsonapi JSONAPI                          `json:"jsonapi"`
 }
 
 type JSONAPI struct {

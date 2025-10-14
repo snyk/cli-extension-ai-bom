@@ -192,7 +192,7 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 		return GetAIVulnerabilitiesResponseData{}, c.redTeamErrorFromHTTPStatusCode("GetScanResults", resp.StatusCode, bodyBytes)
 	}
 
-	scanRespBody := GetAIVulnerabilitiesResponseBody{}
+	scanRespBody := GetAIVulnerabilitiesResponse{}
 	err = json.Unmarshal(bodyBytes, &scanRespBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling GetScanResultsResponseBody")
