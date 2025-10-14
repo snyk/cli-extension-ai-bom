@@ -59,7 +59,7 @@ func RunRedTeamWorkflow(
 	config.Set(configuration.RAW_CMD_ARGS, os.Args[1:])
 
 	experimental := config.GetBool(utils.FlagExperimental)
-	// As this is an experimental feature, we only want to continue if the experimental flag is set
+
 	if !experimental {
 		logger.Debug().Msg("Required experimental flag is not present")
 		return nil, cli_errors.NewCommandIsExperimentalError("")
