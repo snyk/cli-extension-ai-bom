@@ -46,7 +46,7 @@ func TestRedTeamClient_GetScan(t *testing.T) {
 
 	expectedScanStatus := &redteamclient.AIScan{
 		ID:      "12345678-1234-1234-1234-123456789012",
-		Status:  "completed",
+		Status:  redteamclient.ScanStatusCompleted,
 		Created: func() *time.Time { t := time.Now(); return &t }(),
 	}
 
@@ -56,11 +56,10 @@ func TestRedTeamClient_GetScan(t *testing.T) {
 		Times(1)
 
 	scanData, err := mockClient.GetScan(context.Background(), testOrgID, testScanID)
-	t.Logf("GetScan returned: scanData=%+v, err=%v", scanData, err)
 	if err != nil {
 		t.Fatalf("GetScan returned error: %v", err)
 	}
-	assert.Equal(t, "completed", scanData.Status)
+	assert.Equal(t, redteamclient.ScanStatusCompleted, scanData.Status)
 }
 
 func TestRedTeamClient_GetScanResults(t *testing.T) {
@@ -86,7 +85,6 @@ func TestRedTeamClient_GetScanResults(t *testing.T) {
 		Times(1)
 
 	results, err := mockClient.GetScanResults(context.Background(), testOrgID, testScanID)
-	t.Logf("GetScanResults returned: results=%+v, err=%v", results, err)
 	if err != nil {
 		t.Fatalf("GetScanResults returned error: %v", err)
 	}
@@ -102,12 +100,12 @@ func TestRedTeamClient_ListScans(t *testing.T) {
 	expectedScans := []redteamclient.AIScan{
 		{
 			ID:      "scan1",
-			Status:  "completed",
+			Status:  redteamclient.ScanStatusCompleted,
 			Created: func() *time.Time { t := time.Now(); return &t }(),
 		},
 		{
 			ID:      "scan2",
-			Status:  "processing",
+			Status:  redteamclient.ScanStatusStarted,
 			Created: func() *time.Time { t := time.Now(); return &t }(),
 		},
 	}
@@ -118,13 +116,12 @@ func TestRedTeamClient_ListScans(t *testing.T) {
 		Times(1)
 
 	scans, err := mockClient.ListScans(context.Background(), testOrgID)
-	t.Logf("ListScans returned: scans=%+v, err=%v", scans, err)
 	if err != nil {
 		t.Fatalf("ListScans returned error: %v", err)
 	}
 	assert.Len(t, scans, 2)
 	assert.Equal(t, "scan1", scans[0].ID)
-	assert.Equal(t, "completed", scans[0].Status)
+	assert.Equal(t, redteamclient.ScanStatusCompleted, scans[0].Status)
 }
 
 func TestRedTeamClient_ErrorHandling(t *testing.T) {

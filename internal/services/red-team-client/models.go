@@ -4,6 +4,17 @@ import (
 	"time"
 )
 
+type ScanStatus string
+
+const (
+	ScanStatusQueued    ScanStatus = "queued"
+	ScanStatusSubmitted ScanStatus = "submitted"
+	ScanStatusStarted   ScanStatus = "started"
+	ScanStatusCompleted ScanStatus = "completed"
+	ScanStatusFailed    ScanStatus = "failed"
+	ScanStatusCanceled  ScanStatus = "canceled"
+)
+
 type RedTeamConfig struct {
 	Target  AIScanTarget  `json:"target" yaml:"target" validate:"required"`
 	Options AIScanOptions `json:"options" yaml:"options"`
@@ -49,7 +60,7 @@ type AIScanSettingsHeader struct {
 type AIScan struct {
 	ID        string        `json:"id"`
 	Type      string        `json:"type"`
-	Status    string        `json:"status"`
+	Status    ScanStatus    `json:"status"`
 	Created   *time.Time    `json:"created"`
 	Started   *time.Time    `json:"started"`
 	Completed *time.Time    `json:"completed"`
@@ -62,7 +73,7 @@ type AIScan struct {
 }
 
 type AIVulnerability struct {
-	ID         string                               `json:"vid"`
+	ID         string                               `json:"id"`
 	URL        string                               `json:"url"`
 	Severity   string                               `json:"severity"`
 	Confidence *float64                             `json:"confidence,omitempty"`

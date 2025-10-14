@@ -150,7 +150,6 @@ For more details, refer to the documentation.
 	}
 
 	logger.Debug().Msg("Starting red team scan")
-
 	scanID, scanErr := redTeamClient.RunScan(ctx, orgID, &clientConfig)
 
 	if scanErr != nil {
@@ -174,7 +173,8 @@ For more details, refer to the documentation.
 	return []workflow.Data{workflowData}, nil
 }
 
-func newWorkflowData(contentType string, data []byte) workflow.Data { //nolint:ireturn // Unable to change return type of external library
+//nolint:ireturn // Unable to change return type of external library
+func newWorkflowData(contentType string, data []byte) workflow.Data {
 	return workflow.NewData(
 		workflow.NewTypeIdentifier(WorkflowID, "redteam"),
 		contentType,
