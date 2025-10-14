@@ -96,14 +96,20 @@ Configuration file not found. Please create either a redteam.yaml file in the cu
  or use the --config flag to specify a custom path. Example configuration:
 
 target:
-	name: <required, name your target> // Can be anything you want
-	type: <required, e.g., api or socket_io> // The type of target to scan
-	context:
-		purpose: '<describe the use-case or intent>' // The use case for the app. The more information you provide, the better the scan will be.
-	settings:
-		url: '<required, e.g., https://vulnerable-app.com/chat/completions>' // The URL to scan
-		response_selector: '<required, e.g., response>' // The path to the response in the JSON response payload
-		request_body_template: '<required, e.g., {"message": "{{prompt}}"}>' // The request body template to use for the scan
+  name: <required, name your target> // Can be anything you want
+  type: <required, e.g., api or socket_io> // The type of target to scan
+  context:
+    purpose: '<describe the use-case or intent>' // The use case for the app. The more information you provide, the better the scan will be.
+  settings:
+    url: '<required, e.g., https://vulnerable-app.com/chat/completions>' // The URL to scan
+    headers: // Optional.
+    - name: '<optional, e.g. Authorization>' // Authentication header.
+      value: '<optional, e.g. Bearer TOKEN>' // Authentication header.
+    response_selector: '<required, e.g., response>' // The path to the response in the JSON response payload
+    request_body_template: '<required, e.g., {"message": "{{prompt}}"}>' // The request body template to use for the scan
+options:
+  vuln_definitions:
+    exclude: []
 
 For more details, refer to the documentation.
 		`
