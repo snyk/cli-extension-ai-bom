@@ -182,8 +182,10 @@ target:
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
-	require.Error(t, err)
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	payload, _ := results[0].GetPayload().([]byte)
+	assert.Contains(t, string(payload), "Configuration file in invalid")
 }
 
 func TestHandleRunScanCommand_ValidationFailure_MissingRequiredFields(t *testing.T) {

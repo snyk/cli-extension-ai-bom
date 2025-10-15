@@ -12,7 +12,6 @@ import (
 	cli_errors "github.com/snyk/error-catalog-golang-public/cli"
 	snyk_common_errors "github.com/snyk/error-catalog-golang-public/snyk"
 
-	"github.com/snyk/cli-extension-ai-bom/internal/errors"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
@@ -88,38 +87,35 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 		configPath = "redteam.yaml"
 	}
 
-	// Check if config file exists
 	if _, configFileErr := os.Stat(configPath); os.IsNotExist(configFileErr) {
-		// TODO(pkey): move to GitBook docs
 		message := `
-Configuration file not found. Please create either a redteam.yaml file in the current directory
- or use the --config flag to specify a custom path. Example configuration:
-
-target:
-  name: <required, name your target> // Can be anything you want
-  type: <required, e.g., api or socket_io> // The type of target to scan
-  context:
-    purpose: '<describe the use-case or intent>' // The use case for the app. The more information you provide, the better the scan will be.
-  settings:
-    url: '<required, e.g., https://vulnerable-app.com/chat/completions>' // The URL to scan
-    headers: // Optional.
-    - name: '<optional, e.g. Authorization>' // Authentication header.
-      value: '<optional, e.g. Bearer TOKEN>' // Authentication header.
-    response_selector: '<required, e.g., response>' // The path to the response in the JSON response payload
-    request_body_template: '<required, e.g., {"message": "{{prompt}}"}>' // The request body template to use for the scan
-options:
-  vuln_definitions:
-    exclude: []
-
-For more details, refer to the documentation.
-		`
+Configuration file not found. Please create either a redteam.yaml file in the current directory 
+or use the --config flag to specify a custom path.`
 		return []workflow.Data{newWorkflowData("text/plain", []byte(message))}, nil
 	}
+
+	invalidConfigMessage := `
+	Configuration file in invalid. Please refer to the following example:
+
+	target:
+		name: <required, name your target> // Can be anything you want
+		type: <required, e.g., api or socket_io> // The type of target to scan
+		settings:
+			url: '<required, e.g., https://vulnerable-app.com/chat/completions>' // The URL to scan
+			headers: // Optional.
+				- name: '<optional, e.g. Authorization>' // Authentication header.
+				  value: '<optional, e.g. Bearer TOKEN>' // Authentication header.
+			response_selector: '<required, e.g., response>' // The path to the response in the JSON response payload
+			request_body_template: '<required, e.g., {"message": "{{prompt}}"}>' // The request body template to use for the scan
+	
+	For more configuration options, refer to the documentation.
+
+	`
 
 	configData, configErr := os.ReadFile(configPath)
 	if configErr != nil {
 		logger.Debug().Err(configErr).Msg("error while reading config file")
-		return nil, errors.NewInternalError("Error reading configuration file").SnykError
+		return []workflow.Data{newWorkflowData("text/plain", []byte(invalidConfigMessage))}, nil
 	}
 
 	var redTeamConfig redteamclient.RedTeamConfig
@@ -127,7 +123,7 @@ For more details, refer to the documentation.
 	yamlErr := yaml.Unmarshal(configData, &redTeamConfig)
 	if yamlErr != nil {
 		logger.Debug().Err(yamlErr).Msg("error while unmarshaling config")
-		return nil, snyk_common_errors.NewServerError("Error parsing configuration file")
+		return []workflow.Data{newWorkflowData("text/plain", []byte(invalidConfigMessage))}, nil
 	}
 
 	validate := validator.New()
