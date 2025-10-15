@@ -296,6 +296,11 @@ func (c *ClientImpl) pollForScanComplete(
 			return nil, err
 		}
 
+		c.logger.Debug().
+			Str("scanID", scanID).
+			Str("status", string(scanData.Status)).
+			Msgf("Polling results for scan")
+
 		if scanData.Status == AIScanStatusCompleted || scanData.Status == AIScanStatusFailed {
 			return scanData, nil
 		}
