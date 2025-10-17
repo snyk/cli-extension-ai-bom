@@ -58,18 +58,38 @@ type AIScanSettingsHeader struct {
 }
 
 type AIScan struct {
-	ID        string        `json:"id"`
-	Type      string        `json:"type"`
-	Status    AIScanStatus  `json:"status"`
-	Created   *time.Time    `json:"created"`
-	Started   *time.Time    `json:"started"`
-	Completed *time.Time    `json:"completed"`
-	Target    AIScanTarget  `json:"target"`
-	Criticals *int          `json:"criticals"`
-	Highs     *int          `json:"highs"`
-	Mediums   *int          `json:"mediums"`
-	Lows      *int          `json:"lows"`
-	Options   AIScanOptions `json:"options"`
+	ID        string         `json:"id"`
+	Type      string         `json:"type"`
+	Status    AIScanStatus   `json:"status"`
+	Created   *time.Time     `json:"created"`
+	Started   *time.Time     `json:"started"`
+	Completed *time.Time     `json:"completed"`
+	Target    AIScanTarget   `json:"target"`
+	Criticals *int           `json:"criticals"`
+	Highs     *int           `json:"highs"`
+	Mediums   *int           `json:"mediums"`
+	Lows      *int           `json:"lows"`
+	Options   AIScanOptions  `json:"options"`
+	Feedback  AIScanFeedback `json:"feedback"`
+}
+
+// AIScanFeedback represents the feedback for an AI scan.
+type AIScanFeedback struct {
+	Status  *AIScanFeedbackStatus `json:"status,omitempty"`
+	Warning []AIScanFeedbackIssue `json:"warning,omitempty"`
+	Error   []AIScanFeedbackIssue `json:"error,omitempty"`
+}
+
+// AIScanFeedbackIssue represents an error or a warning for an AI scan feedback.
+type AIScanFeedbackIssue struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// AIScanFeedbackStatus represents the status of an AI scan feedback.
+type AIScanFeedbackStatus struct {
+	Done  *int `json:"done"`
+	Total *int `json:"total"`
 }
 
 type AIVulnerability struct {

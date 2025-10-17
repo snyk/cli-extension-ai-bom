@@ -151,7 +151,7 @@ or use the --config flag to specify a custom path.`
 	scanID, scanErr := redTeamClient.RunScan(ctx, orgID, &clientConfig)
 
 	if scanErr != nil {
-		return nil, fmt.Errorf("failed to create scan: %w", scanErr)
+		return nil, snyk_common_errors.NewServerError(fmt.Sprintf("failed to create scan: %s", scanErr.Error()))
 	}
 
 	logger.Info().Msgf("Red team scan started with ID: %s", scanID)
@@ -159,12 +159,12 @@ or use the --config flag to specify a custom path.`
 	results, resultsErr := redTeamClient.GetScanResults(ctx, orgID, scanID)
 	logger.Debug().Msgf("Red team scan results: %+v", results)
 	if resultsErr != nil {
-		return nil, fmt.Errorf("failed to get scan results: %w", resultsErr)
+		return nil, snyk_common_errors.NewServerError(fmt.Sprintf("failed to get scan results: %s", resultsErr.Error()))
 	}
 
 	resultsBytes, err := json.Marshal(results)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal scan results: %w", err)
+		return nil, snyk_common_errors.NewServerError(fmt.Sprintf("failed to marshal scan results: %s", err.Error()))
 	}
 
 	workflowData := newWorkflowData("application/json", resultsBytes)
