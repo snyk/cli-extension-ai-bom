@@ -65,7 +65,8 @@ var APIVersion = "2024-10-15"
 
 func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamConfig) (string, *errors.Error) {
 	progressBar := c.userInterface.NewProgressBar()
-	progressBar.SetTitle("Running a scan...")
+	progressBar.SetTitle(fmt.Sprintf("Starting a scan against %s...", config.Target.Name))
+
 	progressErr := progressBar.UpdateProgress(ui.InfiniteProgress)
 
 	if progressErr != nil {
@@ -85,7 +86,7 @@ func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamC
 		return "", err
 	}
 
-	scanStatus, err := c.pollForScanComplete(ctx, orgID, scanID)
+	scanStatus, err := c.pollForScanComplete(ctx, orgID, scanID, progressBar)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while polling for the scan")
 		return "", err
@@ -93,13 +94,12 @@ func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamC
 
 	if scanStatus.Status == AIScanStatusFailed {
 		err := snyk_common_errors.NewServerError("Red team scan has failed.")
-		// TODO(pkey): update based on feedback value
 		return "", &err
 	}
 
 	progressBar.SetTitle("Scan completed")
-	if err := progressBar.UpdateProgress(1.0); err != nil {
-		c.logger.Debug().Err(err).Msg("Failed to update progress bar")
+	if progressErr := progressBar.UpdateProgress(1.0); progressErr != nil {
+		c.logger.Debug().Err(progressErr).Msg("Failed to update progress bar")
 	}
 
 	return scanID, nil
@@ -285,6 +285,7 @@ func (c *ClientImpl) pollForScanComplete(
 	ctx context.Context,
 	orgID string,
 	scanID string,
+	scanProgressBar ui.ProgressBar,
 ) (*AIScan, *errors.Error) {
 	numberOfPolls := 0
 
@@ -294,6 +295,13 @@ func (c *ClientImpl) pollForScanComplete(
 		scanData, err := c.GetScan(ctx, orgID, scanID)
 		if err != nil {
 			return nil, err
+		}
+
+		if scanData.Feedback.Status != nil {
+			scanProgressBar.SetTitle("Running a scan... It might take a while.")
+			if err := scanProgressBar.UpdateProgress(float64(*scanData.Feedback.Status.Done) / float64(*scanData.Feedback.Status.Total)); err != nil {
+				c.logger.Debug().Err(err).Msg("Failed to update progress bar")
+			}
 		}
 
 		c.logger.Debug().
