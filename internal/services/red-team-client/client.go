@@ -93,7 +93,23 @@ func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamC
 	}
 
 	if scanStatus.Status == AIScanStatusFailed {
-		err := snyk_common_errors.NewServerError("Red team scan has failed.")
+		var err errors.Error
+
+		if len(scanStatus.Feedback.Error) > 0 {
+			code := scanStatus.Feedback.Error[0].Code
+
+			switch code {
+			case "context_error":
+				err = snyk_common_errors.NewBadRequestError(scanStatus.Feedback.Error[0].Message)
+			default:
+				err = snyk_common_errors.NewServerError(
+					fmt.Sprintf("Red team scan has failed with error code: %s, message: %s", code, scanStatus.Feedback.Error[0].Message),
+				)
+			}
+			return "", &err
+		}
+
+		err = snyk_common_errors.NewServerError("Red team scan has failed without a specific reason.")
 		return "", &err
 	}
 
@@ -110,7 +126,7 @@ func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*AIScan
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building GetScan request")
-		err := snyk_common_errors.NewServerError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
+		err := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
 		return nil, &err
 	}
 
