@@ -41,6 +41,52 @@ var defaultConfig = redteamclient.RedTeamConfig{
 	},
 }
 
+func writeCreateScanResponse(w http.ResponseWriter, scanID string) {
+	response := redteamclient.CreateAIScanResponse{
+		Data: redteamclient.AIScan{
+			ID: scanID,
+		},
+	}
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+}
+
+func writeGetScanResponse(w http.ResponseWriter, scan *redteamclient.AIScan) {
+	response := redteamclient.GetAIScanResponse{
+		Data: *scan,
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+func createFailedScan(errorCode, errorMessage string) *redteamclient.AIScan {
+	scan := redteamclient.AIScan{
+		Status: redteamclient.AIScanStatusFailed,
+		Feedback: redteamclient.AIScanFeedback{
+			Error: []redteamclient.AIScanFeedbackIssue{},
+		},
+	}
+	if errorCode != "" {
+		scan.Feedback.Error = append(scan.Feedback.Error, redteamclient.AIScanFeedbackIssue{
+			Code:    errorCode,
+			Message: errorMessage,
+		})
+	}
+	return &scan
+}
+
+func setupTestClient(t *testing.T, serverURL string) *redteamclient.ClientImpl {
+	t.Helper()
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	return redteamclient.NewRedTeamClient(
+		logger,
+		ictx.GetNetworkAccess().GetHttpClient(),
+		ictx.GetUserInterface(),
+		userAgent,
+		serverURL,
+	)
+}
+
 func TestRedTeamClient_RunScan_Happy(t *testing.T) {
 	pollCount := 0
 	var scanID string
@@ -49,31 +95,15 @@ func TestRedTeamClient_RunScan_Happy(t *testing.T) {
 		switch {
 		case isCreateAIScanReq(r):
 			scanID = uuid.New().String()
-			response := redteamclient.CreateAIScanResponse{
-				Data: redteamclient.AIScan{
-					ID: scanID,
-				},
-			}
-			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(response)
+			writeCreateScanResponse(w, scanID)
 
 		case isGetAIScanReq(r):
 			pollCount++
-			if pollCount < 3 {
-				response := redteamclient.GetAIScanResponse{
-					Data: redteamclient.AIScan{
-						Status: redteamclient.AIScanStatusStarted,
-					},
-				}
-				json.NewEncoder(w).Encode(response)
-			} else {
-				response := redteamclient.GetAIScanResponse{
-					Data: redteamclient.AIScan{
-						Status: redteamclient.AIScanStatusCompleted,
-					},
-				}
-				json.NewEncoder(w).Encode(response)
+			status := redteamclient.AIScanStatusStarted
+			if pollCount >= 3 {
+				status = redteamclient.AIScanStatusCompleted
 			}
+			writeGetScanResponse(w, &redteamclient.AIScan{Status: status})
 
 		default:
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
@@ -81,16 +111,7 @@ func TestRedTeamClient_RunScan_Happy(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := loggermock.NewNoOpLogger()
-	ictx := frameworkmock.NewMockInvocationContext(t)
-
-	client := redteamclient.NewRedTeamClient(
-		logger,
-		ictx.GetNetworkAccess().GetHttpClient(),
-		ictx.GetUserInterface(),
-		userAgent,
-		server.URL,
-	)
+	client := setupTestClient(t, server.URL)
 
 	result, err := client.RunScan(context.Background(), orgID, &defaultConfig)
 	assert.Nil(t, err)
@@ -105,29 +126,10 @@ func TestRedTeamClient_RunScan_FailedWithContextError(t *testing.T) {
 		switch {
 		case isCreateAIScanReq(r):
 			scanID = uuid.New().String()
-			response := redteamclient.CreateAIScanResponse{
-				Data: redteamclient.AIScan{
-					ID: scanID,
-				},
-			}
-			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(response)
+			writeCreateScanResponse(w, scanID)
 
 		case isGetAIScanReq(r):
-			response := redteamclient.GetAIScanResponse{
-				Data: redteamclient.AIScan{
-					Status: redteamclient.AIScanStatusFailed,
-					Feedback: redteamclient.AIScanFeedback{
-						Error: []redteamclient.AIScanFeedbackIssue{
-							{
-								Code:    "context_error",
-								Message: "Invalid context provided",
-							},
-						},
-					},
-				},
-			}
-			json.NewEncoder(w).Encode(response)
+			writeGetScanResponse(w, createFailedScan("context_error", "Invalid context provided"))
 
 		default:
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
@@ -135,16 +137,7 @@ func TestRedTeamClient_RunScan_FailedWithContextError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := loggermock.NewNoOpLogger()
-	ictx := frameworkmock.NewMockInvocationContext(t)
-
-	client := redteamclient.NewRedTeamClient(
-		logger,
-		ictx.GetNetworkAccess().GetHttpClient(),
-		ictx.GetUserInterface(),
-		userAgent,
-		server.URL,
-	)
+	client := setupTestClient(t, server.URL)
 
 	result, err := client.RunScan(context.Background(), orgID, &defaultConfig)
 	assert.NotNil(t, err)
@@ -159,29 +152,10 @@ func TestRedTeamClient_RunScan_FailedWithGenericError(t *testing.T) {
 		switch {
 		case isCreateAIScanReq(r):
 			scanID = uuid.New().String()
-			response := redteamclient.CreateAIScanResponse{
-				Data: redteamclient.AIScan{
-					ID: scanID,
-				},
-			}
-			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(response)
+			writeCreateScanResponse(w, scanID)
 
 		case isGetAIScanReq(r):
-			response := redteamclient.GetAIScanResponse{
-				Data: redteamclient.AIScan{
-					Status: redteamclient.AIScanStatusFailed,
-					Feedback: redteamclient.AIScanFeedback{
-						Error: []redteamclient.AIScanFeedbackIssue{
-							{
-								Code:    "unknown_error",
-								Message: "Something went wrong",
-							},
-						},
-					},
-				},
-			}
-			json.NewEncoder(w).Encode(response)
+			writeGetScanResponse(w, createFailedScan("unknown_error", "Something went wrong"))
 
 		default:
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
@@ -189,16 +163,7 @@ func TestRedTeamClient_RunScan_FailedWithGenericError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := loggermock.NewNoOpLogger()
-	ictx := frameworkmock.NewMockInvocationContext(t)
-
-	client := redteamclient.NewRedTeamClient(
-		logger,
-		ictx.GetNetworkAccess().GetHttpClient(),
-		ictx.GetUserInterface(),
-		userAgent,
-		server.URL,
-	)
+	client := setupTestClient(t, server.URL)
 
 	result, err := client.RunScan(context.Background(), orgID, &defaultConfig)
 	assert.NotNil(t, err)
@@ -214,24 +179,10 @@ func TestRedTeamClient_RunScan_FailedWithNoErrors(t *testing.T) {
 		switch {
 		case isCreateAIScanReq(r):
 			scanID = uuid.New().String()
-			response := redteamclient.CreateAIScanResponse{
-				Data: redteamclient.AIScan{
-					ID: scanID,
-				},
-			}
-			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(response)
+			writeCreateScanResponse(w, scanID)
 
 		case isGetAIScanReq(r):
-			response := redteamclient.GetAIScanResponse{
-				Data: redteamclient.AIScan{
-					Status: redteamclient.AIScanStatusFailed,
-					Feedback: redteamclient.AIScanFeedback{
-						Error: []redteamclient.AIScanFeedbackIssue{},
-					},
-				},
-			}
-			json.NewEncoder(w).Encode(response)
+			writeGetScanResponse(w, createFailedScan("", ""))
 
 		default:
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
@@ -239,16 +190,7 @@ func TestRedTeamClient_RunScan_FailedWithNoErrors(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := loggermock.NewNoOpLogger()
-	ictx := frameworkmock.NewMockInvocationContext(t)
-
-	client := redteamclient.NewRedTeamClient(
-		logger,
-		ictx.GetNetworkAccess().GetHttpClient(),
-		ictx.GetUserInterface(),
-		userAgent,
-		server.URL,
-	)
+	client := setupTestClient(t, server.URL)
 
 	result, err := client.RunScan(context.Background(), orgID, &defaultConfig)
 	assert.NotNil(t, err)
@@ -279,18 +221,9 @@ func TestRedTeamClient_GetScanResults_Happy(t *testing.T) {
 			},
 		})
 	}))
-
 	defer server.Close()
 
-	logger := loggermock.NewNoOpLogger()
-	ictx := frameworkmock.NewMockInvocationContext(t)
-	client := redteamclient.NewRedTeamClient(
-		logger,
-		ictx.GetNetworkAccess().GetHttpClient(),
-		ictx.GetUserInterface(),
-		userAgent,
-		server.URL,
-	)
+	client := setupTestClient(t, server.URL)
 
 	results, err := client.GetScanResults(context.Background(), orgID, "test-scan-id")
 	assert.Nil(t, err)
