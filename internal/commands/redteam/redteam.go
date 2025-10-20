@@ -151,7 +151,8 @@ or use the --config flag to specify a custom path.`
 	scanID, scanErr := redTeamClient.RunScan(ctx, orgID, &clientConfig)
 
 	if scanErr != nil {
-		return nil, snyk_common_errors.NewServerError(fmt.Sprintf("failed to create scan: %s", scanErr.Error()))
+		logger.Debug().Err(scanErr).Msg("error while running scan")
+		return nil, *scanErr
 	}
 
 	logger.Info().Msgf("Red team scan started with ID: %s", scanID)
@@ -159,7 +160,8 @@ or use the --config flag to specify a custom path.`
 	results, resultsErr := redTeamClient.GetScanResults(ctx, orgID, scanID)
 	logger.Debug().Msgf("Red team scan results: %+v", results)
 	if resultsErr != nil {
-		return nil, snyk_common_errors.NewServerError(fmt.Sprintf("failed to get scan results: %s", resultsErr.Error()))
+		logger.Debug().Err(resultsErr).Msg("error while getting scan results")
+		return nil, *resultsErr
 	}
 
 	resultsBytes, err := json.Marshal(results)

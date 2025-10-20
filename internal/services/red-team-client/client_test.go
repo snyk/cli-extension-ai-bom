@@ -98,6 +98,164 @@ func TestRedTeamClient_RunScan_Happy(t *testing.T) {
 	assert.Equal(t, scanID, result)
 }
 
+func TestRedTeamClient_RunScan_FailedWithContextError(t *testing.T) {
+	var scanID string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case isCreateAIScanReq(r):
+			scanID = uuid.New().String()
+			response := redteamclient.CreateAIScanResponse{
+				Data: redteamclient.AIScan{
+					ID: scanID,
+				},
+			}
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(response)
+
+		case isGetAIScanReq(r):
+			response := redteamclient.GetAIScanResponse{
+				Data: redteamclient.AIScan{
+					Status: redteamclient.AIScanStatusFailed,
+					Feedback: redteamclient.AIScanFeedback{
+						Error: []redteamclient.AIScanFeedbackIssue{
+							{
+								Code:    "context_error",
+								Message: "Invalid context provided",
+							},
+						},
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(response)
+
+		default:
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	client := redteamclient.NewRedTeamClient(
+		logger,
+		ictx.GetNetworkAccess().GetHttpClient(),
+		ictx.GetUserInterface(),
+		userAgent,
+		server.URL,
+	)
+
+	result, err := client.RunScan(context.Background(), orgID, &defaultConfig)
+	assert.NotNil(t, err)
+	assert.Empty(t, result)
+	assert.Contains(t, err.Detail, "Invalid context provided")
+}
+
+func TestRedTeamClient_RunScan_FailedWithGenericError(t *testing.T) {
+	var scanID string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case isCreateAIScanReq(r):
+			scanID = uuid.New().String()
+			response := redteamclient.CreateAIScanResponse{
+				Data: redteamclient.AIScan{
+					ID: scanID,
+				},
+			}
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(response)
+
+		case isGetAIScanReq(r):
+			response := redteamclient.GetAIScanResponse{
+				Data: redteamclient.AIScan{
+					Status: redteamclient.AIScanStatusFailed,
+					Feedback: redteamclient.AIScanFeedback{
+						Error: []redteamclient.AIScanFeedbackIssue{
+							{
+								Code:    "unknown_error",
+								Message: "Something went wrong",
+							},
+						},
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(response)
+
+		default:
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	client := redteamclient.NewRedTeamClient(
+		logger,
+		ictx.GetNetworkAccess().GetHttpClient(),
+		ictx.GetUserInterface(),
+		userAgent,
+		server.URL,
+	)
+
+	result, err := client.RunScan(context.Background(), orgID, &defaultConfig)
+	assert.NotNil(t, err)
+	assert.Empty(t, result)
+	assert.Contains(t, err.Detail, "Red team scan has failed with error code: unknown_error")
+	assert.Contains(t, err.Detail, "Something went wrong")
+}
+
+func TestRedTeamClient_RunScan_FailedWithNoErrors(t *testing.T) {
+	var scanID string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case isCreateAIScanReq(r):
+			scanID = uuid.New().String()
+			response := redteamclient.CreateAIScanResponse{
+				Data: redteamclient.AIScan{
+					ID: scanID,
+				},
+			}
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(response)
+
+		case isGetAIScanReq(r):
+			response := redteamclient.GetAIScanResponse{
+				Data: redteamclient.AIScan{
+					Status: redteamclient.AIScanStatusFailed,
+					Feedback: redteamclient.AIScanFeedback{
+						Error: []redteamclient.AIScanFeedbackIssue{},
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(response)
+
+		default:
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	client := redteamclient.NewRedTeamClient(
+		logger,
+		ictx.GetNetworkAccess().GetHttpClient(),
+		ictx.GetUserInterface(),
+		userAgent,
+		server.URL,
+	)
+
+	result, err := client.RunScan(context.Background(), orgID, &defaultConfig)
+	assert.NotNil(t, err)
+	assert.Empty(t, result)
+	assert.Contains(t, err.Detail, "Red team scan has failed without a specific reason")
+}
+
 func TestRedTeamClient_GetScanResults_Happy(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodGet, r.Method)
