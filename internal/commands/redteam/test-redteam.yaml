@@ -1,0 +1,10 @@
+
+target:
+  name: "Test Target"
+  type: api
+  context:
+    purpose: "Testing chatbot"
+  settings:
+    url: "https://example.com"
+    response_selector: "response"
+    request_body_template: "{\"message\": \"{{prompt}}\"}"

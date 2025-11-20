@@ -42,6 +42,21 @@ func (m *MockRedTeamClient) EXPECT() *MockRedTeamClientMockRecorder {
 	return m.recorder
 }
 
+// CreateScan mocks base method.
+func (m *MockRedTeamClient) CreateScan(ctx context.Context, orgID string, config *redteamclient.RedTeamConfig) (string, *snyk_errors.Error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateScan", ctx, orgID, config)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(*snyk_errors.Error)
+	return ret0, ret1
+}
+
+// CreateScan indicates an expected call of CreateScan.
+func (mr *MockRedTeamClientMockRecorder) CreateScan(ctx, orgID, config any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateScan", reflect.TypeOf((*MockRedTeamClient)(nil).CreateScan), ctx, orgID, config)
+}
+
 // GetScan mocks base method.
 func (m *MockRedTeamClient) GetScan(ctx context.Context, orgID, scanID string) (*redteamclient.AIScan, *snyk_errors.Error) {
 	m.ctrl.T.Helper()
@@ -70,19 +85,4 @@ func (m *MockRedTeamClient) GetScanResults(ctx context.Context, orgID, scanID st
 func (mr *MockRedTeamClientMockRecorder) GetScanResults(ctx, orgID, scanID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScanResults", reflect.TypeOf((*MockRedTeamClient)(nil).GetScanResults), ctx, orgID, scanID)
-}
-
-// RunScan mocks base method.
-func (m *MockRedTeamClient) RunScan(ctx context.Context, orgID string, config *redteamclient.RedTeamConfig) (string, *snyk_errors.Error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RunScan", ctx, orgID, config)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(*snyk_errors.Error)
-	return ret0, ret1
-}
-
-// RunScan indicates an expected call of RunScan.
-func (mr *MockRedTeamClientMockRecorder) RunScan(ctx, orgID, config any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunScan", reflect.TypeOf((*MockRedTeamClient)(nil).RunScan), ctx, orgID, config)
 }

@@ -32,9 +32,11 @@ type MockRedTeamClient struct {
 	createError  error
 	getError     error
 	resultsError error
+	getScanCalls int
+	pollingScans []redteamclient.AIScan
 }
 
-func (m *MockRedTeamClient) RunScan(_ context.Context, _ string, _ *redteamclient.RedTeamConfig) (string, *errors.Error) {
+func (m *MockRedTeamClient) CreateScan(_ context.Context, _ string, _ *redteamclient.RedTeamConfig) (string, *errors.Error) {
 	if m.createError != nil {
 		err := snyk_common_errors.NewServerError(m.createError.Error())
 		return "", &err
@@ -47,7 +49,24 @@ func (m *MockRedTeamClient) GetScan(_ context.Context, _, _ string) (*redteamcli
 		err := snyk_common_errors.NewServerError(m.getError.Error())
 		return nil, &err
 	}
-	return &m.scanData[0], nil
+
+	if len(m.pollingScans) > 0 {
+		if m.getScanCalls < len(m.pollingScans) {
+			scan := m.pollingScans[m.getScanCalls]
+			m.getScanCalls++
+			return &scan, nil
+		}
+		return &m.pollingScans[len(m.pollingScans)-1], nil
+	}
+
+	if len(m.scanData) > 0 {
+		return &m.scanData[0], nil
+	}
+
+	return &redteamclient.AIScan{
+		ID:     "test-scan-id",
+		Status: redteamclient.AIScanStatusCompleted,
+	}, nil
 }
 
 func (m *MockRedTeamClient) GetScanResults(_ context.Context, _, _ string) (redteamclient.GetAIVulnerabilitiesResponseData, *errors.Error) {
@@ -58,7 +77,7 @@ func (m *MockRedTeamClient) GetScanResults(_ context.Context, _, _ string) (redt
 	return m.scanResults, nil
 }
 
-func TestRunRedTeamWorkflow_CreateScanCommand(t *testing.T) {
+func TestRunRedTeamWorkflow_HappyPath(t *testing.T) {
 	configContent := `
 target:
   name: "Test Target"
@@ -80,6 +99,10 @@ target:
 	ictx.GetConfiguration().Set("config", "test-redteam.yaml")
 
 	mockClient := &MockRedTeamClient{
+		pollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusStarted},
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
 		scanResults: redteamclient.GetAIVulnerabilitiesResponseData{
 			ID: uuid.New().String(),
 			Results: []redteamclient.AIVulnerability{
@@ -108,7 +131,11 @@ func TestRunRedTeamWorkflow_ExperimentalFlagRequired(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, false)
 
-	mockClient := &MockRedTeamClient{}
+	mockClient := &MockRedTeamClient{
+		pollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+	}
 
 	originalArgs := os.Args
 	os.Args = []string{"snyk", "redteam"}
@@ -124,7 +151,11 @@ func TestRunRedTeamWorkflow_NoOrgID(t *testing.T) {
 	ictx.GetConfiguration().Set(experimentalKey, true)
 	ictx.GetConfiguration().Set(configuration.ORGANIZATION, "")
 
-	mockClient := &MockRedTeamClient{}
+	mockClient := &MockRedTeamClient{
+		pollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+	}
 
 	originalArgs := os.Args
 	os.Args = []string{"snyk", "redteam"}
@@ -141,7 +172,11 @@ func TestHandleRunScanCommand_ConfigFileNotFound(t *testing.T) {
 	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
 	ictx.GetConfiguration().Set(configFlag, "nonexistent-config.yaml")
 
-	mockClient := &MockRedTeamClient{}
+	mockClient := &MockRedTeamClient{
+		pollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+	}
 
 	originalArgs := os.Args
 	os.Args = []string{"snyk", "redteam"}
@@ -176,7 +211,11 @@ target:
 	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
 	ictx.GetConfiguration().Set(configFlag, "test-invalid.yaml")
 
-	mockClient := &MockRedTeamClient{}
+	mockClient := &MockRedTeamClient{
+		pollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+	}
 
 	originalArgs := os.Args
 	os.Args = []string{"snyk", "redteam"}
@@ -188,34 +227,24 @@ target:
 	assert.Contains(t, string(payload), "Configuration file in invalid")
 }
 
-func TestHandleRunScanCommand_ValidationFailure_MissingRequiredFields(t *testing.T) {
-	configContent := `
+func TestHandleRunScanCommand_ValidationFailure(t *testing.T) {
+	tests := []struct {
+		name          string
+		configContent string
+		fileName      string
+	}{
+		{
+			name: "MissingRequiredFields",
+			configContent: `
 target:
   name: "Test Target"
   type: api
-`
-	err := os.WriteFile("test-validation.yaml", []byte(configContent), 0o600)
-	require.NoError(t, err)
-	defer os.Remove("test-validation.yaml")
-
-	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(experimentalKey, true)
-	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
-	ictx.GetConfiguration().Set(configFlag, "test-validation.yaml")
-
-	mockClient := &MockRedTeamClient{}
-
-	originalArgs := os.Args
-	os.Args = []string{"snyk", "redteam"}
-	defer func() { os.Args = originalArgs }()
-
-	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "validation")
-}
-
-func TestHandleRunScanCommand_ValidationFailure_InvalidTargetType(t *testing.T) {
-	configContent := `
+`,
+			fileName: "test-validation.yaml",
+		},
+		{
+			name: "InvalidTargetType",
+			configContent: `
 target:
   name: "Test Target"
   type: invalid_type
@@ -223,29 +252,12 @@ target:
     url: "https://example.com"
     response_selector: "response"
     request_body_template: "{\"message\": \"test\"}"
-`
-	err := os.WriteFile("test-invalid-type.yaml", []byte(configContent), 0o600)
-	require.NoError(t, err)
-	defer os.Remove("test-invalid-type.yaml")
-
-	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(experimentalKey, true)
-	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
-	ictx.GetConfiguration().Set(configFlag, "test-invalid-type.yaml")
-
-	mockClient := &MockRedTeamClient{}
-
-	originalArgs := os.Args
-	os.Args = []string{"snyk", "redteam"}
-	defer func() { os.Args = originalArgs }()
-
-	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "validation")
-}
-
-func TestHandleRunScanCommand_ValidationFailure_InvalidURL(t *testing.T) {
-	configContent := `
+`,
+			fileName: "test-invalid-type.yaml",
+		},
+		{
+			name: "InvalidURL",
+			configContent: `
 target:
   name: "Test Target"
   type: api
@@ -253,29 +265,12 @@ target:
     url: "not-a-valid-url"
     response_selector: "response"
     request_body_template: "{\"message\": \"test\"}"
-`
-	err := os.WriteFile("test-invalid-url.yaml", []byte(configContent), 0o600)
-	require.NoError(t, err)
-	defer os.Remove("test-invalid-url.yaml")
-
-	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(experimentalKey, true)
-	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
-	ictx.GetConfiguration().Set(configFlag, "test-invalid-url.yaml")
-
-	mockClient := &MockRedTeamClient{}
-
-	originalArgs := os.Args
-	os.Args = []string{"snyk", "redteam"}
-	defer func() { os.Args = originalArgs }()
-
-	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "validation")
-}
-
-func TestHandleRunScanCommand_ValidationFailure_InvalidJSON(t *testing.T) {
-	configContent := `
+`,
+			fileName: "test-invalid-url.yaml",
+		},
+		{
+			name: "InvalidJSON",
+			configContent: `
 target:
   name: "Test Target"
   type: api
@@ -283,25 +278,37 @@ target:
     url: "https://example.com"
     response_selector: "response"
     request_body_template: "not valid json"
-`
-	err := os.WriteFile("test-invalid-json.yaml", []byte(configContent), 0o600)
-	require.NoError(t, err)
-	defer os.Remove("test-invalid-json.yaml")
+`,
+			fileName: "test-invalid-json.yaml",
+		},
+	}
 
-	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(experimentalKey, true)
-	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
-	ictx.GetConfiguration().Set(configFlag, "test-invalid-json.yaml")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.WriteFile(tt.fileName, []byte(tt.configContent), 0o600)
+			require.NoError(t, err)
+			defer os.Remove(tt.fileName)
 
-	mockClient := &MockRedTeamClient{}
+			ictx := frameworkmock.NewMockInvocationContext(t)
+			ictx.GetConfiguration().Set(experimentalKey, true)
+			ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
+			ictx.GetConfiguration().Set(configFlag, tt.fileName)
 
-	originalArgs := os.Args
-	os.Args = []string{"snyk", "redteam"}
-	defer func() { os.Args = originalArgs }()
+			mockClient := &MockRedTeamClient{
+				pollingScans: []redteamclient.AIScan{
+					{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+				},
+			}
 
-	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "validation")
+			originalArgs := os.Args
+			os.Args = []string{"snyk", "redteam"}
+			defer func() { os.Args = originalArgs }()
+
+			_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "validation")
+		})
+	}
 }
 
 func TestHandleRunScanCommand_ValidateTargetError(t *testing.T) {
@@ -325,6 +332,9 @@ target:
 
 	mockClient := &MockRedTeamClient{
 		createError: assert.AnError,
+		pollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
 	}
 
 	originalArgs := os.Args
@@ -341,7 +351,11 @@ func TestHandleRunScanCommand_CustomConfigPathDoesNotExist(t *testing.T) {
 	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
 	ictx.GetConfiguration().Set(configFlag, "path-that-does-not-exist/test-custom-config.yaml")
 
-	mockClient := &MockRedTeamClient{}
+	mockClient := &MockRedTeamClient{
+		pollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+	}
 
 	originalArgs := os.Args
 	os.Args = []string{"snyk", "redteam"}
@@ -359,7 +373,11 @@ func TestHandleRunScanCommand_CustomConfig(t *testing.T) {
 	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
 	ictx.GetConfiguration().Set(configFlag, "testdata/custom/path/test-custom-config.yaml")
 
-	mockClient := &MockRedTeamClient{}
+	mockClient := &MockRedTeamClient{
+		pollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+	}
 
 	originalArgs := os.Args
 	os.Args = []string{"snyk", "redteam"}
