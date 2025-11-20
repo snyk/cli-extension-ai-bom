@@ -1,1 +1,3 @@
 * @snyk/ai-bom
+internal/commands/aibomcreate @snyk/ai-redteaming-agent
+internal/services/red-team-client @snyk/ai-redteaming-agent
