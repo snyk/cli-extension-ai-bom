@@ -356,41 +356,77 @@ func TestHandleRunScanCommand_CustomConfig(t *testing.T) {
 }
 
 func TestHandleRunScanCommand_ScanError(t *testing.T) {
-	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(experimentalKey, true)
-	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
-	ictx.GetConfiguration().Set(configFlag, "testdata/redteam.yaml")
-
-	mockClient := &MockRedTeamClient{
-		pollingScans: []redteamclient.AIScan{
-			{ID: "test-scan-id", Status: redteamclient.AIScanStatusStarted},
-			{
-				ID:     "test-scan-id",
-				Status: redteamclient.AIScanStatusFailed,
-				Feedback: redteamclient.AIScanFeedback{
-					Error: []redteamclient.AIScanFeedbackIssue{
-						{
-							Code:    "scan_error",
-							Message: "Scan failed due to internal error",
-						},
-					},
-				},
-			},
+	tests := []struct {
+		name               string
+		errorCode          string
+		errorMessage       string
+		expectedErrorText  []string
+		expectedUnwrapText string
+	}{
+		{
+			name:               "scan error",
+			errorCode:          "scan_error",
+			errorMessage:       "Scan failed due to internal error",
+			expectedErrorText:  []string{"Red teaming scan (ID: test-scan-id) failed"},
+			expectedUnwrapText: "Unspecified Error",
+		},
+		{
+			name:               "network error",
+			errorCode:          "network_error",
+			errorMessage:       "Connection timeout",
+			expectedErrorText:  []string{"Connection timeout"},
+			expectedUnwrapText: "Client request cannot be processed",
+		},
+		{
+			name:               "context error",
+			errorCode:          "context_error",
+			errorMessage:       "Invalid context",
+			expectedErrorText:  []string{"Invalid context"},
+			expectedUnwrapText: "Client request cannot be processed",
 		},
 	}
 
-	originalArgs := os.Args
-	os.Args = []string{"snyk", "redteam"}
-	defer func() { os.Args = originalArgs }()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ictx := frameworkmock.NewMockInvocationContext(t)
+			ictx.GetConfiguration().Set(experimentalKey, true)
+			ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
+			ictx.GetConfiguration().Set(configFlag, "testdata/redteam.yaml")
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "type: scan_error, message: Scan failed due to internal error")
+			mockClient := &MockRedTeamClient{
+				pollingScans: []redteamclient.AIScan{
+					{ID: "test-scan-id", Status: redteamclient.AIScanStatusStarted},
+					{
+						ID:     "test-scan-id",
+						Status: redteamclient.AIScanStatusFailed,
+						Feedback: redteamclient.AIScanFeedback{
+							Error: []redteamclient.AIScanFeedbackIssue{
+								{
+									Code:    tt.errorCode,
+									Message: tt.errorMessage,
+								},
+							},
+						},
+					},
+				},
+			}
 
-	var redTeamErr *redteam_errors.RedTeamError
-	require.True(t, errors.As(err, &redTeamErr), "error should be a RedTeamError")
-	unwrappedErr := errors.Unwrap(redTeamErr)
-	require.NotNil(t, unwrappedErr, "error should have an underlying error")
-	assert.Contains(t, unwrappedErr.Error(), "test-scan-id")
-	assert.Contains(t, unwrappedErr.Error(), "Red Teaming scan (ID: test-scan-id) failed")
+			originalArgs := os.Args
+			os.Args = []string{"snyk", "redteam"}
+			defer func() { os.Args = originalArgs }()
+
+			_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+			require.Error(t, err)
+
+			for _, expectedText := range tt.expectedErrorText {
+				assert.Contains(t, err.Error(), expectedText)
+			}
+
+			var redTeamErr *redteam_errors.RedTeamError
+			require.True(t, errors.As(err, &redTeamErr), "error should be a RedTeamError")
+			unwrappedErr := errors.Unwrap(redTeamErr)
+			require.NotNil(t, unwrappedErr, "error should have an underlying error")
+			assert.Contains(t, unwrappedErr.Error(), tt.expectedUnwrapText)
+		})
+	}
 }

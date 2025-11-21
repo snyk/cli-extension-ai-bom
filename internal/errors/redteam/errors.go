@@ -44,7 +44,25 @@ func NewBadRequestError(msg string) *RedTeamError {
 }
 
 func NewScanError(msg, scanID string) *RedTeamError {
-	return newRedTeamError(fmt.Errorf("Red Teaming scan (ID: %s) failed. See details for more information.", scanID), msg)
+	return newRedTeamError(cli_errors.NewGeneralCLIFailureError(fmt.Sprintf("Scan ID: %s failed. %s", scanID, msg)), msg)
+}
+
+func NewScanContextError(msg, scanID string) *RedTeamError {
+	errorMsg := fmt.Sprintf(
+		"Scan ID: %s failed. %s",
+		scanID,
+		msg,
+	)
+	return newRedTeamError(snyk_common_errors.NewBadRequestError(errorMsg), msg)
+}
+
+func NewScanNetworkError(msg, scanID string) *RedTeamError {
+	errorMsg := fmt.Sprintf(
+		"Scan ID: %s failed. We have issues reaching your target. Here are the details: %s",
+		scanID,
+		msg,
+	)
+	return newRedTeamError(snyk_common_errors.NewBadRequestError(errorMsg), msg)
 }
 
 func NewServerError(msg string) *RedTeamError {
