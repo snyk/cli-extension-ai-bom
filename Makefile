@@ -32,3 +32,9 @@ test: ## Run unit tests
 .PHONY: generate
 generate: ## Run commands described by //go:generate directives within source code
 	go generate ./...
+
+.PHONY: build-cli
+build-cli: ## Build extension changes with the CLI
+	@echo "Building extension changes with the CLI..."
+	@./scripts/build-with-cli.sh
+
