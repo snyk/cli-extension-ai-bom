@@ -231,8 +231,15 @@ func (c *ClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode 
 func (c *ClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error) *redteam_errors.RedTeamError {
 	c.logger.Debug().Err(err).Msg(fmt.Sprintf("%s request HTTP error", endPoint))
 	if strings.Contains(strings.ToLower(err.Error()), "authentication") {
-		return redteam_errors.NewUnauthorizedError(fmt.Sprintf("%s request failed with authentication error.", endPoint))
+		return redteam_errors.NewUnauthorizedError("Failed to authenticate to red teaming API.")
 	}
-	return redteam_errors.NewHTTPClientError(`Couldn't make the request to Snyk. An error is returned if caused by client policy ` +
-		`(such as CheckRedirect), or failure to speak HTTP (such as a network connectivity problem).`)
+	// NOTE(pkey): This should be handled by the Cerberus (it doesn't return permissions that are missing)
+	if strings.Contains(strings.ToLower(err.Error()), "forbidden") {
+		return redteam_errors.NewForbiddenError("Red teaming API resource is forbidden. You need at least Org Edit rights.")
+	}
+	// NOTE(pkey): for some reason go HTTP library returns an error rather that response with a 500 so we need to handle it here.
+	if strings.Contains(strings.ToLower(err.Error()), "server error") {
+		return redteam_errors.NewServerError("Server responded with a 500. Please try again later or contact support.")
+	}
+	return redteam_errors.NewHTTPClientError(`Failed to reach our API. It might be a permission issue or a network connectivity problem. `)
 }

@@ -51,6 +51,10 @@ func NewServerError(msg string) *RedTeamError {
 	return newRedTeamError(snyk_common_errors.NewServerError(msg), msg)
 }
 
+func NewForbiddenError(msg string) *RedTeamError {
+	return newRedTeamError(snyk_common_errors.NewUnauthorisedError(msg), msg)
+}
+
 func NewHTTPClientError(msg string) *RedTeamError {
 	return newRedTeamError(cli_errors.NewGeneralCLIFailureError(msg), msg)
 }
