@@ -9,11 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	snyk_common_errors "github.com/snyk/error-catalog-golang-public/snyk"
-	errors "github.com/snyk/error-catalog-golang-public/snyk_errors"
 	"github.com/snyk/go-application-framework/pkg/configuration"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/redteam"
+	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 	"github.com/snyk/cli-extension-ai-bom/mocks/frameworkmock"
 )
@@ -21,7 +20,6 @@ import (
 const (
 	experimentalKey = "experimental"
 	testOrgID       = "test-org"
-	testScanID      = "test-scan"
 	configFlag      = "config"
 )
 
@@ -29,25 +27,23 @@ const (
 type MockRedTeamClient struct {
 	scanData     []redteamclient.AIScan
 	scanResults  redteamclient.GetAIVulnerabilitiesResponseData
-	createError  error
-	getError     error
-	resultsError error
+	createError  *redteam_errors.RedTeamError
+	getError     *redteam_errors.RedTeamError
+	resultsError *redteam_errors.RedTeamError
 	getScanCalls int
 	pollingScans []redteamclient.AIScan
 }
 
-func (m *MockRedTeamClient) CreateScan(_ context.Context, _ string, _ *redteamclient.RedTeamConfig) (string, *errors.Error) {
+func (m *MockRedTeamClient) CreateScan(_ context.Context, _ string, _ *redteamclient.RedTeamConfig) (string, *redteam_errors.RedTeamError) {
 	if m.createError != nil {
-		err := snyk_common_errors.NewServerError(m.createError.Error())
-		return "", &err
+		return "", m.createError
 	}
 	return "test-scan-id", nil
 }
 
-func (m *MockRedTeamClient) GetScan(_ context.Context, _, _ string) (*redteamclient.AIScan, *errors.Error) {
+func (m *MockRedTeamClient) GetScan(_ context.Context, _, _ string) (*redteamclient.AIScan, *redteam_errors.RedTeamError) {
 	if m.getError != nil {
-		err := snyk_common_errors.NewServerError(m.getError.Error())
-		return nil, &err
+		return nil, m.getError
 	}
 
 	if len(m.pollingScans) > 0 {
@@ -69,34 +65,18 @@ func (m *MockRedTeamClient) GetScan(_ context.Context, _, _ string) (*redteamcli
 	}, nil
 }
 
-func (m *MockRedTeamClient) GetScanResults(_ context.Context, _, _ string) (redteamclient.GetAIVulnerabilitiesResponseData, *errors.Error) {
+func (m *MockRedTeamClient) GetScanResults(_ context.Context, _, _ string) (redteamclient.GetAIVulnerabilitiesResponseData, *redteam_errors.RedTeamError) {
 	if m.resultsError != nil {
-		err := snyk_common_errors.NewServerError(m.resultsError.Error())
-		return redteamclient.GetAIVulnerabilitiesResponseData{}, &err
+		return redteamclient.GetAIVulnerabilitiesResponseData{}, m.resultsError
 	}
 	return m.scanResults, nil
 }
 
 func TestRunRedTeamWorkflow_HappyPath(t *testing.T) {
-	configContent := `
-target:
-  name: "Test Target"
-  type: api
-  context:
-    purpose: "Testing chatbot"
-  settings:
-    url: "https://example.com"
-    response_selector: "response"
-    request_body_template: "{\"message\": \"{{prompt}}\"}"
-`
-	err := os.WriteFile("test-redteam.yaml", []byte(configContent), 0o600)
-	require.NoError(t, err)
-	defer os.Remove("test-redteam.yaml")
-
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
 	ictx.GetConfiguration().Set("organization", testOrgID)
-	ictx.GetConfiguration().Set("config", "test-redteam.yaml")
+	ictx.GetConfiguration().Set("config", "testdata/redteam.yaml")
 
 	mockClient := &MockRedTeamClient{
 		pollingScans: []redteamclient.AIScan{
@@ -312,26 +292,13 @@ target:
 }
 
 func TestHandleRunScanCommand_ValidateTargetError(t *testing.T) {
-	configContent := `
-target:
-  name: "Test Target"
-  type: api
-  settings:
-    url: "https://example.com"
-    response_selector: "response"
-    request_body_template: "{\"message\": \"test\"}"
-`
-	err := os.WriteFile("test-validate-error.yaml", []byte(configContent), 0o600)
-	require.NoError(t, err)
-	defer os.Remove("test-validate-error.yaml")
-
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
 	ictx.GetConfiguration().Set(configuration.ORGANIZATION, testOrgID)
-	ictx.GetConfiguration().Set(configFlag, "test-validate-error.yaml")
+	ictx.GetConfiguration().Set(configFlag, "testdata/redteam.yaml")
 
 	mockClient := &MockRedTeamClient{
-		createError: assert.AnError,
+		createError: redteam_errors.NewServerError("test error"),
 		pollingScans: []redteamclient.AIScan{
 			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
 		},
@@ -341,7 +308,7 @@ target:
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
 	require.Error(t, err)
 }
 

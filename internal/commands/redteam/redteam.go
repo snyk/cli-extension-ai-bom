@@ -15,6 +15,8 @@ import (
 	cli_errors "github.com/snyk/error-catalog-golang-public/cli"
 	snyk_common_errors "github.com/snyk/error-catalog-golang-public/snyk"
 
+	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
+
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
@@ -78,10 +80,14 @@ func RunRedTeamWorkflow(
 		return nil, snyk_common_errors.NewUnauthorisedError("")
 	}
 
-	return handleRunScanCommand(invocationCtx, redTeamClient)
+	results, err := handleRunScanCommand(invocationCtx, redTeamClient)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
-func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClient redteamclient.RedTeamClient) ([]workflow.Data, error) {
+func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClient redteamclient.RedTeamClient) ([]workflow.Data, *redteam_errors.RedTeamError) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
 	ctx := context.Background()
@@ -93,15 +99,14 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 		return configData, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, redteam_errors.NewBadRequestError(err.Error())
 	}
 
 	logger.Debug().Msg("Starting red team scan")
 
 	scanID, scanErr := redTeamClient.CreateScan(ctx, orgID, clientConfig)
 	if scanErr != nil {
-		logger.Debug().Err(scanErr).Msg("error while creating scan")
-		return nil, *scanErr
+		return nil, scanErr
 	}
 
 	logger.Info().Msgf("Red team scan created with ID: %s", scanID)
@@ -112,7 +117,6 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 
 	scanStatus, pollErr := pollForScanComplete(ctx, logger, redTeamClient, orgID, scanID, progressBar)
 	if pollErr != nil {
-		logger.Debug().Err(pollErr).Msg("error while polling for the scan")
 		return nil, pollErr
 	}
 
@@ -181,18 +185,18 @@ or use the --config flag to specify a custom path.`
 	return clientConfig, nil, nil
 }
 
-func handleScanFailure(scanStatus *redteamclient.AIScan) error {
+func handleScanFailure(scanStatus *redteamclient.AIScan) *redteam_errors.RedTeamError {
 	if len(scanStatus.Feedback.Error) > 0 {
 		backendError := scanStatus.Feedback.Error[0]
 		switch backendError.Code {
 		case "context_error":
-			return snyk_common_errors.NewBadRequestError(backendError.Message)
+			return redteam_errors.NewBadRequestError(backendError.Message)
 		default:
-			return snyk_common_errors.NewServerError(backendError.Message)
+			return redteam_errors.NewScanError("type: " + backendError.Code + ", message: " + backendError.Message)
 		}
 	}
 
-	return snyk_common_errors.NewServerError("Red team scan has failed without a specific reason.")
+	return redteam_errors.NewScanError("We could't determine the details. Contact support for more information.")
 }
 
 //nolint:ireturn // Unable to change return type of external library
@@ -213,17 +217,23 @@ func setupProgressBar(userInterface ui.UserInterface, logger *zerolog.Logger, ta
 	return progressBar, cleanup
 }
 
-func getScanResults(ctx context.Context, logger *zerolog.Logger, redTeamClient redteamclient.RedTeamClient, orgID, scanID string) ([]workflow.Data, error) {
+func getScanResults(
+	ctx context.Context,
+	logger *zerolog.Logger,
+	redTeamClient redteamclient.RedTeamClient,
+	orgID, scanID string,
+) ([]workflow.Data, *redteam_errors.RedTeamError) {
 	results, resultsErr := redTeamClient.GetScanResults(ctx, orgID, scanID)
 	logger.Debug().Msgf("Red team scan results: %+v", results)
 	if resultsErr != nil {
 		logger.Debug().Err(resultsErr).Msg("error while getting scan results")
-		return nil, *resultsErr
+		return nil, resultsErr
 	}
 
 	resultsBytes, err := json.Marshal(results)
 	if err != nil {
-		return nil, snyk_common_errors.NewServerError(fmt.Sprintf("failed to marshal scan results: %s", err.Error()))
+		logger.Debug().Err(err).Msg("error while marshaling scan results")
+		return nil, redteam_errors.NewGenericRedTeamError("Failed processing scan results", err)
 	}
 
 	workflowData := newWorkflowData("application/json", resultsBytes)
@@ -257,7 +267,7 @@ func pollForScanComplete(
 	orgID string,
 	scanID string,
 	progressBar ui.ProgressBar,
-) (*redteamclient.AIScan, error) {
+) (*redteamclient.AIScan, *redteam_errors.RedTeamError) {
 	numberOfPolls := 0
 
 	for numberOfPolls <= maxPollAttempts {
@@ -265,8 +275,7 @@ func pollForScanComplete(
 
 		scanData, err := redTeamClient.GetScan(ctx, orgID, scanID)
 		if err != nil {
-			serverErr := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to get scan status: %s", err.Detail))
-			return nil, serverErr
+			return nil, err
 		}
 
 		if scanData.Feedback.Status != nil {
@@ -288,7 +297,7 @@ func pollForScanComplete(
 		time.Sleep(pollInterval)
 	}
 
-	err := snyk_common_errors.NewServerError("Red team scan polling timed out.")
+	err := redteam_errors.NewPollingTimeoutError()
 	return nil, err
 }
 
