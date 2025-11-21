@@ -134,7 +134,7 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 	return getScanResults(ctx, logger, redTeamClient, orgID, scanID)
 }
 
-//nolint:ireturn // Unable to change return type of external library
+//nolint:ireturn,nolintlint // Unable to change return type of external library
 func loadAndValidateConfig(logger *zerolog.Logger, config configuration.Configuration) (*redteamclient.RedTeamConfig, []workflow.Data, error) {
 	configPath := config.GetString(utils.FlagConfig)
 	if configPath == "" {
