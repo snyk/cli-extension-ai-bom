@@ -121,7 +121,7 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 	}
 
 	if scanStatus.Status == redteamclient.AIScanStatusFailed {
-		return nil, handleScanFailure(scanStatus)
+		return nil, handleScanFailure(scanStatus, scanID)
 	}
 
 	progressBar.SetTitle("Scan completed")
@@ -185,18 +185,18 @@ or use the --config flag to specify a custom path.`
 	return clientConfig, nil, nil
 }
 
-func handleScanFailure(scanStatus *redteamclient.AIScan) *redteam_errors.RedTeamError {
+func handleScanFailure(scanStatus *redteamclient.AIScan, scanID string) *redteam_errors.RedTeamError {
 	if len(scanStatus.Feedback.Error) > 0 {
 		backendError := scanStatus.Feedback.Error[0]
 		switch backendError.Code {
 		case "context_error":
 			return redteam_errors.NewBadRequestError(backendError.Message)
 		default:
-			return redteam_errors.NewScanError("type: " + backendError.Code + ", message: " + backendError.Message)
+			return redteam_errors.NewScanError("type: "+backendError.Code+", message: "+backendError.Message, scanID)
 		}
 	}
 
-	return redteam_errors.NewScanError("We could't determine the details. Contact support for more information.")
+	return redteam_errors.NewScanError("We could't determine the details. Contact support for more information.", scanID)
 }
 
 //nolint:ireturn // Unable to change return type of external library

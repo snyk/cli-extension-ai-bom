@@ -3,6 +3,7 @@ package redteam
 import (
 	"fmt"
 
+	cli_errors "github.com/snyk/error-catalog-golang-public/cli"
 	snyk_common_errors "github.com/snyk/error-catalog-golang-public/snyk"
 )
 
@@ -42,8 +43,8 @@ func NewBadRequestError(msg string) *RedTeamError {
 	return newRedTeamError(snyk_common_errors.NewBadRequestError(msg), msg)
 }
 
-func NewScanError(msg string) *RedTeamError {
-	return newRedTeamError(fmt.Errorf("Red Teaming scan failed. See details for more information."), msg)
+func NewScanError(msg, scanID string) *RedTeamError {
+	return newRedTeamError(fmt.Errorf("Red Teaming scan (ID: %s) failed. See details for more information.", scanID), msg)
 }
 
 func NewServerError(msg string) *RedTeamError {
@@ -51,7 +52,7 @@ func NewServerError(msg string) *RedTeamError {
 }
 
 func NewHTTPClientError(msg string) *RedTeamError {
-	return newRedTeamError(snyk_common_errors.NewServerError(msg), msg)
+	return newRedTeamError(cli_errors.NewGeneralCLIFailureError(msg), msg)
 }
 
 func NewPollingTimeoutError() *RedTeamError {
