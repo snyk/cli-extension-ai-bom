@@ -8,43 +8,33 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/snyk/go-application-framework/pkg/ui"
 
 	snyk_common_errors "github.com/snyk/error-catalog-golang-public/snyk"
-	errors "github.com/snyk/error-catalog-golang-public/snyk_errors"
+
+	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 )
 
 type RedTeamClient interface {
-	RunScan(ctx context.Context, orgID string, config *RedTeamConfig) (string, *errors.Error)
-	GetScan(ctx context.Context, orgID, scanID string) (*AIScan, *errors.Error)
-	GetScanResults(ctx context.Context, orgID, scanID string) (GetAIVulnerabilitiesResponseData, *errors.Error)
+	CreateScan(ctx context.Context, orgID string, config *RedTeamConfig) (string, *redteam_errors.RedTeamError)
+	GetScan(ctx context.Context, orgID, scanID string) (*AIScan, *redteam_errors.RedTeamError)
+	GetScanResults(ctx context.Context, orgID, scanID string) (GetAIVulnerabilitiesResponseData, *redteam_errors.RedTeamError)
 }
 
 type ClientImpl struct {
-	userAgent     string
-	baseURL       string
-	httpClient    *http.Client
-	logger        *zerolog.Logger
-	userInterface ui.UserInterface
+	userAgent  string
+	baseURL    string
+	httpClient *http.Client
+	logger     *zerolog.Logger
 }
 
 var _ RedTeamClient = (*ClientImpl)(nil)
 
-const (
-	maxPollAttempts = 720
-	pollInterval    = 5000 * time.Millisecond
-
-	failedProgressBarMsg = "Failed to update progress bar"
-)
-
 func NewRedTeamClient(
 	logger *zerolog.Logger,
 	httpClient *http.Client,
-	userInterface ui.UserInterface,
 	userAgent string,
 	baseURL string,
 ) *ClientImpl {
@@ -53,81 +43,21 @@ func NewRedTeamClient(
 		return http.ErrUseLastResponse
 	}
 	return &ClientImpl{
-		userAgent:     userAgent,
-		baseURL:       baseURL,
-		httpClient:    httpClient,
-		logger:        logger,
-		userInterface: userInterface,
+		userAgent:  userAgent,
+		baseURL:    baseURL,
+		httpClient: httpClient,
+		logger:     logger,
 	}
 }
 
 var APIVersion = "2024-10-15"
 
-func (c *ClientImpl) RunScan(ctx context.Context, orgID string, config *RedTeamConfig) (string, *errors.Error) {
-	progressBar := c.userInterface.NewProgressBar()
-	progressBar.SetTitle(fmt.Sprintf("Starting a scan against %s...", config.Target.Name))
-
-	progressErr := progressBar.UpdateProgress(ui.InfiniteProgress)
-
-	if progressErr != nil {
-		c.logger.Debug().Err(progressErr).Msg(failedProgressBarMsg)
-	}
-
-	defer func() {
-		progressErr = progressBar.Clear()
-		if progressErr != nil {
-			c.logger.Debug().Err(progressErr).Msg("Failed to clear progress bar")
-		}
-	}()
-
-	scanID, err := c.createScan(ctx, orgID, config)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while creating scan")
-		return "", err
-	}
-
-	scanStatus, err := c.pollForScanComplete(ctx, orgID, scanID, progressBar)
-	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while polling for the scan")
-		return "", err
-	}
-
-	if scanStatus.Status == AIScanStatusFailed {
-		var err errors.Error
-
-		if len(scanStatus.Feedback.Error) > 0 {
-			code := scanStatus.Feedback.Error[0].Code
-
-			switch code {
-			case "context_error":
-				err = snyk_common_errors.NewBadRequestError(scanStatus.Feedback.Error[0].Message)
-			default:
-				err = snyk_common_errors.NewServerError(
-					fmt.Sprintf("Red team scan has failed with error code: %s, message: %s", code, scanStatus.Feedback.Error[0].Message),
-				)
-			}
-			return "", &err
-		}
-
-		err = snyk_common_errors.NewServerError("Red team scan has failed without a specific reason.")
-		return "", &err
-	}
-
-	progressBar.SetTitle("Scan completed")
-	if progressErr := progressBar.UpdateProgress(1.0); progressErr != nil {
-		c.logger.Debug().Err(progressErr).Msg("Failed to update progress bar")
-	}
-
-	return scanID, nil
-}
-
-func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*AIScan, *errors.Error) {
+func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*AIScan, *redteam_errors.RedTeamError) {
 	url := fmt.Sprintf("%s/hidden/orgs/%s/ai_scans/%s?version=%s", c.baseURL, orgID, scanID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building GetScan request")
-		err := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
-		return nil, &err
+		return nil, redteam_errors.NewBadRequestError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
 	}
 
 	// Make the request retry-able for HTTP/2
@@ -139,15 +69,14 @@ func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*AIScan
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, c.redTeamErrorFromHTTPClientError("GetScan", err)
+		return nil, c.redTeamErrorFromHTTPClientError(url, err)
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while reading GetScan response body")
-		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read GetScan response body: %s", err.Error()))
-		return nil, &err
+		return nil, redteam_errors.NewBadRequestError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -158,41 +87,27 @@ func (c *ClientImpl) GetScan(ctx context.Context, orgID, scanID string) (*AIScan
 	err = json.Unmarshal(bodyBytes, &scanRespBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling GetScanResponseBody")
-		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to unmarshal GetScanResponseBody: %s", err.Error()))
-		return nil, &err
+		err := redteam_errors.NewServerError(fmt.Sprintf("Failed to unmarshal GetScanResponseBody: %s", err.Error()))
+		return nil, err
 	}
 
 	return &scanRespBody.Data, nil
 }
 
-func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (GetAIVulnerabilitiesResponseData, *errors.Error) {
-	progressBar := c.userInterface.NewProgressBar()
-	progressBar.SetTitle("Getting scan results...")
-	progressErr := progressBar.UpdateProgress(ui.InfiniteProgress)
-
-	if progressErr != nil {
-		c.logger.Debug().Err(progressErr).Msg(failedProgressBarMsg)
-	}
-	defer func() {
-		progressErr = progressBar.Clear()
-		if progressErr != nil {
-			c.logger.Debug().Err(progressErr).Msg("Failed to clear progress bar")
-		}
-	}()
-
+func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (GetAIVulnerabilitiesResponseData, *redteam_errors.RedTeamError) {
 	url := fmt.Sprintf("%s/hidden/orgs/%s/ai_scans/%s/vulnerabilities?version=%s", c.baseURL, orgID, scanID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building GetScan request")
 		err := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
-		return GetAIVulnerabilitiesResponseData{}, &err
+		return GetAIVulnerabilitiesResponseData{}, redteam_errors.NewBadRequestError(fmt.Sprintf("Error building GetScan request: %s", err.Error()))
 	}
 
 	c.setCommonHeaders(url, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return GetAIVulnerabilitiesResponseData{}, c.redTeamErrorFromHTTPClientError("GetScanResults", err)
+		return GetAIVulnerabilitiesResponseData{}, c.redTeamErrorFromHTTPClientError(url, err)
 	}
 
 	defer resp.Body.Close()
@@ -200,8 +115,8 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while reading GetScanResults response body")
-		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read GetScanResults response body: %s", err.Error()))
-		return GetAIVulnerabilitiesResponseData{}, &err
+		err := redteam_errors.NewServerError(fmt.Sprintf("Failed to read GetScanResults response body: %s", err.Error()))
+		return GetAIVulnerabilitiesResponseData{}, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -212,24 +127,18 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 	err = json.Unmarshal(bodyBytes, &scanRespBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling GetScanResultsResponseBody")
-		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to unmarshal GetScanResultsResponseBody: %s", err.Error()))
-		return GetAIVulnerabilitiesResponseData{}, &err
-	}
-
-	progressBar.SetTitle("Scan results retrieved")
-
-	if err := progressBar.UpdateProgress(1.0); err != nil {
-		c.logger.Debug().Err(err).Msg("Failed to update progress bar")
+		err := redteam_errors.NewServerError(fmt.Sprintf("Failed to unmarshal GetScanResultsResponseBody: %s", err.Error()))
+		return GetAIVulnerabilitiesResponseData{}, err
 	}
 
 	return scanRespBody.Data, nil
 }
 
-func (c *ClientImpl) createScan(
+func (c *ClientImpl) CreateScan(
 	ctx context.Context,
 	orgID string,
 	redTeamConfig *RedTeamConfig,
-) (string, *errors.Error) {
+) (string, *redteam_errors.RedTeamError) {
 	c.logger.Debug().Msg("creating red team scan")
 
 	request := CreateAIScanRequest{
@@ -251,16 +160,16 @@ func (c *ClientImpl) createScan(
 	reqBytes, err := json.Marshal(body)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while marshaling request body")
-		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Error marshaling request body: %s", err.Error()))
-		return "", &badRequestErr
+		badRequestErr := redteam_errors.NewBadRequestError(fmt.Sprintf("Error marshaling request body: %s", err.Error()))
+		return "", badRequestErr
 	}
 
 	url := fmt.Sprintf("%s/hidden/orgs/%s/ai_scans?version=%s", c.baseURL, orgID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBytes))
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building red team scan request")
-		badRequestErr := snyk_common_errors.NewBadRequestError(fmt.Sprintf("Error building red team request: %s", err.Error()))
-		return "", &badRequestErr
+		badRequestErr := redteam_errors.NewBadRequestError(fmt.Sprintf("Error building red team request: %s", err.Error()))
+		return "", badRequestErr
 	}
 
 	c.setCommonHeaders(url, req)
@@ -274,13 +183,13 @@ func (c *ClientImpl) createScan(
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.logger.Debug().Err(err).Msg("error while reading RunScan response body")
-		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read RunScan response body: %s", err.Error()))
-		return "", &err
+		c.logger.Debug().Err(err).Msg("error while reading CreateScan response body")
+		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to read CreateScan response body: %s", err.Error()))
+		return "", redteam_errors.NewServerError(fmt.Sprintf("Failed to read CreateScan response body: %s", err.Error()))
 	}
 
 	if resp.StatusCode != http.StatusCreated {
-		return "", c.redTeamErrorFromHTTPStatusCode("RunScan", resp.StatusCode, bodyBytes)
+		return "", c.redTeamErrorFromHTTPStatusCode("CreateScan", resp.StatusCode, bodyBytes)
 	}
 
 	scanRespBody := CreateAIScanResponse{}
@@ -288,51 +197,13 @@ func (c *ClientImpl) createScan(
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while unmarshaling CreateScanResponseBody")
 		err := snyk_common_errors.NewServerError(fmt.Sprintf("Failed to unmarshal CreateScanResponseBody: %s", err.Error()))
-		return "", &err
+		return "", redteam_errors.NewServerError(fmt.Sprintf("Failed to unmarshal CreateScanResponseBody: %s", err.Error()))
 	}
 
 	scanID := scanRespBody.Data.ID
 	c.logger.Debug().Str("scanID", scanID).Msg("created red team scan")
 
 	return scanID, nil
-}
-
-func (c *ClientImpl) pollForScanComplete(
-	ctx context.Context,
-	orgID string,
-	scanID string,
-	scanProgressBar ui.ProgressBar,
-) (*AIScan, *errors.Error) {
-	numberOfPolls := 0
-
-	for numberOfPolls <= maxPollAttempts {
-		numberOfPolls++
-
-		scanData, err := c.GetScan(ctx, orgID, scanID)
-		if err != nil {
-			return nil, err
-		}
-
-		if scanData.Feedback.Status != nil {
-			scanProgressBar.SetTitle("Running a scan... It might take a while.")
-			if err := scanProgressBar.UpdateProgress(float64(*scanData.Feedback.Status.Done) / float64(*scanData.Feedback.Status.Total)); err != nil {
-				c.logger.Debug().Err(err).Msg("Failed to update progress bar")
-			}
-		}
-
-		c.logger.Debug().
-			Str("scanID", scanID).
-			Str("status", string(scanData.Status)).
-			Msgf("Polling results for scan")
-
-		if scanData.Status == AIScanStatusCompleted || scanData.Status == AIScanStatusFailed {
-			return scanData, nil
-		}
-
-		time.Sleep(pollInterval)
-	}
-	err := snyk_common_errors.NewServerError("Red team scan polling timed out.")
-	return nil, &err
 }
 
 func (c *ClientImpl) setCommonHeaders(url string, req *http.Request) {
@@ -343,26 +214,32 @@ func (c *ClientImpl) setCommonHeaders(url string, req *http.Request) {
 	req.Header.Set("Content-Type", "application/vnd.api+json")
 }
 
-func (c *ClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error) *errors.Error {
-	c.logger.Debug().Err(err).Msg(fmt.Sprintf("%s request HTTP error", endPoint))
-	if strings.Contains(strings.ToLower(err.Error()), "authentication") {
-		authErr := snyk_common_errors.NewUnauthorisedError(fmt.Sprintf("%s request failed with authentication error.", endPoint))
-		return &authErr
-	}
-	serverErr := snyk_common_errors.NewServerError(fmt.Sprintf("%s request HTTP error: %s", endPoint, err.Error()))
-	return &serverErr
-}
-
-func (c *ClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode int, bodyBytes []byte) *errors.Error {
+func (c *ClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode int, bodyBytes []byte) *redteam_errors.RedTeamError {
 	errMsg := fmt.Sprintf(
 		"unexpected status code %d for %s", statusCode, endPoint)
 	c.logger.Debug().Str("responseBody", string(bodyBytes)).Msg(errMsg)
 	switch statusCode {
 	case http.StatusUnauthorized:
-		authErr := snyk_common_errors.NewUnauthorisedError(errMsg)
-		return &authErr
+		authErr := redteam_errors.NewUnauthorizedError(errMsg)
+		return authErr
 	default:
-		serverErr := snyk_common_errors.NewServerError(errMsg)
-		return &serverErr
+		serverErr := redteam_errors.NewServerError(errMsg)
+		return serverErr
 	}
+}
+
+func (c *ClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error) *redteam_errors.RedTeamError {
+	c.logger.Debug().Err(err).Msg(fmt.Sprintf("%s request HTTP error", endPoint))
+	if strings.Contains(strings.ToLower(err.Error()), "authentication") {
+		return redteam_errors.NewUnauthorizedError("Failed to authenticate to red teaming API.")
+	}
+	// NOTE(pkey): This should be handled by the Cerberus (it doesn't return permissions that are missing)
+	if strings.Contains(strings.ToLower(err.Error()), "forbidden") {
+		return redteam_errors.NewForbiddenError("Red teaming API resource is forbidden. You need at least Org Edit rights.")
+	}
+	// NOTE(pkey): for some reason go HTTP library returns an error rather that response with a 500 so we need to handle it here.
+	if strings.Contains(strings.ToLower(err.Error()), "server error") {
+		return redteam_errors.NewServerError("Server responded with a 500. Please try again later or contact support.")
+	}
+	return redteam_errors.NewHTTPClientError(`Failed to reach our API. It might be a permission issue or a network connectivity problem. `)
 }

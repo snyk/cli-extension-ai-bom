@@ -13,8 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
+	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
-	snyk_errors "github.com/snyk/error-catalog-golang-public/snyk_errors"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -42,12 +42,27 @@ func (m *MockRedTeamClient) EXPECT() *MockRedTeamClientMockRecorder {
 	return m.recorder
 }
 
+// CreateScan mocks base method.
+func (m *MockRedTeamClient) CreateScan(ctx context.Context, orgID string, config *redteamclient.RedTeamConfig) (string, *redteam_errors.RedTeamError) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateScan", ctx, orgID, config)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(*redteam_errors.RedTeamError)
+	return ret0, ret1
+}
+
+// CreateScan indicates an expected call of CreateScan.
+func (mr *MockRedTeamClientMockRecorder) CreateScan(ctx, orgID, config any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateScan", reflect.TypeOf((*MockRedTeamClient)(nil).CreateScan), ctx, orgID, config)
+}
+
 // GetScan mocks base method.
-func (m *MockRedTeamClient) GetScan(ctx context.Context, orgID, scanID string) (*redteamclient.AIScan, *snyk_errors.Error) {
+func (m *MockRedTeamClient) GetScan(ctx context.Context, orgID, scanID string) (*redteamclient.AIScan, *redteam_errors.RedTeamError) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetScan", ctx, orgID, scanID)
 	ret0, _ := ret[0].(*redteamclient.AIScan)
-	ret1, _ := ret[1].(*snyk_errors.Error)
+	ret1, _ := ret[1].(*redteam_errors.RedTeamError)
 	return ret0, ret1
 }
 
@@ -58,11 +73,11 @@ func (mr *MockRedTeamClientMockRecorder) GetScan(ctx, orgID, scanID any) *gomock
 }
 
 // GetScanResults mocks base method.
-func (m *MockRedTeamClient) GetScanResults(ctx context.Context, orgID, scanID string) (redteamclient.GetAIVulnerabilitiesResponseData, *snyk_errors.Error) {
+func (m *MockRedTeamClient) GetScanResults(ctx context.Context, orgID, scanID string) (redteamclient.GetAIVulnerabilitiesResponseData, *redteam_errors.RedTeamError) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetScanResults", ctx, orgID, scanID)
 	ret0, _ := ret[0].(redteamclient.GetAIVulnerabilitiesResponseData)
-	ret1, _ := ret[1].(*snyk_errors.Error)
+	ret1, _ := ret[1].(*redteam_errors.RedTeamError)
 	return ret0, ret1
 }
 
@@ -70,19 +85,4 @@ func (m *MockRedTeamClient) GetScanResults(ctx context.Context, orgID, scanID st
 func (mr *MockRedTeamClientMockRecorder) GetScanResults(ctx, orgID, scanID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScanResults", reflect.TypeOf((*MockRedTeamClient)(nil).GetScanResults), ctx, orgID, scanID)
-}
-
-// RunScan mocks base method.
-func (m *MockRedTeamClient) RunScan(ctx context.Context, orgID string, config *redteamclient.RedTeamConfig) (string, *snyk_errors.Error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RunScan", ctx, orgID, config)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(*snyk_errors.Error)
-	return ret0, ret1
-}
-
-// RunScan indicates an expected call of RunScan.
-func (mr *MockRedTeamClientMockRecorder) RunScan(ctx, orgID, config any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunScan", reflect.TypeOf((*MockRedTeamClient)(nil).RunScan), ctx, orgID, config)
 }
