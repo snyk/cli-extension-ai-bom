@@ -6,4 +6,7 @@
 
 ## Overview
 
-This module implements the Snyk CLI Extension to generate an AI BOM document for a local software project.
+This module implements the Snyk CLI Extension with the following capabilities:
+
+- generating an AI BOM document for a local software project via `snyk aibom`
+- running red teaming scans against LLM-based application via `snyk redteam`
