@@ -1,4 +1,4 @@
-* @snyk/ai-bom
+* @snyk/ai-bom @snyk/ai-redteaming-agent
 pkg/redteam @snyk/ai-redteaming-agent
 internal/commands/redteam @snyk/ai-redteaming-agent
 internal/services/red-team-client @snyk/ai-redteaming-agent
