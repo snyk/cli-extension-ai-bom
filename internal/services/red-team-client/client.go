@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 
 	snyk_common_errors "github.com/snyk/error-catalog-golang-public/snyk"
+	"github.com/snyk/error-catalog-golang-public/snyk_errors"
 
 	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 )
@@ -228,8 +230,39 @@ func (c *ClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode 
 	}
 }
 
+// Handles HttpClient errors. Snyk's HttpClient overrides the logic that would return a non-nil if response that has a valid status code
+// therefore we need to handle it here.
 func (c *ClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error) *redteam_errors.RedTeamError {
 	c.logger.Debug().Err(err).Msg(fmt.Sprintf("%s request HTTP error", endPoint))
+
+	// The idea here is to do less custom error handling in the CLI and leave this to the backend
+	var snykErr snyk_errors.Error
+	if errors.As(err, &snykErr) {
+		c.logger.Debug().
+			Str("error_type", fmt.Sprintf("%T", snykErr)).
+			Str("detail", snykErr.Detail).
+			Int("status_code", snykErr.StatusCode).
+			Msg("extracted snyk error")
+
+		var errorMsg string
+		switch {
+		case snykErr.Detail != "":
+			errorMsg = snykErr.Detail
+		case snykErr.Title != "":
+			errorMsg = snykErr.Title
+		default:
+			errorMsg = err.Error()
+		}
+
+		switch snykErr.StatusCode {
+		case http.StatusBadRequest:
+			return redteam_errors.NewBadRequestError(errorMsg)
+		case http.StatusInternalServerError:
+			// Override the error message to be more user friendly
+			return redteam_errors.NewServerError("Server responded with a 500. Please try again later or contact support.")
+		}
+	}
+
 	if strings.Contains(strings.ToLower(err.Error()), "authentication") {
 		return redteam_errors.NewUnauthorizedError("Failed to authenticate to red teaming API.")
 	}
@@ -237,9 +270,6 @@ func (c *ClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error)
 	if strings.Contains(strings.ToLower(err.Error()), "forbidden") {
 		return redteam_errors.NewForbiddenError("Red teaming API resource is forbidden. You need at least Org Edit rights.")
 	}
-	// NOTE(pkey): for some reason go HTTP library returns an error rather that response with a 500 so we need to handle it here.
-	if strings.Contains(strings.ToLower(err.Error()), "server error") {
-		return redteam_errors.NewServerError("Server responded with a 500. Please try again later or contact support.")
-	}
+
 	return redteam_errors.NewHTTPClientError(`Failed to reach our API. It might be a permission issue or a network connectivity problem. `)
 }

@@ -3,6 +3,7 @@ package redteamclient_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,7 +15,9 @@ import (
 	"github.com/snyk/cli-extension-ai-bom/mocks/loggermock"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 )
 
@@ -124,4 +127,31 @@ func TestRedTeamClient_GetScanResults_Happy(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotEmpty(t, results)
 	assert.Equal(t, "test-scan-id", results.ID)
+}
+
+func TestRedTeamClient_CreateScan_BadRequestError(t *testing.T) {
+	errorDetail := "Maximum number of concurrent scans reached."
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/vnd.api+json")
+		w.WriteHeader(http.StatusBadRequest)
+		errorResponse := map[string]interface{}{
+			"errors": []map[string]interface{}{
+				{
+					"detail": errorDetail,
+					"status": "400",
+				},
+			},
+		}
+		json.NewEncoder(w).Encode(errorResponse)
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.CreateScan(context.Background(), orgID, &defaultConfig)
+	assert.Empty(t, result)
+	require.NotNil(t, err)
+
+	var redTeamErr *redteam_errors.RedTeamError
+	require.True(t, errors.As(err, &redTeamErr), "error should be a RedTeamError")
 }
