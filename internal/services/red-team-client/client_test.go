@@ -17,6 +17,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/snyk/go-application-framework/pkg/configuration"
+	"github.com/snyk/go-application-framework/pkg/networking"
+
 	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 )
@@ -54,9 +57,29 @@ func setupTestClient(t *testing.T, serverURL string) *redteamclient.ClientImpl {
 	t.Helper()
 	logger := loggermock.NewNoOpLogger()
 	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	// Configure the Snyk HTTP client to match production behavior for error handling.
+	// The Snyk networking library uses a ResponseMiddleware that intercepts HTTP responses
+	// and converts error status codes (400+) to snyk_errors.Error objects. This middleware
+	// is only added to the transport chain if:
+	// 1. An error handler is registered via AddErrorHandler()
+	// 2. The request URL matches a known host (API_URL or AUTHENTICATION_ADDITIONAL_URLS)
+
+	// See https://github.com/snyk/go-application-framework/blob/main/pkg/networking/middleware/response.go#L63 for more details.
+
+	// TODO(pkey): move this to the shared frameworkmock setup.
+	mockConfig := ictx.GetConfiguration()
+	mockConfig.Set(configuration.API_URL, "https://api.snyk.io")
+	mockConfig.Set(configuration.AUTHENTICATION_ADDITIONAL_URLS, []string{"http://127.0.0.1", "http://localhost"})
+
+	networkAccess := networking.NewNetworkAccess(mockConfig)
+	networkAccess.AddErrorHandler(func(err error, _ context.Context) error {
+		return err
+	})
+
 	return redteamclient.NewRedTeamClient(
 		logger,
-		ictx.GetNetworkAccess().GetHttpClient(),
+		networkAccess.GetHttpClient(),
 		userAgent,
 		serverURL,
 	)
@@ -137,6 +160,7 @@ func TestRedTeamClient_CreateScan_BadRequestError(t *testing.T) {
 		errorResponse := map[string]interface{}{
 			"errors": []map[string]interface{}{
 				{
+					"title":  "Bad Request",
 					"detail": errorDetail,
 					"status": "400",
 				},
@@ -154,4 +178,5 @@ func TestRedTeamClient_CreateScan_BadRequestError(t *testing.T) {
 
 	var redTeamErr *redteam_errors.RedTeamError
 	require.True(t, errors.As(err, &redTeamErr), "error should be a RedTeamError")
+	assert.Contains(t, err.Error(), errorDetail, "error detail should be passed through")
 }
