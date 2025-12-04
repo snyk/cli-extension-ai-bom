@@ -230,8 +230,8 @@ func (c *ClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode 
 	}
 }
 
-// Handles HttpClient errors. Snyk's HttpClient overrides the logic that would return a non-nil if response that has a valid status code
-// therefore we need to handle it here.
+// Handles HttpClient errors. Snyk's HttpClient overrides the logic that would return a non-nil response that has a valid status code
+// Instead, it returns a snyk_errors.Error object. This handles that error as a http client error.
 func (c *ClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error) *redteam_errors.RedTeamError {
 	c.logger.Debug().Err(err).Msg(fmt.Sprintf("%s request HTTP error", endPoint))
 
