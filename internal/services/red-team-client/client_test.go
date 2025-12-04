@@ -29,8 +29,9 @@ func isCreateAIScanReq(r *http.Request) bool {
 }
 
 const (
-	userAgent = "test-user-agent"
-	orgID     = "test-org-id"
+	userAgent           = "test-user-agent"
+	orgID               = "test-org-id"
+	testScanningAgentID = "test-scanning-agent-id"
 )
 
 var defaultConfig = redteamclient.RedTeamConfig{
@@ -179,4 +180,184 @@ func TestRedTeamClient_CreateScan_BadRequestError(t *testing.T) {
 	var redTeamErr *redteam_errors.RedTeamError
 	require.True(t, errors.As(err, &redTeamErr), "error should be a RedTeamError")
 	assert.Contains(t, err.Error(), errorDetail, "error detail should be passed through")
+}
+
+func isCreateAIScanningAgentReq(r *http.Request) bool {
+	return r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/scanning_agents")
+}
+
+func writeCreateScanningAgentResponse(w http.ResponseWriter, scanningAgentID, scanningAgentName string) {
+	response := redteamclient.CreateAIScanningAgentResponse{
+		Data: redteamclient.AIScanningAgent{
+			ID:   scanningAgentID,
+			Name: scanningAgentName,
+		},
+	}
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+}
+
+func TestRedTeamClient_CreateScanningAgent_Happy(t *testing.T) {
+	var scanningAgentID string
+	scanningAgentName := "test-scanning-agent-name"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isCreateAIScanningAgentReq(r) {
+			scanningAgentID = uuid.New().String()
+			writeCreateScanningAgentResponse(w, scanningAgentID, scanningAgentName)
+		} else {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.CreateScanningAgent(context.Background(), orgID, scanningAgentName)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, result)
+	assert.Equal(t, scanningAgentID, result.ID)
+	assert.Equal(t, scanningAgentName, result.Name)
+}
+
+func TestRedTeamClient_CreateScanningAgent_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.CreateScanningAgent(context.Background(), orgID, "test-scanning-agent-name")
+	assert.NotNil(t, err)
+	assert.Empty(t, result)
+}
+
+func isGenerateAIScanningAgentConfigReq(r *http.Request) bool {
+	return r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/scanning_agents/") && strings.HasSuffix(r.URL.Path, "/generate")
+}
+
+func writeGenerateScanningAgentConfigResponse(w http.ResponseWriter) {
+	response := redteamclient.GenerateAIScanningAgentConfigResponse{
+		Data: redteamclient.GenerateAIScanningAgentConfigData{
+			FarcasterAgentToken: "test-farcaster-agent-token",
+			FarcasterAPIURL:     "test-farcaster-api-url",
+		},
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+func TestRedTeamClient_GenerateScanningAgentConfig_Happy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isGenerateAIScanningAgentConfigReq(r) {
+			writeGenerateScanningAgentConfigResponse(w)
+		} else {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.GenerateScanningAgentConfig(context.Background(), orgID, testScanningAgentID)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, result)
+	assert.Equal(t, "test-farcaster-agent-token", result.FarcasterAgentToken)
+	assert.Equal(t, "test-farcaster-api-url", result.FarcasterAPIURL)
+}
+
+func TestRedTeamClient_GenerateScanningAgentConfig_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.GenerateScanningAgentConfig(context.Background(), orgID, testScanningAgentID)
+	assert.NotNil(t, err)
+	assert.Empty(t, result)
+}
+
+func isListAIScanningAgentsReq(r *http.Request) bool {
+	return r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/scanning_agents")
+}
+
+func writeListScanningAgentsResponse(w http.ResponseWriter) {
+	response := redteamclient.ListAIScanningAgentsResponse{
+		Data: []redteamclient.AIScanningAgent{
+			{
+				ID:   testScanningAgentID,
+				Name: "test-scanning-agent-name",
+			},
+		},
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+func TestRedTeamClient_ListScanningAgents_Happy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isListAIScanningAgentsReq(r) {
+			writeListScanningAgentsResponse(w)
+		} else {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.ListScanningAgents(context.Background(), orgID)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, result)
+	assert.Equal(t, 1, len(result))
+	assert.Equal(t, testScanningAgentID, result[0].ID)
+	assert.Equal(t, "test-scanning-agent-name", result[0].Name)
+}
+
+func TestRedTeamClient_ListScanningAgents_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.ListScanningAgents(context.Background(), orgID)
+	assert.NotNil(t, err)
+	assert.Empty(t, result)
+}
+
+func isDeleteAIScanningAgentReq(r *http.Request) bool {
+	return r.Method == http.MethodDelete && strings.HasSuffix(r.URL.Path, "/scanning_agents/test-scanning-agent-id")
+}
+
+func TestRedTeamClient_DeleteScanningAgent_Happy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isDeleteAIScanningAgentReq(r) {
+			w.WriteHeader(http.StatusNoContent)
+		} else {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	err := client.DeleteScanningAgent(context.Background(), orgID, testScanningAgentID)
+	assert.Nil(t, err)
+}
+
+func TestRedTeamClient_DeleteScanningAgent_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	err := client.DeleteScanningAgent(context.Background(), orgID, testScanningAgentID)
+	assert.NotNil(t, err)
 }
