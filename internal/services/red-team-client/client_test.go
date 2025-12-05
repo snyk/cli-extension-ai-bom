@@ -3,6 +3,7 @@ package redteamclient_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,7 +15,12 @@ import (
 	"github.com/snyk/cli-extension-ai-bom/mocks/loggermock"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/snyk/go-application-framework/pkg/configuration"
+	"github.com/snyk/go-application-framework/pkg/networking"
+
+	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 )
 
@@ -23,8 +29,9 @@ func isCreateAIScanReq(r *http.Request) bool {
 }
 
 const (
-	userAgent = "test-user-agent"
-	orgID     = "test-org-id"
+	userAgent           = "test-user-agent"
+	orgID               = "test-org-id"
+	testScanningAgentID = "test-scanning-agent-id"
 )
 
 var defaultConfig = redteamclient.RedTeamConfig{
@@ -51,9 +58,29 @@ func setupTestClient(t *testing.T, serverURL string) *redteamclient.ClientImpl {
 	t.Helper()
 	logger := loggermock.NewNoOpLogger()
 	ictx := frameworkmock.NewMockInvocationContext(t)
+
+	// Configure the Snyk HTTP client to match production behavior for error handling.
+	// The Snyk networking library uses a ResponseMiddleware that intercepts HTTP responses
+	// and converts error status codes (400+) to snyk_errors.Error objects. This middleware
+	// is only added to the transport chain if:
+	// 1. An error handler is registered via AddErrorHandler()
+	// 2. The request URL matches a known host (API_URL or AUTHENTICATION_ADDITIONAL_URLS)
+
+	// See https://github.com/snyk/go-application-framework/blob/main/pkg/networking/middleware/response.go#L63 for more details.
+
+	// TODO(pkey): move this to the shared frameworkmock setup.
+	mockConfig := ictx.GetConfiguration()
+	mockConfig.Set(configuration.API_URL, "https://api.snyk.io")
+	mockConfig.Set(configuration.AUTHENTICATION_ADDITIONAL_URLS, []string{"http://127.0.0.1", "http://localhost"})
+
+	networkAccess := networking.NewNetworkAccess(mockConfig)
+	networkAccess.AddErrorHandler(func(err error, _ context.Context) error {
+		return err
+	})
+
 	return redteamclient.NewRedTeamClient(
 		logger,
-		ictx.GetNetworkAccess().GetHttpClient(),
+		networkAccess.GetHttpClient(),
 		userAgent,
 		serverURL,
 	)
@@ -124,4 +151,213 @@ func TestRedTeamClient_GetScanResults_Happy(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotEmpty(t, results)
 	assert.Equal(t, "test-scan-id", results.ID)
+}
+
+func TestRedTeamClient_CreateScan_BadRequestError(t *testing.T) {
+	errorDetail := "Maximum number of concurrent scans reached."
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/vnd.api+json")
+		w.WriteHeader(http.StatusBadRequest)
+		errorResponse := map[string]interface{}{
+			"errors": []map[string]interface{}{
+				{
+					"title":  "Bad Request",
+					"detail": errorDetail,
+					"status": "400",
+				},
+			},
+		}
+		json.NewEncoder(w).Encode(errorResponse)
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.CreateScan(context.Background(), orgID, &defaultConfig)
+	assert.Empty(t, result)
+	require.NotNil(t, err)
+
+	var redTeamErr *redteam_errors.RedTeamError
+	require.True(t, errors.As(err, &redTeamErr), "error should be a RedTeamError")
+	assert.Contains(t, err.Error(), errorDetail, "error detail should be passed through")
+}
+
+func isCreateAIScanningAgentReq(r *http.Request) bool {
+	return r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/scanning_agents")
+}
+
+func writeCreateScanningAgentResponse(w http.ResponseWriter, scanningAgentID, scanningAgentName string) {
+	response := redteamclient.CreateAIScanningAgentResponse{
+		Data: redteamclient.AIScanningAgent{
+			ID:   scanningAgentID,
+			Name: scanningAgentName,
+		},
+	}
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+}
+
+func TestRedTeamClient_CreateScanningAgent_Happy(t *testing.T) {
+	var scanningAgentID string
+	scanningAgentName := "test-scanning-agent-name"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isCreateAIScanningAgentReq(r) {
+			scanningAgentID = uuid.New().String()
+			writeCreateScanningAgentResponse(w, scanningAgentID, scanningAgentName)
+		} else {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.CreateScanningAgent(context.Background(), orgID, scanningAgentName)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, result)
+	assert.Equal(t, scanningAgentID, result.ID)
+	assert.Equal(t, scanningAgentName, result.Name)
+}
+
+func TestRedTeamClient_CreateScanningAgent_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.CreateScanningAgent(context.Background(), orgID, "test-scanning-agent-name")
+	assert.NotNil(t, err)
+	assert.Empty(t, result)
+}
+
+func isGenerateAIScanningAgentConfigReq(r *http.Request) bool {
+	return r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/scanning_agents/") && strings.HasSuffix(r.URL.Path, "/generate")
+}
+
+func writeGenerateScanningAgentConfigResponse(w http.ResponseWriter) {
+	response := redteamclient.GenerateAIScanningAgentConfigResponse{
+		Data: redteamclient.GenerateAIScanningAgentConfigData{
+			FarcasterAgentToken: "test-farcaster-agent-token",
+			FarcasterAPIURL:     "test-farcaster-api-url",
+		},
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+func TestRedTeamClient_GenerateScanningAgentConfig_Happy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isGenerateAIScanningAgentConfigReq(r) {
+			writeGenerateScanningAgentConfigResponse(w)
+		} else {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.GenerateScanningAgentConfig(context.Background(), orgID, testScanningAgentID)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, result)
+	assert.Equal(t, "test-farcaster-agent-token", result.FarcasterAgentToken)
+	assert.Equal(t, "test-farcaster-api-url", result.FarcasterAPIURL)
+}
+
+func TestRedTeamClient_GenerateScanningAgentConfig_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.GenerateScanningAgentConfig(context.Background(), orgID, testScanningAgentID)
+	assert.NotNil(t, err)
+	assert.Empty(t, result)
+}
+
+func isListAIScanningAgentsReq(r *http.Request) bool {
+	return r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/scanning_agents")
+}
+
+func writeListScanningAgentsResponse(w http.ResponseWriter) {
+	response := redteamclient.ListAIScanningAgentsResponse{
+		Data: []redteamclient.AIScanningAgent{
+			{
+				ID:   testScanningAgentID,
+				Name: "test-scanning-agent-name",
+			},
+		},
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+func TestRedTeamClient_ListScanningAgents_Happy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isListAIScanningAgentsReq(r) {
+			writeListScanningAgentsResponse(w)
+		} else {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.ListScanningAgents(context.Background(), orgID)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, result)
+	assert.Equal(t, 1, len(result))
+	assert.Equal(t, testScanningAgentID, result[0].ID)
+	assert.Equal(t, "test-scanning-agent-name", result[0].Name)
+}
+
+func TestRedTeamClient_ListScanningAgents_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.ListScanningAgents(context.Background(), orgID)
+	assert.NotNil(t, err)
+	assert.Empty(t, result)
+}
+
+func isDeleteAIScanningAgentReq(r *http.Request) bool {
+	return r.Method == http.MethodDelete && strings.HasSuffix(r.URL.Path, "/scanning_agents/test-scanning-agent-id")
+}
+
+func TestRedTeamClient_DeleteScanningAgent_Happy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isDeleteAIScanningAgentReq(r) {
+			w.WriteHeader(http.StatusNoContent)
+		} else {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	err := client.DeleteScanningAgent(context.Background(), orgID, testScanningAgentID)
+	assert.Nil(t, err)
+}
+
+func TestRedTeamClient_DeleteScanningAgent_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	err := client.DeleteScanningAgent(context.Background(), orgID, testScanningAgentID)
+	assert.NotNil(t, err)
 }

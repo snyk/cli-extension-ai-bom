@@ -33,6 +33,7 @@ type AIScanTarget struct {
 
 type AIScanOptions struct {
 	VulnDefinitions AIScanOptionsVulnDefinitions `json:"vuln_definitions" yaml:"vuln_definitions"` //nolint:tagliatelle // matches OpenAPI spec
+	ScanningAgent   string                       `json:"scanning_agent,omitempty" yaml:"scanning_agent,omitempty" validate:"omitempty,uuid"`
 }
 
 // AIScanOptionsVulnDefinitions represents vulnerability definitions for an AI scan.
@@ -152,4 +153,60 @@ type GetAIVulnerabilitiesResponse struct {
 
 type JSONAPI struct {
 	Version string `json:"version"`
+}
+
+type AIScanningAgentInput struct {
+	Name string `json:"name"`
+}
+
+type PaginatedAIScanningAgentList struct {
+	Count     int               `json:"count"`
+	PageTotal int               `json:"page_total"` //nolint:tagliatelle // matches OpenAPI spec
+	Page      int               `json:"page"`
+	Length    int               `json:"length"`
+	Results   []AIScanningAgent `json:"results"`
+}
+
+type AIScanningAgent struct {
+	Name               string `json:"name"`
+	InstallerGenerated bool   `json:"installer_generated"`
+	ID                 string `json:"id"`
+	Online             bool   `json:"online"`
+	Fallback           bool   `json:"fallback"`
+	RXBytes            int    `json:"rx_bytes"`
+	TXBytes            int    `json:"tx_bytes"`
+	LatestHandshake    int    `json:"latest_handshake"`
+}
+
+type AIScanningAgentConfig struct {
+	Token string `json:"token"`
+}
+
+type CreateAIScanningAgentRequest struct {
+	Data AIScanningAgentInput `json:"data" validate:"required"`
+}
+
+type CreateAIScanningAgentResponse struct {
+	Data    AIScanningAgent `json:"data"`
+	Jsonapi JSONAPI         `json:"jsonapi"`
+}
+
+type GetAIScanningAgentResponse struct {
+	Data    AIScanningAgent `json:"data"`
+	Jsonapi JSONAPI         `json:"jsonapi"`
+}
+
+type ListAIScanningAgentsResponse struct {
+	Data    []AIScanningAgent `json:"data"`
+	Jsonapi JSONAPI           `json:"jsonapi"`
+}
+
+type GenerateAIScanningAgentConfigData struct {
+	FarcasterAgentToken string `json:"farcaster_agent_token"`
+	FarcasterAPIURL     string `json:"farcaster_api_url"`
+}
+
+type GenerateAIScanningAgentConfigResponse struct {
+	Data    GenerateAIScanningAgentConfigData `json:"data"`
+	Jsonapi JSONAPI                           `json:"jsonapi"`
 }
