@@ -15,4 +15,7 @@ const (
 	// redteam scanning-agent flags.
 	FlagScanningAgentName = "name"
 	FlagScanningAgentID   = "id"
+
+	// redteam get flags.
+	FlagScanID = "id"
 )

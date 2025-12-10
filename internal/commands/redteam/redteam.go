@@ -30,6 +30,7 @@ import (
 )
 
 var WorkflowID = workflow.NewWorkflowIdentifier("redteam")
+var GetScanResultsWorkflowID = workflow.NewWorkflowIdentifier("redteam.get")
 
 const (
 	//
@@ -42,10 +43,83 @@ func RegisterWorkflows(e workflow.Engine) error {
 	if err := RegisterRedTeamWorkflow(e); err != nil {
 		return fmt.Errorf("error while registering red team workflow: %w", err)
 	}
+	if err := RegisterGetScanWorkflow(e); err != nil {
+		return fmt.Errorf("error while registering get scan workflow: %w", err)
+	}
 	if err := scanningagent.RegisterRedTeamScanningAgentWorkflows(e); err != nil {
 		return fmt.Errorf("error while registering red team scanning agent workflow: %w", err)
 	}
 	return nil
+}
+
+func RegisterGetScanWorkflow(e workflow.Engine) error {
+	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom-redteam-get", pflag.ExitOnError)
+	flagset.String(utils.FlagScanID, "", "Scan ID")
+	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
+	if _, err := e.Register(GetScanResultsWorkflowID, configuration, getScanWorkflow); err != nil {
+		return fmt.Errorf("error while registering get scan results workflow: %w", err)
+	}
+	return nil
+}
+
+func getScanWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (output []workflow.Data, err error) {
+	logger := invocationCtx.GetEnhancedLogger()
+	config := invocationCtx.GetConfiguration()
+	scanID := config.GetString(utils.FlagScanID)
+	baseAPIURL := config.GetString(configuration.API_URL)
+	redTeamClient := redteamclient.NewRedTeamClient(logger, invocationCtx.GetNetworkAccess().GetHttpClient(), userAgent, baseAPIURL)
+	scan, err := RunGetScanWorkflow(invocationCtx, redTeamClient)
+	if err != nil {
+		return nil, err
+	}
+	if scanID == "" {
+		return nil, fmt.Errorf("scan ID is required")
+	}
+
+	return nil, nil
+}
+
+func RunGetScanWorkflow(invocationCtx workflow.InvocationContext, redTeamClient redteamclient.RedTeamClient) ([]workflow.Data, error) {
+	config := invocationCtx.GetConfiguration()
+
+	config.Set(configuration.RAW_CMD_ARGS, os.Args[1:])
+
+	experimental := config.GetBool(utils.FlagExperimental)
+
+	if !experimental {
+		logger.Debug().Msg("Required experimental flag is not present")
+		return nil, cli_errors.NewCommandIsExperimentalError("")
+	}
+
+	orgID := config.GetString(configuration.ORGANIZATION)
+	if orgID == "" {
+		logger.Debug().Msg("No organization id is found.")
+		// This shouldn't really happen unless customer has explicitly unset the orgId.
+		return nil, snyk_common_errors.NewUnauthorisedError("")
+	}
+
+	results, err := handleRunScanCommand(invocationCtx, redTeamClient)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func handleGetScan(invocationCtx workflow.InvocationContext, redTeamClient redteamclient.RedTeamClient) ([]workflow.Data, error) {
+	config := invocationCtx.GetConfiguration()
+	scanID := config.GetString(utils.FlagScanID)
+	if scanID == "" {
+		return nil, fmt.Errorf("scan ID is required")
+	}
+	orgID := config.GetString(configuration.ORGANIZATION)
+	if orgID == "" {
+		return nil, fmt.Errorf("organization ID is required")
+	}
+	scan, err := redTeamClient.GetScan(context.Background(), orgID, scanID)
+	if err != nil {
+		return nil, err
+	}
+	return []workflow.Data{newWorkflowData("application/json", scan)}, nil
 }
 
 func RegisterRedTeamWorkflow(e workflow.Engine) error {
