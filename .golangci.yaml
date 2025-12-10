@@ -141,3 +141,15 @@ linters-settings:
   stylecheck:
     checks: ["all", "-ST1005"] # ST1005 requires all error messages to start with lower case characters. This conflicts with Snyk's public error message standards.
     http-status-code-whitelist: []
+
+# NOTE(pkey): Can't change the return types so ignoring.
+issues:
+  exclude-rules:
+    - path: internal/commands/redteam/redteam.go
+      linters:
+        - ireturn
+      text: "setupProgressBar returns interface"
+    - path: internal/commands/redteam/redteam.go
+      linters:
+        - ireturn
+      text: "newWorkflowData returns interface"

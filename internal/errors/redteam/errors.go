@@ -78,7 +78,7 @@ func NewHTTPClientError(msg string) *RedTeamError {
 }
 
 func NewPollingTimeoutError() *RedTeamError {
-	msg := "We couldn't get the scan results in time. Please try again or contact support."
+	msg := "We couldn't get the scan results in a reasonable time. Please try again or contact support."
 	return newRedTeamError(snyk_common_errors.NewTimeoutError(msg), msg)
 }
 

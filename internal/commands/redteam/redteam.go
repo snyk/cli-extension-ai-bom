@@ -32,8 +32,10 @@ import (
 var WorkflowID = workflow.NewWorkflowIdentifier("redteam")
 
 const (
-	maxPollAttempts = 720
+	//
+	maxPollDuration = 24 * time.Hour
 	pollInterval    = 5000 * time.Millisecond
+	maxPollAttempts = int(maxPollDuration / pollInterval)
 )
 
 func RegisterWorkflows(e workflow.Engine) error {
@@ -230,7 +232,6 @@ func handleScanFailure(scanStatus *redteamclient.AIScan, scanID string) *redteam
 	return redteam_errors.NewScanError("We couldn't determine the details. Contact support for more information.", scanID)
 }
 
-//nolint:ireturn // Unable to change return type of external library
 func setupProgressBar(userInterface ui.UserInterface, logger *zerolog.Logger, targetName string) (progressBar ui.ProgressBar, cleanup func()) {
 	progressBar = userInterface.NewProgressBar()
 	progressBar.SetTitle(fmt.Sprintf("Starting a scan against %s...", targetName))
@@ -328,11 +329,10 @@ func pollForScanComplete(
 		time.Sleep(pollInterval)
 	}
 
-	err := redteam_errors.NewPollingTimeoutError()
-	return nil, err
+	logger.Debug().Msgf("Polling timed out on scan ID: %s. This should not happen in reality.", scanID)
+	return nil, redteam_errors.NewPollingTimeoutError()
 }
 
-//nolint:ireturn // Unable to change return type of external library
 func newWorkflowData(contentType string, data []byte) workflow.Data {
 	return workflow.NewData(
 		workflow.NewTypeIdentifier(WorkflowID, "redteam"),
