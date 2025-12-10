@@ -17,6 +17,7 @@ import (
 
 	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 
+	scanningagent "github.com/snyk/cli-extension-ai-bom/internal/commands/redteamscanningagent"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
@@ -36,12 +37,23 @@ const (
 )
 
 func RegisterWorkflows(e workflow.Engine) error {
+	if err := RegisterRedTeamWorkflow(e); err != nil {
+		return fmt.Errorf("error while registering red team workflow: %w", err)
+	}
+	if err := scanningagent.RegisterRedTeamScanningAgentWorkflows(e); err != nil {
+		return fmt.Errorf("error while registering red team scanning agent workflow: %w", err)
+	}
+	return nil
+}
+
+func RegisterRedTeamWorkflow(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom-redteam", pflag.ExitOnError)
 	flagset.Bool(utils.FlagExperimental, false, "This is an experiment feature that will contain breaking changes in future revisions")
 	flagset.String(utils.FlagConfig, "redteam.yaml", "Path to the red team configuration file")
+	flagset.String(utils.FlagRedTeamScanningAgentID, "", "Scanning agent ID (overrides configuration file)")
 
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
-	if _, err := e.Register(WorkflowID, configuration, Workflow); err != nil {
+	if _, err := e.Register(WorkflowID, configuration, redTeamWorkflow); err != nil {
 		return fmt.Errorf("error while registering red team workflow: %w", err)
 	}
 	return nil
@@ -49,7 +61,7 @@ func RegisterWorkflows(e workflow.Engine) error {
 
 var userAgent = "cli-extension-ai-bom-redteam"
 
-func Workflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (output []workflow.Data, err error) {
+func redTeamWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (output []workflow.Data, err error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
 	baseAPIURL := config.GetString(configuration.API_URL)
@@ -94,7 +106,7 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 
 	orgID := config.GetString(configuration.ORGANIZATION)
 
-	clientConfig, configData, err := loadAndValidateConfig(logger, config)
+	clientConfig, configData, err := LoadAndValidateConfig(logger, config)
 	if configData != nil {
 		return configData, nil
 	}
@@ -135,7 +147,7 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 }
 
 //nolint:ireturn,nolintlint // Unable to change return type of external library
-func loadAndValidateConfig(logger *zerolog.Logger, config configuration.Configuration) (*redteamclient.RedTeamConfig, []workflow.Data, error) {
+func LoadAndValidateConfig(logger *zerolog.Logger, config configuration.Configuration) (*redteamclient.RedTeamConfig, []workflow.Data, error) {
 	configPath := config.GetString(utils.FlagConfig)
 	if configPath == "" {
 		logger.Debug().Msg("No config path provided, using default value.")
@@ -179,7 +191,17 @@ or use the --config flag to specify a custom path.`
 		},
 		Options: redteamclient.AIScanOptions{
 			VulnDefinitions: redTeamConfig.Options.VulnDefinitions,
+			ScanningAgent:   redTeamConfig.Options.ScanningAgent,
 		},
+	}
+
+	scanningAgentIDOverride := config.GetString(utils.FlagRedTeamScanningAgentID)
+	if scanningAgentIDOverride != "" {
+		clientConfigErr := validate.Var(scanningAgentIDOverride, "uuid")
+		if clientConfigErr != nil {
+			return nil, nil, fmt.Errorf("Scanning agent ID is not a valid UUID: \"%s\"", scanningAgentIDOverride)
+		}
+		clientConfig.Options.ScanningAgent = scanningAgentIDOverride
 	}
 
 	return clientConfig, nil, nil

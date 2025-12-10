@@ -1,0 +1,11 @@
+target:
+  name: "Default Config"
+  type: api
+  context:
+    purpose: "Testing chatbot"
+  settings:
+    url: "https://example.com"
+    response_selector: "response"
+    request_body_template: '{"message": "{{prompt}}"}'
+options:
+  scanning_agent: "475bb246-fd7b-4b7a-bdc3-b30d7b377859"

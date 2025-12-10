@@ -9,5 +9,10 @@ const (
 	ConfigurationSnykCodeClientProxyURL = "SNYK_CODE_CLIENT_PROXY_URL"
 
 	// redteam flags.
-	FlagConfig = "config"
+	FlagConfig                 = "config"
+	FlagRedTeamScanningAgentID = "scanning-agent-id"
+
+	// redteam scanning-agent flags.
+	FlagScanningAgentName = "name"
+	FlagScanningAgentID   = "id"
 )
