@@ -182,6 +182,7 @@ func handleCreateScanningAgent(invocationCtx workflow.InvocationContext, redTeam
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
 	ctx := context.Background()
+	ui := invocationCtx.GetUserInterface()
 
 	scanningAgentName := config.GetString(utils.FlagScanningAgentName)
 	if scanningAgentName == "" {
@@ -205,6 +206,10 @@ func handleCreateScanningAgent(invocationCtx workflow.InvocationContext, redTeam
 
 	logger.Info().Msgf("Scanning agent config generated for agent with ID: %s", scanningAgent.ID)
 
+	if err := ui.Output(ScanningAgentConfigMessage(scanningAgentConfig.FarcasterAgentToken, scanningAgentConfig.FarcasterAPIURL)); err != nil {
+		logger.Debug().Err(err).Msg("error while outputting scanning agent config message")
+	}
+
 	agentBytes, err := json.Marshal(scanningAgent)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error while marshaling scanning agent")
@@ -213,14 +218,6 @@ func handleCreateScanningAgent(invocationCtx workflow.InvocationContext, redTeam
 
 	workflowData := []workflow.Data{
 		newWorkflowData(scanningAgentCreateWorkflowType, "application/json", agentBytes),
-		newWorkflowData(
-			scanningAgentCreateWorkflowType,
-			"text/plain",
-			[]byte(ScanningAgentConfigMessage(
-				scanningAgentConfig.FarcasterAgentToken,
-				scanningAgentConfig.FarcasterAPIURL,
-			)),
-		),
 	}
 	return workflowData, nil
 }
