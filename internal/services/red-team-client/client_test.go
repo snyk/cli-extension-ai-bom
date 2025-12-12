@@ -101,7 +101,7 @@ func TestRedTeamClient_CreateScan_Happy(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	result, err := client.CreateScan(context.Background(), orgID, &defaultConfig)
+	result, err := client.CreateScan(t.Context(), orgID, &defaultConfig)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, result)
 	assert.Equal(t, scanID, result)
@@ -115,7 +115,7 @@ func TestRedTeamClient_CreateScan_Error(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	result, err := client.CreateScan(context.Background(), orgID, &defaultConfig)
+	result, err := client.CreateScan(t.Context(), orgID, &defaultConfig)
 	assert.NotNil(t, err)
 	assert.Empty(t, result)
 }
@@ -147,7 +147,7 @@ func TestRedTeamClient_GetScanResults_Happy(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	results, err := client.GetScanResults(context.Background(), orgID, "test-scan-id")
+	results, err := client.GetScanResults(t.Context(), orgID, "test-scan-id")
 	assert.Nil(t, err)
 	assert.NotEmpty(t, results)
 	assert.Equal(t, "test-scan-id", results.ID)
@@ -173,7 +173,7 @@ func TestRedTeamClient_CreateScan_BadRequestError(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	result, err := client.CreateScan(context.Background(), orgID, &defaultConfig)
+	result, err := client.CreateScan(t.Context(), orgID, &defaultConfig)
 	assert.Empty(t, result)
 	require.NotNil(t, err)
 
@@ -213,7 +213,7 @@ func TestRedTeamClient_CreateScanningAgent_Happy(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	result, err := client.CreateScanningAgent(context.Background(), orgID, scanningAgentName)
+	result, err := client.CreateScanningAgent(t.Context(), orgID, scanningAgentName)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, result)
 	assert.Equal(t, scanningAgentID, result.ID)
@@ -228,7 +228,7 @@ func TestRedTeamClient_CreateScanningAgent_Error(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	result, err := client.CreateScanningAgent(context.Background(), orgID, "test-scanning-agent-name")
+	result, err := client.CreateScanningAgent(t.Context(), orgID, "test-scanning-agent-name")
 	assert.NotNil(t, err)
 	assert.Empty(t, result)
 }
@@ -260,7 +260,7 @@ func TestRedTeamClient_GenerateScanningAgentConfig_Happy(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	result, err := client.GenerateScanningAgentConfig(context.Background(), orgID, testScanningAgentID)
+	result, err := client.GenerateScanningAgentConfig(t.Context(), orgID, testScanningAgentID)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, result)
 	assert.Equal(t, "test-farcaster-agent-token", result.FarcasterAgentToken)
@@ -275,7 +275,7 @@ func TestRedTeamClient_GenerateScanningAgentConfig_Error(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	result, err := client.GenerateScanningAgentConfig(context.Background(), orgID, testScanningAgentID)
+	result, err := client.GenerateScanningAgentConfig(t.Context(), orgID, testScanningAgentID)
 	assert.NotNil(t, err)
 	assert.Empty(t, result)
 }
@@ -309,7 +309,7 @@ func TestRedTeamClient_ListScanningAgents_Happy(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	result, err := client.ListScanningAgents(context.Background(), orgID)
+	result, err := client.ListScanningAgents(t.Context(), orgID)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, result)
 	assert.Equal(t, 1, len(result))
@@ -325,7 +325,7 @@ func TestRedTeamClient_ListScanningAgents_Error(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	result, err := client.ListScanningAgents(context.Background(), orgID)
+	result, err := client.ListScanningAgents(t.Context(), orgID)
 	assert.NotNil(t, err)
 	assert.Empty(t, result)
 }
@@ -346,7 +346,7 @@ func TestRedTeamClient_DeleteScanningAgent_Happy(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	err := client.DeleteScanningAgent(context.Background(), orgID, testScanningAgentID)
+	err := client.DeleteScanningAgent(t.Context(), orgID, testScanningAgentID)
 	assert.Nil(t, err)
 }
 
@@ -358,6 +358,6 @@ func TestRedTeamClient_DeleteScanningAgent_Error(t *testing.T) {
 
 	client := setupTestClient(t, server.URL)
 
-	err := client.DeleteScanningAgent(context.Background(), orgID, testScanningAgentID)
+	err := client.DeleteScanningAgent(t.Context(), orgID, testScanningAgentID)
 	assert.NotNil(t, err)
 }
