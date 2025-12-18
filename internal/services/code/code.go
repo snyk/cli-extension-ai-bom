@@ -3,6 +3,7 @@ package code
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 	errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
 
+	"github.com/snyk/go-application-framework/pkg/apiclients/fileupload"
 	"github.com/snyk/go-application-framework/pkg/configuration"
 	"github.com/snyk/go-application-framework/pkg/ui"
 	frameworkUtils "github.com/snyk/go-application-framework/pkg/utils"
@@ -105,6 +107,23 @@ func uploadBundle(
 		userInterface: userInterface,
 		logger:        logger,
 	}
+
+	target, files, err := getAnalysisInput(path, config, logger)
+	if err != nil {
+		return "", err
+	}
+
+	// TODO: feed through the correct http client
+	fileuploadClient := fileupload.NewClient(&http.Client{}, fileupload.Config{},
+		fileupload.WithLogger(logger),
+	)
+
+	uploadResult, err := fileuploadClient.CreateRevisionFromChan(ctx, files, path)
+	if err != nil {
+		return "", err
+	}
+
+	return uploadResult.RevisionID.String(), nil
 
 	codeScannerConfig := &codeClientConfig{
 		localConfiguration: config,
