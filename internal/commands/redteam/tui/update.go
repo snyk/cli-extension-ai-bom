@@ -283,40 +283,43 @@ func (m *Model) updateTargetTypeStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) updateFormInputStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEnter:
-		// Validate and move to next step
-		idx := inputIndexForStep(m.Step)
-		if idx >= 0 {
-			val := m.Inputs[idx].Value()
-			if val == "" {
-				m.Err = fmt.Errorf("this field is required")
-				return m, nil
-			}
-			m.Err = nil
-
-			// Save value
-			saveValue(m, m.Step, val)
-
-			// Unfocus current
-			m.Inputs[idx].Blur()
-
-			m.Step++
-			if m.Step == StepScanning {
-				scanCmd := startScan(m)
-				return m, scanCmd
-			}
-
-			// Focus next input if applicable
-			if nextIdx := inputIndexForStep(m.Step); nextIdx >= 0 {
-				m.Inputs[nextIdx].Focus()
-			}
-
-			return m, textinput.Blink
-		}
-	default:
+	idx := inputIndexForStep(m.Step)
+	if idx < 0 {
+		return m, nil
 	}
-	return m, nil
+
+	if msg.Type == tea.KeyEnter {
+		// Validate and move to next step
+		val := m.Inputs[idx].Value()
+		if val == "" {
+			m.Err = fmt.Errorf("this field is required")
+			return m, nil
+		}
+		m.Err = nil
+
+		// Save value
+		saveValue(m, m.Step, val)
+
+		// Unfocus current
+		m.Inputs[idx].Blur()
+
+		m.Step++
+		if m.Step == StepScanning {
+			scanCmd := startScan(m)
+			return m, scanCmd
+		}
+
+		// Focus next input if applicable
+		if nextIdx := inputIndexForStep(m.Step); nextIdx >= 0 {
+			m.Inputs[nextIdx].Focus()
+		}
+
+		return m, textinput.Blink
+	}
+
+	var cmd tea.Cmd
+	m.Inputs[idx], cmd = m.Inputs[idx].Update(msg)
+	return m, cmd
 }
 
 func (m *Model) updateScanStatus(msg *ScanStatusMsg) (tea.Model, tea.Cmd) {

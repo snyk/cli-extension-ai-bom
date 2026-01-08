@@ -224,11 +224,38 @@ func (c *ClientImpl) setCommonHeaders(url string, req *http.Request) {
 func (c *ClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode int, bodyBytes []byte) *redteam_errors.RedTeamError {
 	errMsg := fmt.Sprintf(
 		"unexpected status code %d for %s", statusCode, endPoint)
+
+	// Try to parse detailed error from response body
+	var errorResponse struct {
+		Errors []struct {
+			Detail string `json:"detail"`
+			Title  string `json:"title"`
+			Code   string `json:"code"`
+		} `json:"errors"`
+	}
+
+	if err := json.Unmarshal(bodyBytes, &errorResponse); err == nil && len(errorResponse.Errors) > 0 {
+		if errorResponse.Errors[0].Detail != "" {
+			errMsg = errorResponse.Errors[0].Detail
+		} else if errorResponse.Errors[0].Title != "" {
+			errMsg = errorResponse.Errors[0].Title
+		}
+	} else if len(bodyBytes) > 0 {
+		// If we can't parse it as JSON:API, but there's a body, include it (truncated)
+		bodyStr := string(bodyBytes)
+		if len(bodyStr) > 200 {
+			bodyStr = bodyStr[:197] + "..."
+		}
+		errMsg = fmt.Sprintf("%s - %s", errMsg, bodyStr)
+	}
+
 	c.logger.Debug().Str("responseBody", string(bodyBytes)).Msg(errMsg)
 	switch statusCode {
 	case http.StatusUnauthorized:
 		authErr := redteam_errors.NewUnauthorizedError(errMsg)
 		return authErr
+	case http.StatusBadRequest:
+		return redteam_errors.NewBadRequestError(errMsg)
 	default:
 		serverErr := redteam_errors.NewServerError(errMsg)
 		return serverErr
