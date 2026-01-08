@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/rs/zerolog"
@@ -29,8 +30,10 @@ import (
 )
 
 var (
-	WorkflowID        = workflow.NewWorkflowIdentifier("redteam")
-	ErrConfigNotFound = fmt.Errorf("configuration file not found")
+	WorkflowID                  = workflow.NewWorkflowIdentifier("redteam")
+	ErrConfigNotFound           = fmt.Errorf("configuration file not found")
+	In                io.Reader = os.Stdin
+	Out               io.Writer = os.Stdout
 )
 
 func RegisterWorkflows(e workflow.Engine) error {
@@ -158,7 +161,7 @@ func handleRunScanCommand(
 	}
 
 	// Start Interactive TUI
-	data, tuiErr := tui.Run(ctx, redTeamClient, orgID, invocationCtx, initConfig)
+	data, tuiErr := tui.Run(ctx, redTeamClient, orgID, invocationCtx, initConfig, In, Out)
 	if tuiErr != nil {
 		return nil, redteam_errors.NewGenericRedTeamError(fmt.Sprintf("TUI failed: %v", tuiErr), tuiErr)
 	}

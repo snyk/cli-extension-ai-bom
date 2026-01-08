@@ -1,15 +1,19 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/snyk/go-application-framework/pkg/configuration"
+	"gopkg.in/yaml.v3"
 
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 )
@@ -30,31 +34,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateKeyMsg(msg)
 
 	case tea.WindowSizeMsg:
-		m.Width = msg.Width
-		m.Height = msg.Height
-		m.List.SetWidth(msg.Width)
-		m.Progress.Width = msg.Width - 10
-
-		// Update Table Dimensions
-		tableHeight := 15
-		if msg.Height > 20 {
-			tableHeight = msg.Height - 10
-		}
-		m.ResultsTable.SetWidth(msg.Width - 4)
-		m.ResultsTable.SetHeight(tableHeight)
-
-		availWidth := msg.Width - 10
-		cols := m.ResultsTable.Columns()
-		if len(cols) == 3 {
-			cols[0].Width = int(float64(availWidth) * 0.15)
-			cols[1].Width = int(float64(availWidth) * 0.35)
-			cols[2].Width = int(float64(availWidth) * 0.50)
-			m.ResultsTable.SetColumns(cols)
-		}
-
-		m.DetailViewport.Width = msg.Width - 4
-		m.DetailViewport.Height = msg.Height - 6
-		return m, nil
+		return m.updateWindowSize(msg)
 
 	case spinner.TickMsg:
 		m.Spinner, cmd = m.Spinner.Update(msg)
@@ -75,16 +55,81 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ScanCompleteMsg:
 		return m.updateScanCompleteMsg(msg)
-	}
 
-	if m.Step < StepScanning && m.Step != StepTargetType {
-		idx := inputIndexForStep(m.Step)
-		if idx >= 0 {
-			m.Inputs[idx], cmd = m.Inputs[idx].Update(msg)
-			return m, cmd
+	case ConfigLoadedMsg:
+		return m.updateConfigLoaded(msg)
+
+	case ResultsLoadedMsg:
+		return m.updateResultsLoaded(msg)
+
+	case AgentsFetchedMsg:
+		return m.updateAgentsFetched(msg)
+
+	case AgentCreatedMsg:
+		return m.updateAgentCreated(msg)
+
+	case ResultsSavedMsg:
+		if msg.Err != nil {
+			m.Err = fmt.Errorf("failed to save results: %w", msg.Err)
+			m.Step = StepError
+			return m, nil
 		}
+		// Exit after saving
+		return m, tea.Quit
 	}
 
+	return m.updateInputs(msg)
+}
+
+func (m *Model) updateInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	idx := inputIndexForStep(m.Step)
+	if idx >= 0 {
+		m.Inputs[idx], cmd = m.Inputs[idx].Update(msg)
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m *Model) updateWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	m.Width = msg.Width
+	m.Height = msg.Height
+	m.List.SetWidth(msg.Width)
+	m.Progress.Width = msg.Width - 10
+
+	// Calculate header height (Title + Dog + Spacing)
+	// Title: ~3 lines
+	// Dog: 10 lines
+	// Spacing: ~4 lines
+	headerHeight := 18
+
+	// Update Table Dimensions
+	tableHeight := 15
+	if msg.Height > 20 {
+		tableHeight = msg.Height - headerHeight - 2
+	}
+	m.ResultsTable.SetWidth(msg.Width - 4)
+	m.ResultsTable.SetHeight(tableHeight)
+
+	// Update Menu Dimensions
+	m.MainMenu.SetWidth(msg.Width)
+	m.MainMenu.SetHeight(msg.Height - headerHeight)
+	m.AgentMenu.SetWidth(msg.Width)
+	m.AgentMenu.SetHeight(msg.Height - headerHeight)
+	m.AgentList.SetWidth(msg.Width)
+	m.AgentList.SetHeight(msg.Height - headerHeight)
+
+	availWidth := msg.Width - 10
+	cols := m.ResultsTable.Columns()
+	if len(cols) == 3 {
+		cols[0].Width = int(float64(availWidth) * 0.15)
+		cols[1].Width = int(float64(availWidth) * 0.35)
+		cols[2].Width = int(float64(availWidth) * 0.50)
+		m.ResultsTable.SetColumns(cols)
+	}
+
+	m.DetailViewport.Width = msg.Width - 4
+	m.DetailViewport.Height = msg.Height - 6
 	return m, nil
 }
 
@@ -97,11 +142,8 @@ func (m *Model) updatePostAuthMsg(msg PostAuthMsg) (tea.Model, tea.Cmd) {
 	m.OrgID = config.GetString(configuration.ORGANIZATION)
 	if m.OrgID != "" {
 		m.Err = nil
-		m.Step = StepTargetName
-		if idx := inputIndexForStep(m.Step); idx >= 0 {
-			m.Inputs[idx].Focus()
-		}
-		return m, textinput.Blink
+		m.Step = StepMenu
+		return m, nil
 	}
 	m.Err = fmt.Errorf("authentication completed but Organization ID is still missing")
 	return m, nil
@@ -130,6 +172,10 @@ func (m *Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	default:
 	}
 
+	return m.updateStepState(msg)
+}
+
+func (m *Model) updateStepState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.Step {
 	case StepWelcome:
 		return m.updateWelcomeStep(msg)
@@ -145,6 +191,16 @@ func (m *Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateConfigConfirmationStep(msg)
 	case StepTargetType:
 		return m.updateTargetTypeStep(msg)
+	case StepMenu:
+		return m.updateMenuStep(msg)
+	case StepAgentMenu:
+		return m.updateAgentMenuStep(msg)
+	case StepAgentList:
+		return m.updateAgentListStep(msg)
+	case StepSaveConfirmation:
+		return m.updateSaveConfirmationStep(msg)
+	case StepConfigPath, StepResultsPath, StepAgentCreate, StepSavePath:
+		return m.updateFormInputStep(msg)
 	default:
 		// Form inputs
 		if m.Step < StepScanning {
@@ -163,11 +219,7 @@ func (m *Model) updateWelcomeStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case m.Config.Target.Name != "": // Config already loaded
 			m.Step = StepConfigConfirmation
 		default:
-			m.Step = StepTargetName
-			// Focus the first input if we skip auth check
-			if idx := inputIndexForStep(m.Step); idx >= 0 {
-				m.Inputs[idx].Focus()
-			}
+			m.Step = StepMenu
 		}
 		return m, textinput.Blink
 	}
@@ -193,7 +245,9 @@ func (m *Model) updateResultsStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.ResultsTable, cmd = m.ResultsTable.Update(msg)
 	if msg.String() == "q" {
-		return m, tea.Quit
+		// Ask if they want to save results
+		m.Step = StepSaveConfirmation
+		return m, nil
 	}
 	if msg.Type == tea.KeyEnter {
 		// Select finding
@@ -220,6 +274,21 @@ func (m *Model) updateFindingDetailsStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, cmd
+}
+
+func (m *Model) updateSaveConfirmationStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "y" || msg.Type == tea.KeyEnter {
+		m.Step = StepSavePath
+		// Focus the save path input
+		if idx := inputIndexForStep(m.Step); idx >= 0 {
+			m.Inputs[idx].Focus()
+		}
+		return m, textinput.Blink
+	}
+	if msg.String() == "n" || msg.String() == "q" {
+		return m, tea.Quit
+	}
+	return m, nil
 }
 
 func (m *Model) updateScanningStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -282,6 +351,204 @@ func (m *Model) updateTargetTypeStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, listCmd
 }
 
+func (m *Model) updateMenuStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var listCmd tea.Cmd
+	m.MainMenu, listCmd = m.MainMenu.Update(msg)
+
+	if msg.Type != tea.KeyEnter {
+		return m, listCmd
+	}
+
+	selectedItem, ok := m.MainMenu.SelectedItem().(menuItem)
+	if !ok {
+		return m, listCmd
+	}
+
+	switch selectedItem.id {
+	case "new":
+		if m.OrgID == "" {
+			m.Step = StepAuthCheck
+			return m, nil
+		}
+		m.Step = StepTargetName
+		if idx := inputIndexForStep(m.Step); idx >= 0 {
+			m.Inputs[idx].Focus()
+		}
+		return m, textinput.Blink
+	case "existing":
+		if m.OrgID == "" {
+			m.Step = StepAuthCheck
+			return m, nil
+		}
+		m.Step = StepConfigPath
+		if idx := inputIndexForStep(m.Step); idx >= 0 {
+			m.Inputs[idx].Focus()
+		}
+		return m, textinput.Blink
+	case "agent":
+		if m.OrgID == "" {
+			m.Step = StepAuthCheck
+			return m, nil
+		}
+		m.Step = StepAgentMenu
+		return m, nil
+	case "analyze":
+		m.Step = StepResultsPath
+		if idx := inputIndexForStep(m.Step); idx >= 0 {
+			m.Inputs[idx].Focus()
+		}
+		return m, textinput.Blink
+	}
+	return m, listCmd
+}
+
+func (m *Model) updateAgentMenuStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var listCmd tea.Cmd
+	m.AgentMenu, listCmd = m.AgentMenu.Update(msg)
+
+	if msg.Type != tea.KeyEnter {
+		return m, listCmd
+	}
+
+	selectedItem, ok := m.AgentMenu.SelectedItem().(menuItem)
+	if !ok {
+		return m, listCmd
+	}
+
+	switch selectedItem.id {
+	case "list":
+		m.Step = StepAgentList
+		return m, fetchAgents(m)
+	case "create":
+		m.Step = StepAgentCreate
+		if idx := inputIndexForStep(m.Step); idx >= 0 {
+			m.Inputs[idx].Focus()
+		}
+		return m, textinput.Blink
+	}
+	return m, listCmd
+}
+
+func (m *Model) updateAgentListStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var listCmd tea.Cmd
+	m.AgentList, listCmd = m.AgentList.Update(msg)
+
+	// Add deletion logic here if needed (e.g. press 'd')
+	// For now, allow returning to menu
+	if msg.String() == "esc" || msg.String() == "q" {
+		m.Step = StepAgentMenu
+		return m, nil
+	}
+	return m, listCmd
+}
+
+func (m *Model) updateConfigLoaded(msg ConfigLoadedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.Err = fmt.Errorf("failed to load config: %w", msg.Err)
+		m.Step = StepError
+		return m, nil
+	}
+	m.Config = *msg.Config
+	// Populate inputs from config
+	m.Inputs[0].SetValue(m.Config.Target.Name)
+	m.Inputs[1].SetValue(m.Config.Target.Settings.URL)
+	m.Inputs[2].SetValue(m.Config.Target.Context.Purpose)
+	m.Inputs[3].SetValue(m.Config.Target.Settings.ResponseSelector)
+	m.Inputs[4].SetValue(m.Config.Target.Settings.RequestBodyTemplate)
+
+	// Set list selection
+	for i, item := range m.List.Items() {
+		val, ok := item.(targetTypeItem)
+		if ok && string(val) == m.Config.Target.Type {
+			m.List.Select(i)
+			break
+		}
+	}
+
+	m.Step = StepConfigConfirmation
+	return m, nil
+}
+
+func (m *Model) updateResultsLoaded(msg ResultsLoadedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.Err = fmt.Errorf("failed to load results: %w", msg.Err)
+		m.Step = StepError
+		return m, nil
+	}
+	m.RawResults = msg.Results
+
+	// Process results
+	res := &ScanResult{
+		Summary: "Loaded from file.",
+	}
+	rows := make([]table.Row, 0, len(msg.Results.Results))
+	for i := range msg.Results.Results {
+		v := &msg.Results.Results[i]
+		switch v.Severity {
+		case "critical":
+			res.Criticals++
+		case "high":
+			res.Highs++
+		case "medium":
+			res.Mediums++
+		case "low":
+			res.Lows++
+		}
+		summary := v.Evidence.Content.Reason
+		if len(summary) > 50 {
+			summary = summary[:47] + "..."
+		}
+		rows = append(rows, table.Row{
+			v.Severity,
+			v.Definition.Name,
+			summary,
+		})
+	}
+	m.Result = res
+	m.ResultsTable.SetRows(rows)
+	m.Step = StepResults
+	return m, nil
+}
+
+func (m *Model) updateAgentsFetched(msg AgentsFetchedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.Err = fmt.Errorf("failed to fetch agents: %w", msg.Err)
+		m.Step = StepError
+		return m, nil
+	}
+	m.ScanningAgents = msg.Agents
+	// Populate AgentList
+	items := make([]list.Item, len(msg.Agents))
+	for i, agent := range msg.Agents {
+		status := "Offline"
+		if agent.Online {
+			status = "Online"
+		}
+		items[i] = agentItem{
+			name:   agent.Name,
+			id:     agent.ID,
+			status: status,
+		}
+	}
+	m.AgentList.SetItems(items)
+	return m, nil
+}
+
+func (m *Model) updateAgentCreated(msg AgentCreatedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.Err = fmt.Errorf("failed to create agent: %w", msg.Err)
+		m.Step = StepError
+		return m, nil
+	}
+	// Show success message with token
+	tokenMsg := fmt.Sprintf("Agent Created!\n\nID: %s\nToken: %s\n\nCopy this token now, it won't be shown again.",
+		msg.Agent.ID, msg.Config.FarcasterAgentToken)
+
+	m.Err = fmt.Errorf("%s", tokenMsg) // Not really an error
+	m.Step = StepError
+	return m, nil
+}
+
 func (m *Model) updateFormInputStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	idx := inputIndexForStep(m.Step)
 	if idx < 0 {
@@ -296,6 +563,23 @@ func (m *Model) updateFormInputStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.Err = nil
+
+		// Special handling for non-linear steps
+		//nolint:exhaustive // Only need to handle specific steps
+		switch m.Step {
+		case StepConfigPath:
+			m.Inputs[idx].Blur()
+			return m, loadConfigCmd(val)
+		case StepResultsPath:
+			m.Inputs[idx].Blur()
+			return m, loadResultsCmd(val)
+		case StepAgentCreate:
+			m.Inputs[idx].Blur()
+			return m, createAgentCmd(m, val)
+		case StepSavePath:
+			m.Inputs[idx].Blur()
+			return m, saveResultsCmd(m, val)
+		}
 
 		// Save value
 		saveValue(m, m.Step, val)
@@ -373,6 +657,14 @@ func inputIndexForStep(step Step) int {
 		return 3
 	case StepRequestBody:
 		return 4
+	case StepConfigPath:
+		return 5
+	case StepResultsPath:
+		return 6
+	case StepAgentCreate:
+		return 7
+	case StepSavePath:
+		return 8
 	default:
 	}
 	return -1
@@ -394,7 +686,102 @@ func saveValue(m *Model, step Step, val string) {
 	}
 }
 
+// Messages
+
+type ConfigLoadedMsg struct {
+	Config *redteamclient.RedTeamConfig
+	Err    error
+}
+
+type ResultsLoadedMsg struct {
+	Results *redteamclient.GetAIVulnerabilitiesResponseData
+	Err     error
+}
+
+type AgentsFetchedMsg struct {
+	Agents []redteamclient.AIScanningAgent
+	Err    error
+}
+
+type AgentCreatedMsg struct {
+	Agent  *redteamclient.AIScanningAgent
+	Config *redteamclient.GenerateAIScanningAgentConfigData
+	Err    error
+}
+
+type ResultsSavedMsg struct {
+	Err error
+}
+
 // Commands
+
+func loadConfigCmd(path string) tea.Cmd {
+	return func() tea.Msg {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return ConfigLoadedMsg{Err: err}
+		}
+		var config redteamclient.RedTeamConfig
+		if err := yaml.Unmarshal(data, &config); err != nil {
+			return ConfigLoadedMsg{Err: err}
+		}
+		return ConfigLoadedMsg{Config: &config}
+	}
+}
+
+func loadResultsCmd(path string) tea.Cmd {
+	return func() tea.Msg {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return ResultsLoadedMsg{Err: err}
+		}
+		var results redteamclient.GetAIVulnerabilitiesResponseData
+		if err := json.Unmarshal(data, &results); err != nil {
+			return ResultsLoadedMsg{Err: err}
+		}
+		return ResultsLoadedMsg{Results: &results}
+	}
+}
+
+func fetchAgents(m *Model) tea.Cmd {
+	return func() tea.Msg {
+		agents, err := m.Client.ListScanningAgents(m.Ctx, m.OrgID)
+		if err != nil {
+			return AgentsFetchedMsg{Err: err}
+		}
+		return AgentsFetchedMsg{Agents: agents}
+	}
+}
+
+func createAgentCmd(m *Model, name string) tea.Cmd {
+	return func() tea.Msg {
+		agent, err := m.Client.CreateScanningAgent(m.Ctx, m.OrgID, name)
+		if err != nil {
+			return AgentCreatedMsg{Err: err}
+		}
+		config, err := m.Client.GenerateScanningAgentConfig(m.Ctx, m.OrgID, agent.ID)
+		if err != nil {
+			return AgentCreatedMsg{Err: err}
+		}
+		return AgentCreatedMsg{Agent: agent, Config: config}
+	}
+}
+
+func saveResultsCmd(m *Model, path string) tea.Cmd {
+	return func() tea.Msg {
+		if m.RawResults == nil {
+			return ResultsSavedMsg{Err: fmt.Errorf("no results to save")}
+		}
+		data, err := json.MarshalIndent(m.RawResults, "", "  ")
+		if err != nil {
+			return ResultsSavedMsg{Err: err}
+		}
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			return ResultsSavedMsg{Err: err}
+		}
+		return ResultsSavedMsg{}
+	}
+}
 
 func startScan(m *Model) tea.Cmd {
 	return func() tea.Msg {

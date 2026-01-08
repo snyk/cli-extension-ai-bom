@@ -1,7 +1,9 @@
 package redteam_test
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"os"
 	"testing"
 
@@ -26,7 +28,19 @@ const (
 	redteamTestConfigFile = "testdata/redteam.yaml"
 )
 
+func setupIO(input string) func() {
+	originalIn := redteam.In
+	originalOut := redteam.Out
+	redteam.In = bytes.NewBufferString(input)
+	redteam.Out = io.Discard
+	return func() {
+		redteam.In = originalIn
+		redteam.Out = originalOut
+	}
+}
+
 func TestRunRedTeamWorkflow_HappyPath(t *testing.T) {
+	defer setupIO("y")()
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
 	ictx.GetConfiguration().Set(organizationKey, testOrgID)
@@ -101,6 +115,7 @@ func TestRunRedTeamWorkflow_NoOrgID(t *testing.T) {
 }
 
 func TestHandleRunScanCommand_ConfigFileNotFound(t *testing.T) {
+	defer setupIO("q")()
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
 	ictx.GetConfiguration().Set(organizationKey, testOrgID)
@@ -267,6 +282,7 @@ func TestHandleRunScanCommand_ValidateTargetError(t *testing.T) {
 }
 
 func TestHandleRunScanCommand_CustomConfigPathDoesNotExist(t *testing.T) {
+	defer setupIO("q")()
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
 	ictx.GetConfiguration().Set(organizationKey, testOrgID)
@@ -289,6 +305,7 @@ func TestHandleRunScanCommand_CustomConfigPathDoesNotExist(t *testing.T) {
 }
 
 func TestHandleRunScanCommand_CustomConfig(t *testing.T) {
+	defer setupIO("y")()
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
 	ictx.GetConfiguration().Set(organizationKey, testOrgID)
@@ -341,6 +358,7 @@ func TestHandleRunScanCommand_ScanError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer setupIO("y")()
 			ictx := frameworkmock.NewMockInvocationContext(t)
 			ictx.GetConfiguration().Set(experimentalKey, true)
 			ictx.GetConfiguration().Set(organizationKey, testOrgID)
@@ -403,6 +421,7 @@ func setupMockRedTeamClient() *redteamclientmock.MockRedTeamClient {
 }
 
 func TestRunRedTeamWorkflowWithScanningAgent_HappyPath(t *testing.T) {
+	defer setupIO("y")()
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
 	ictx.GetConfiguration().Set(organizationKey, testOrgID)
@@ -436,6 +455,7 @@ func TestRunRedTeamWorkflowWithScanningAgent_InvalidScanningAgentID(t *testing.T
 }
 
 func TestRunRedTeamWorkflowWithScanningAgentOverride_HappyPath(t *testing.T) {
+	defer setupIO("y")()
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
 	ictx.GetConfiguration().Set(organizationKey, testOrgID)

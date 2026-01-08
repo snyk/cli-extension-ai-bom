@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/charmbracelet/bubbles/progress"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -22,9 +24,14 @@ func Run(
 	orgID string,
 	invocationCtx workflow.InvocationContext,
 	initialConfig *redteamclient.RedTeamConfig,
+	in io.Reader,
+	out io.Writer,
 ) ([]workflow.Data, error) {
 	inputs := InitializeInputs()
 	listModel := InitializeList()
+	mainMenu := InitializeMainMenu()
+	agentMenu := InitializeAgentMenu()
+	agentList := InitializeAgentList()
 	progressModel := progress.New(progress.WithDefaultGradient())
 	spinnerModel := spinner.New()
 	spinnerModel.Spinner = spinner.Dot
@@ -61,9 +68,12 @@ func Run(
 		PaddingRight(2)
 
 	m := Model{
-		Step:           StepWelcome, // Start with welcome screen
+		Step:           StepMenu, // Start with Main Menu
 		Inputs:         inputs,
 		List:           listModel,
+		MainMenu:       mainMenu,
+		AgentMenu:      agentMenu,
+		AgentList:      agentList,
 		ResultsTable:   t,
 		DetailViewport: vp,
 		Config:         redteamclient.RedTeamConfig{},
@@ -93,12 +103,15 @@ func Run(
 				break
 			}
 		}
+
+		// If config is provided, skip menu and go to confirmation
+		m.Step = StepConfigConfirmation
 	}
 
 	// If OrgID is missing, we might want to start at StepAuthCheck
 	// But we start at Welcome now, so the transition logic will handle it.
 
-	p := tea.NewProgram(&m)
+	p := tea.NewProgram(&m, tea.WithInput(in), tea.WithOutput(out))
 	finalModel, err := p.Run()
 	if err != nil {
 		return nil, fmt.Errorf("error running TUI: %w", err)

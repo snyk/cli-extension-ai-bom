@@ -13,7 +13,7 @@ import (
 
 // InitializeInputs sets up the text input fields.
 func InitializeInputs() []textinput.Model {
-	inputs := make([]textinput.Model, 6)
+	inputs := make([]textinput.Model, 8)
 
 	// Target Name
 	inputs[0] = textinput.New()
@@ -53,6 +53,34 @@ func InitializeInputs() []textinput.Model {
 	inputs[4].Prompt = ""
 	inputs[4].SetValue(`{"message": "{{prompt}}"}`)
 
+	// Config File Path (Index 5)
+	inputs[5] = textinput.New()
+	inputs[5].Placeholder = "/path/to/redteam.yaml"
+	inputs[5].CharLimit = 200
+	inputs[5].Width = 50
+	inputs[5].Prompt = ""
+
+	// Results File Path (Index 6)
+	inputs[6] = textinput.New()
+	inputs[6].Placeholder = "/path/to/results.json"
+	inputs[6].CharLimit = 200
+	inputs[6].Width = 50
+	inputs[6].Prompt = ""
+
+	// Agent Name (Index 7)
+	inputs[7] = textinput.New()
+	inputs[7].Placeholder = "My Scanning Agent"
+	inputs[7].CharLimit = 50
+	inputs[7].Width = 30
+	inputs[7].Prompt = ""
+
+	// Save Results Path (Index 8)
+	inputs = append(inputs, textinput.New())
+	inputs[8].Placeholder = "redteam-results.json"
+	inputs[8].CharLimit = 200
+	inputs[8].Width = 50
+	inputs[8].Prompt = ""
+
 	return inputs
 }
 
@@ -85,6 +113,27 @@ func (d targetTypeDelegate) Render(w io.Writer, m list.Model, index int, listIte
 	fmt.Fprint(w, fn(str))
 }
 
+// menuItem implements list.Item.
+type menuItem struct {
+	title string
+	desc  string
+	id    string
+}
+
+func (i menuItem) Title() string       { return i.title }
+func (i menuItem) Description() string { return i.desc }
+func (i menuItem) FilterValue() string { return i.title }
+
+type agentItem struct {
+	name   string
+	id     string
+	status string
+}
+
+func (i agentItem) Title() string       { return i.name }
+func (i agentItem) Description() string { return fmt.Sprintf("ID: %s | Status: %s", i.id, i.status) }
+func (i agentItem) FilterValue() string { return i.name }
+
 func InitializeList() list.Model {
 	items := []list.Item{
 		targetTypeItem("api"),
@@ -101,5 +150,41 @@ func InitializeList() list.Model {
 	l.Styles.PaginationStyle = list.DefaultStyles().PaginationStyle
 	l.Styles.HelpStyle = list.DefaultStyles().HelpStyle
 
+	return l
+}
+
+func InitializeMainMenu() list.Model {
+	items := []list.Item{
+		menuItem{title: "Start scan with a new target", desc: "Configure a new Red Team scan interactively", id: "new"},
+		menuItem{title: "Start scan with an existing target", desc: "Load configuration from a file", id: "existing"},
+		menuItem{title: "Configure scanning agent", desc: "Manage Red Team scanning agents", id: "agent"},
+		menuItem{title: "Analyze existing results", desc: "Load and view results from a JSON file", id: "analyze"},
+	}
+
+	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
+	l.Title = "Main Menu"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
+	return l
+}
+
+func InitializeAgentMenu() list.Model {
+	items := []list.Item{
+		menuItem{title: "List Scanning Agents", desc: "View all available scanning agents", id: "list"},
+		menuItem{title: "Create Scanning Agent", desc: "Create a new scanning agent", id: "create"},
+	}
+
+	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
+	l.Title = "Scanning Agents"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
+	return l
+}
+
+func InitializeAgentList() list.Model {
+	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	l.Title = "Available Scanning Agents"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
 	return l
 }

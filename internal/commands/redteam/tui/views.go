@@ -21,9 +21,9 @@ func (m *Model) View() string {
 	s.WriteString("\n\n")
 
 	// 2. Render History or Scan Context
-	if m.Step >= StepScanning {
+	if m.Step >= StepScanning && m.Step <= StepFindingDetails {
 		s.WriteString(renderScanContext(m))
-	} else {
+	} else if m.Step <= StepRequestBody {
 		s.WriteString(renderHistory(m))
 	}
 
@@ -38,7 +38,6 @@ func renderWelcomeHeader() string {
 		lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("205")).
-			Height(3).
 			Render("Snyk AI Red Teaming"),
 		getDogArt(),
 	)
@@ -197,12 +196,24 @@ func renderCurrentStep(m *Model) string {
 			stepStyle.Render("Press 'e' or [Enter] to edit configuration and retry."),
 			lipgloss.NewStyle().Foreground(subtle).Render("Press q to quit"),
 		)
+	case StepMenu:
+		return m.MainMenu.View()
+	case StepAgentMenu:
+		return m.AgentMenu.View()
+	case StepAgentList:
+		return m.AgentList.View()
 	case StepConfigConfirmation:
 		return fmt.Sprintf(
 			"%s\n\n%s\n\n%s",
 			renderConfigSummary(m),
 			stepStyle.Render("Configuration loaded from file. Is this correct? (y/n/e)"),
 			lipgloss.NewStyle().Foreground(subtle).Render("Press q to quit"),
+		)
+	case StepSaveConfirmation:
+		return fmt.Sprintf(
+			"%s\n\n%s",
+			stepStyle.Render("Do you want to save the results? (y/n)"),
+			lipgloss.NewStyle().Foreground(subtle).Render("Press n to exit without saving"),
 		)
 	default:
 		return renderFormStep(m)
@@ -253,6 +264,18 @@ func renderFormStep(m *Model) string {
 	case StepRequestBody:
 		question = "What is the request body template? (Use {{prompt}} as placeholder)"
 		content = m.Inputs[4].View()
+	case StepConfigPath:
+		question = "Enter the path to your configuration file (redteam.yaml):"
+		content = m.Inputs[5].View()
+	case StepResultsPath:
+		question = "Enter the path to your results file (results.json):"
+		content = m.Inputs[6].View()
+	case StepAgentCreate:
+		question = "Enter a name for the new scanning agent:"
+		content = m.Inputs[7].View()
+	case StepSavePath:
+		question = "Enter the path to save the results:"
+		content = m.Inputs[8].View()
 	default:
 		return ""
 	}
@@ -298,17 +321,17 @@ func renderFindingDetails(m *Model) string {
 }
 
 func getDogArt() string {
-	dog := `
-      ,    /_
-     /|   | |
-   _/_\___/_|_
-  /           \
- |  O       O  |
- |      ^      |
-  \    ___    /
-   \_______/
-     | | |
-    _| | |_
-`
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render(dog)
+	dog := []string{
+		"      ,    /_",
+		"     /|   | |",
+		"   _/_\\___/_|_",
+		"  /           \\",
+		" |  O       O  |",
+		" |      ^      |",
+		"  \\    ___    /",
+		"   \\_______/",
+		"     | | |",
+		"    _| | |_",
+	}
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render(strings.Join(dog, "\n"))
 }
