@@ -31,6 +31,14 @@ const (
 	StepResults
 	StepFindingDetails
 	StepError
+	StepMenu
+	StepConfigPath
+	StepResultsPath
+	StepAgentMenu
+	StepAgentList
+	StepAgentCreate
+	StepSaveConfirmation
+	StepSavePath
 )
 
 type ScanResult struct {
@@ -51,17 +59,23 @@ type Model struct {
 	Inputs []textinput.Model
 	List   list.Model
 
+	// Menus
+	MainMenu  list.Model
+	AgentMenu list.Model
+	AgentList list.Model
+
 	// Config State
 	Config redteamclient.RedTeamConfig
 	OrgID  string
 
 	// Scanning State
-	Client     redteamclient.RedTeamClient
-	ScanID     string
-	Spinner    spinner.Model
-	Progress   progress.Model
-	Result     *ScanResult
-	RawResults *redteamclient.GetAIVulnerabilitiesResponseData
+	Client         redteamclient.RedTeamClient
+	ScanningAgents []redteamclient.AIScanningAgent
+	ScanID         string
+	Spinner        spinner.Model
+	Progress       progress.Model
+	Result         *ScanResult
+	RawResults     *redteamclient.GetAIVulnerabilitiesResponseData
 
 	// Results View State
 	ResultsTable    table.Model

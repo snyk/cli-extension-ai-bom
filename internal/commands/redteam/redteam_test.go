@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/snyk/go-application-framework/pkg/configuration"
+	"github.com/snyk/go-application-framework/pkg/workflow"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/redteam"
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/redteam/tui"
@@ -146,7 +147,7 @@ func TestRunRedTeamWorkflow_NoOrgID(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func testWorkflowWithConfigPath(t *testing.T, configPath string) {
+func testWorkflowWithConfigPath(t *testing.T, configPath string) ([]workflow.Data, error) {
 	t.Helper()
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
@@ -172,13 +173,38 @@ func testWorkflowWithConfigPath(t *testing.T, configPath string) {
 	opts := append([]tea.ProgramOption(nil), testTUIOpts...)
 	opts = append(opts, tea.WithInput(inputReader))
 
-	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), opts...)
-	require.NoError(t, err)
-	assert.Empty(t, results)
+	return redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), opts...)
 }
 
 func TestHandleRunScanCommand_ConfigFileNotFound(t *testing.T) {
-	testWorkflowWithConfigPath(t, "nonexistent-config.yaml")
+	results, err := testWorkflowWithConfigPath(t, "nonexistent-config.yaml")
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "text/plain", results[0].GetContentType())
+
+	payload, ok := results[0].GetPayload().([]byte)
+	require.True(t, ok, "expected payload to be []byte")
+	content := string(payload)
+	assert.Contains(t, content, "Configuration file not found")
+	assert.Contains(t, content, "redteam.yaml")
+}
+
+func TestHandleRunScanCommand_InvalidYAML(t *testing.T) {
+	configContent := `
+target:
+  name: "Test Target"
+  type: api
+
+  ---- invalid yaml syntax ----
+`
+	err := os.WriteFile("test-invalid.yaml", []byte(configContent), 0o600)
+	require.NoError(t, err)
+	defer os.Remove("test-invalid.yaml")
+
+	results, err := testWorkflowWithConfigPath(t, "test-invalid.yaml")
+	require.NoError(t, err)
+	payload, _ := results[0].GetPayload().([]byte)
+	assert.Contains(t, string(payload), "Configuration file in invalid")
 }
 
 func TestHandleRunScanCommand_ValidationFailure(t *testing.T) {
@@ -310,7 +336,10 @@ func TestHandleRunScanCommand_ValidateTargetError(t *testing.T) {
 }
 
 func TestHandleRunScanCommand_CustomConfigPathDoesNotExist(t *testing.T) {
-	testWorkflowWithConfigPath(t, "path-that-does-not-exist/test-custom-config.yaml")
+	results, err := testWorkflowWithConfigPath(t, "path-that-does-not-exist/test-custom-config.yaml")
+	require.NoError(t, err)
+	payload, _ := results[0].GetPayload().([]byte)
+	assert.Contains(t, string(payload), "Configuration file not found")
 }
 
 func TestHandleRunScanCommand_CustomConfig(t *testing.T) {

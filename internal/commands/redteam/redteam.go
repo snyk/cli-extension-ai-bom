@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,8 +31,10 @@ import (
 )
 
 var (
-	WorkflowID        = workflow.NewWorkflowIdentifier("redteam")
-	ErrConfigNotFound = fmt.Errorf("configuration file not found")
+	WorkflowID                  = workflow.NewWorkflowIdentifier("redteam")
+	ErrConfigNotFound           = fmt.Errorf("configuration file not found")
+	In                io.Reader = os.Stdin
+	Out               io.Writer = os.Stdout
 )
 
 func RegisterWorkflows(e workflow.Engine) error {

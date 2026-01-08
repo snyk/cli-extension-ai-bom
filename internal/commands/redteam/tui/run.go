@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/progress"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -26,6 +27,9 @@ func Run(
 ) ([]workflow.Data, error) {
 	inputs := InitializeInputs()
 	listModel := InitializeList()
+	mainMenu := InitializeMainMenu()
+	agentMenu := InitializeAgentMenu()
+	agentList := InitializeAgentList()
 	progressModel := progress.New(progress.WithDefaultGradient())
 	spinnerModel := spinner.New()
 	spinnerModel.Spinner = spinner.Dot
@@ -62,9 +66,12 @@ func Run(
 		PaddingRight(2)
 
 	m := Model{
-		Step:           StepWelcome, // Start with welcome screen
+		Step:           StepMenu, // Start with Main Menu
 		Inputs:         inputs,
 		List:           listModel,
+		MainMenu:       mainMenu,
+		AgentMenu:      agentMenu,
+		AgentList:      agentList,
 		ResultsTable:   t,
 		DetailViewport: vp,
 		Config:         redteamclient.RedTeamConfig{},
@@ -94,6 +101,9 @@ func Run(
 				break
 			}
 		}
+
+		// If config is provided, skip menu and go to confirmation
+		m.Step = StepConfigConfirmation
 	}
 
 	// If OrgID is missing, we might want to start at StepAuthCheck
