@@ -12,7 +12,6 @@ type ProgressTrackerFactory struct {
 	logger        *zerolog.Logger
 }
 
-//nolint:ireturn // ignored.
 func (p ProgressTrackerFactory) GenerateTracker() scan.Tracker {
 	return &ProgressTrackerAdapter{
 		bar:    p.userInterface.NewProgressBar(),

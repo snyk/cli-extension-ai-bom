@@ -283,7 +283,6 @@ func handleListScanningAgents(invocationCtx workflow.InvocationContext, redTeamC
 	return []workflow.Data{workflowData}, nil
 }
 
-//nolint:ireturn // Unable to change return type of external library
 func newWorkflowData(id workflow.Identifier, contentType string, data []byte) workflow.Data {
 	return workflow.NewData(
 		id,

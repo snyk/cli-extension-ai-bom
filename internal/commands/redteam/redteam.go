@@ -2,22 +2,20 @@ package redteam
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/snyk/go-application-framework/pkg/configuration"
-	"github.com/snyk/go-application-framework/pkg/ui"
 	"github.com/snyk/go-application-framework/pkg/workflow"
 
 	cli_errors "github.com/snyk/error-catalog-golang-public/cli"
-	snyk_common_errors "github.com/snyk/error-catalog-golang-public/snyk"
 
 	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/redagent"
+	"github.com/snyk/cli-extension-ai-bom/internal/commands/redteam/tui"
 	scanningagent "github.com/snyk/cli-extension-ai-bom/internal/commands/redteamscanningagent"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
@@ -30,13 +28,9 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-var WorkflowID = workflow.NewWorkflowIdentifier("redteam")
-
-const (
-	//
-	maxPollDuration = 24 * time.Hour
-	pollInterval    = 5000 * time.Millisecond
-	maxPollAttempts = int(maxPollDuration / pollInterval)
+var (
+	WorkflowID        = workflow.NewWorkflowIdentifier("redteam")
+	ErrConfigNotFound = fmt.Errorf("configuration file not found")
 )
 
 func RegisterWorkflows(e workflow.Engine) error {
@@ -71,15 +65,36 @@ func redTeamWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
 	baseAPIURL := config.GetString(configuration.API_URL)
+
+	// Check if debug flag is explicitly present in arguments
+	// We do this to override potential defaults that might enable debug logging
+	hasDebugFlag := false
+	for _, arg := range os.Args {
+		if arg == "--debug" {
+			hasDebugFlag = true
+			break
+		}
+	}
+
+	if !hasDebugFlag {
+		l := logger.Level(zerolog.InfoLevel)
+		logger = &l
+	}
+
 	redTeamClient := redteamclient.NewRedTeamClient(logger, invocationCtx.GetNetworkAccess().GetHttpClient(), userAgent, baseAPIURL)
-	return RunRedTeamWorkflow(invocationCtx, redTeamClient)
+	return RunRedTeamWorkflow(invocationCtx, redTeamClient, logger)
 }
 
 func RunRedTeamWorkflow(
 	invocationCtx workflow.InvocationContext,
 	redTeamClient redteamclient.RedTeamClient,
+	logger *zerolog.Logger,
 ) ([]workflow.Data, error) {
-	logger := invocationCtx.GetEnhancedLogger()
+	// If logger is nil (e.g. called from tests without updated signature), fallback
+	if logger == nil {
+		logger = invocationCtx.GetEnhancedLogger()
+	}
+
 	config := invocationCtx.GetConfiguration()
 
 	config.Set(configuration.RAW_CMD_ARGS, os.Args[1:])
@@ -94,65 +109,62 @@ func RunRedTeamWorkflow(
 	orgID := config.GetString(configuration.ORGANIZATION)
 	if orgID == "" {
 		logger.Debug().Msg("No organization id is found.")
-		// This shouldn't really happen unless customer has explicitly unset the orgId.
-		return nil, snyk_common_errors.NewUnauthorisedError("")
+		// We might be in the onboarding flow, so let's allow it to proceed.
+		// The handleRunScanCommand or TUI will handle the missing OrgID.
 	}
 
-	results, err := handleRunScanCommand(invocationCtx, redTeamClient)
+	results, err := handleRunScanCommand(invocationCtx, redTeamClient, logger)
 	if err != nil {
 		return nil, err
 	}
 	return results, nil
 }
 
-func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClient redteamclient.RedTeamClient) ([]workflow.Data, *redteam_errors.RedTeamError) {
-	logger := invocationCtx.GetEnhancedLogger()
+func handleRunScanCommand(
+	invocationCtx workflow.InvocationContext,
+	redTeamClient redteamclient.RedTeamClient,
+	logger *zerolog.Logger,
+) ([]workflow.Data, *redteam_errors.RedTeamError) {
+	// If logger is nil (fallback)
+	if logger == nil {
+		logger = invocationCtx.GetEnhancedLogger()
+	}
+
 	config := invocationCtx.GetConfiguration()
 	ctx := context.Background()
 
 	orgID := config.GetString(configuration.ORGANIZATION)
 
 	clientConfig, configData, err := LoadAndValidateConfig(logger, config)
-	if configData != nil {
+
+	// If the config file exists but is invalid (YAML error, etc), LoadAndValidateConfig returns a message in configData
+	// IMPORTANT: We only return early if it's NOT a "config not found" error, because we want to fall back to TUI in that case.
+	// But wait, LoadAndValidateConfig returns ErrConfigNotFound in the err return value, AND a message in configData.
+	// So we need to check err first.
+
+	if !errors.Is(err, ErrConfigNotFound) && configData != nil {
 		return configData, nil
 	}
-	if err != nil {
+
+	// If there was a validation error (logic error in config), return it
+	if err != nil && !errors.Is(err, ErrConfigNotFound) {
 		return nil, redteam_errors.NewBadRequestError(err.Error())
 	}
 
-	logger.Debug().Msg("Starting red team scan")
-
-	scanID, scanErr := redTeamClient.CreateScan(ctx, orgID, clientConfig)
-	if scanErr != nil {
-		return nil, scanErr
+	// Determine initial config
+	var initConfig *redteamclient.RedTeamConfig
+	if err == nil {
+		initConfig = clientConfig
 	}
 
-	logger.Info().Msgf("Red team scan created with ID: %s", scanID)
-
-	userInterface := invocationCtx.GetUserInterface()
-	progressBar, cleanup := setupProgressBar(userInterface, logger, clientConfig.Target.Name)
-	defer cleanup()
-
-	scanStatus, pollErr := pollForScanComplete(ctx, logger, redTeamClient, orgID, scanID, progressBar)
-	if pollErr != nil {
-		return nil, pollErr
+	// Start Interactive TUI
+	data, tuiErr := tui.Run(ctx, redTeamClient, orgID, invocationCtx, initConfig)
+	if tuiErr != nil {
+		return nil, redteam_errors.NewGenericRedTeamError(fmt.Sprintf("TUI failed: %v", tuiErr), tuiErr)
 	}
-
-	if scanStatus.Status == redteamclient.AIScanStatusFailed {
-		return nil, handleScanFailure(scanStatus, scanID)
-	}
-
-	progressBar.SetTitle("Scan completed")
-	if progressErr := progressBar.UpdateProgress(1.0); progressErr != nil {
-		logger.Debug().Err(progressErr).Msg("Failed to update progress bar")
-	}
-
-	logger.Info().Msgf("Red team scan completed with ID: %s", scanID)
-
-	return getScanResults(ctx, logger, redTeamClient, orgID, scanID)
+	return data, nil
 }
 
-//nolint:ireturn,nolintlint // Unable to change return type of external library
 func LoadAndValidateConfig(logger *zerolog.Logger, config configuration.Configuration) (*redteamclient.RedTeamConfig, []workflow.Data, error) {
 	configPath := config.GetString(utils.FlagConfig)
 	if configPath == "" {
@@ -164,7 +176,7 @@ func LoadAndValidateConfig(logger *zerolog.Logger, config configuration.Configur
 		message := `
 Configuration file not found. Please create either a redteam.yaml file in the current directory 
 or use the --config flag to specify a custom path.`
-		return nil, []workflow.Data{newWorkflowData("text/plain", []byte(message))}, nil
+		return nil, []workflow.Data{newWorkflowData("text/plain", []byte(message))}, ErrConfigNotFound
 	}
 
 	invalidConfigMessage := getInvalidConfigMessage()
@@ -213,69 +225,6 @@ or use the --config flag to specify a custom path.`
 	return clientConfig, nil, nil
 }
 
-func handleScanFailure(scanStatus *redteamclient.AIScan, scanID string) *redteam_errors.RedTeamError {
-	if len(scanStatus.Feedback.Error) > 0 {
-		backendError := scanStatus.Feedback.Error[0]
-
-		switch backendError.Code {
-		case "context_error":
-			return redteam_errors.NewScanContextError(backendError.Message, scanID)
-		case "network_error":
-			return redteam_errors.NewScanNetworkError(backendError.Message, scanID)
-		default:
-			errorMsg := fmt.Sprintf(
-				"Red teaming scan (ID: %s) failed. \nError type: %s \nMessage: %s",
-				scanID,
-				backendError.Code,
-				backendError.Message,
-			)
-			return redteam_errors.NewScanError(errorMsg, scanID)
-		}
-	}
-
-	return redteam_errors.NewScanError("We couldn't determine the details. Contact support for more information.", scanID)
-}
-
-func setupProgressBar(userInterface ui.UserInterface, logger *zerolog.Logger, targetName string) (progressBar ui.ProgressBar, cleanup func()) {
-	progressBar = userInterface.NewProgressBar()
-	progressBar.SetTitle(fmt.Sprintf("Starting a scan against %s...", targetName))
-
-	if progressErr := progressBar.UpdateProgress(ui.InfiniteProgress); progressErr != nil {
-		logger.Debug().Err(progressErr).Msg("Failed to update progress bar")
-	}
-
-	cleanup = func() {
-		if clearErr := progressBar.Clear(); clearErr != nil {
-			logger.Debug().Err(clearErr).Msg("Failed to clear progress bar")
-		}
-	}
-
-	return progressBar, cleanup
-}
-
-func getScanResults(
-	ctx context.Context,
-	logger *zerolog.Logger,
-	redTeamClient redteamclient.RedTeamClient,
-	orgID, scanID string,
-) ([]workflow.Data, *redteam_errors.RedTeamError) {
-	results, resultsErr := redTeamClient.GetScanResults(ctx, orgID, scanID)
-	logger.Debug().Msgf("Red team scan results: %+v", results)
-	if resultsErr != nil {
-		logger.Debug().Err(resultsErr).Msg("error while getting scan results")
-		return nil, resultsErr
-	}
-
-	resultsBytes, err := json.Marshal(results)
-	if err != nil {
-		logger.Debug().Err(err).Msg("error while marshaling scan results")
-		return nil, redteam_errors.NewGenericRedTeamError("Failed processing scan results", err)
-	}
-
-	workflowData := newWorkflowData("application/json", resultsBytes)
-	return []workflow.Data{workflowData}, nil
-}
-
 func getInvalidConfigMessage() string {
 	return `
 	Configuration file in invalid. Please refer to the following example:
@@ -294,47 +243,6 @@ func getInvalidConfigMessage() string {
 	For more configuration options, refer to the documentation.
 
 	`
-}
-
-func pollForScanComplete(
-	ctx context.Context,
-	logger *zerolog.Logger,
-	redTeamClient redteamclient.RedTeamClient,
-	orgID string,
-	scanID string,
-	progressBar ui.ProgressBar,
-) (*redteamclient.AIScan, *redteam_errors.RedTeamError) {
-	numberOfPolls := 0
-
-	for numberOfPolls <= maxPollAttempts {
-		numberOfPolls++
-
-		scanData, err := redTeamClient.GetScan(ctx, orgID, scanID)
-		if err != nil {
-			return nil, err
-		}
-
-		if scanData.Feedback.Status != nil {
-			progressBar.SetTitle("Running a scan... It might take a while.")
-			if err := progressBar.UpdateProgress(float64(*scanData.Feedback.Status.Done) / float64(*scanData.Feedback.Status.Total)); err != nil {
-				logger.Debug().Err(err).Msg("Failed to update progress bar")
-			}
-		}
-
-		logger.Debug().
-			Str("scanID", scanID).
-			Str("status", string(scanData.Status)).
-			Msg("Polling results for scan")
-
-		if scanData.Status == redteamclient.AIScanStatusCompleted || scanData.Status == redteamclient.AIScanStatusFailed {
-			return scanData, nil
-		}
-
-		time.Sleep(pollInterval)
-	}
-
-	logger.Debug().Msgf("Polling timed out on scan ID: %s. This should not happen in reality.", scanID)
-	return nil, redteam_errors.NewPollingTimeoutError()
 }
 
 func newWorkflowData(contentType string, data []byte) workflow.Data {
