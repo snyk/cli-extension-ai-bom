@@ -161,7 +161,6 @@ func SnykCodeAPI(config configuration.Configuration) string {
 	return strings.ReplaceAll(config.GetString(configuration.API_URL), "api", "deeproxy")
 }
 
-//nolint:ireturn // ignored.
 func getAnalysisInput(path string, config configuration.Configuration, logger *zerolog.Logger) (scan.Target, <-chan string, error) {
 	var files <-chan string
 

@@ -144,7 +144,6 @@ func RunAiBomWorkflow(
 	return []workflow.Data{workflowData}, nil
 }
 
-//nolint:ireturn // Unable to change return type of external library
 func newWorkflowData(contentType string, aisbom []byte) workflow.Data {
 	return workflow.NewData(
 		workflow.NewTypeIdentifier(WorkflowID, "aibom"),

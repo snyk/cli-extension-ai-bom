@@ -52,7 +52,7 @@ func TestRunRedTeamWorkflow_HappyPath(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	require.NoError(t, err)
 	assert.Len(t, results, 1)
 	assert.Equal(t, "application/json", results[0].GetContentType())
@@ -75,7 +75,7 @@ func TestRunRedTeamWorkflow_ExperimentalFlagRequired(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "experimental")
 }
@@ -95,7 +95,7 @@ func TestRunRedTeamWorkflow_NoOrgID(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	require.Error(t, err)
 	assert.NotNil(t, err)
 }
@@ -116,7 +116,7 @@ func TestHandleRunScanCommand_ConfigFileNotFound(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	require.NoError(t, err)
 	assert.Len(t, results, 1)
 	assert.Equal(t, "text/plain", results[0].GetContentType())
@@ -155,7 +155,7 @@ target:
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	require.NoError(t, err)
 	payload, _ := results[0].GetPayload().([]byte)
 	assert.Contains(t, string(payload), "Configuration file in invalid")
@@ -238,7 +238,7 @@ target:
 			os.Args = []string{"snyk", "redteam"}
 			defer func() { os.Args = originalArgs }()
 
-			_, err = redteam.RunRedTeamWorkflow(ictx, mockClient)
+			_, err = redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "validation")
 		})
@@ -262,7 +262,7 @@ func TestHandleRunScanCommand_ValidateTargetError(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	require.Error(t, err)
 }
 
@@ -282,7 +282,7 @@ func TestHandleRunScanCommand_CustomConfigPathDoesNotExist(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	require.NoError(t, err)
 	payload, _ := results[0].GetPayload().([]byte)
 	assert.Contains(t, string(payload), "Configuration file not found")
@@ -304,7 +304,7 @@ func TestHandleRunScanCommand_CustomConfig(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	assert.NoError(t, err)
 }
 
@@ -368,7 +368,7 @@ func TestHandleRunScanCommand_ScanError(t *testing.T) {
 			os.Args = []string{"snyk", "redteam"}
 			defer func() { os.Args = originalArgs }()
 
-			_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+			_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 			require.Error(t, err)
 
 			for _, expectedText := range tt.expectedErrorText {
@@ -414,7 +414,7 @@ func TestRunRedTeamWorkflowWithScanningAgent_HappyPath(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	require.NoError(t, err)
 }
 
@@ -430,7 +430,7 @@ func TestRunRedTeamWorkflowWithScanningAgent_InvalidScanningAgentID(t *testing.T
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "validation")
 }
@@ -449,7 +449,7 @@ func TestRunRedTeamWorkflowWithScanningAgentOverride_HappyPath(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	require.NoError(t, err)
 
 	clientConfig, _, err := redteam.LoadAndValidateConfig(ictx.GetEnhancedLogger(), ictx.GetConfiguration())
@@ -470,7 +470,7 @@ func TestRunRedTeamWorkflowWithScanningAgentOverride_InvalidScanningAgentID(t *t
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Scanning agent ID is not a valid UUID")
 }
