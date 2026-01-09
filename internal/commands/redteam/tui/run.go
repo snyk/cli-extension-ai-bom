@@ -22,6 +22,7 @@ func Run(
 	orgID string,
 	invocationCtx workflow.InvocationContext,
 	initialConfig *redteamclient.RedTeamConfig,
+	opts ...tea.ProgramOption,
 ) ([]workflow.Data, error) {
 	inputs := InitializeInputs()
 	listModel := InitializeList()
@@ -98,7 +99,7 @@ func Run(
 	// If OrgID is missing, we might want to start at StepAuthCheck
 	// But we start at Welcome now, so the transition logic will handle it.
 
-	p := tea.NewProgram(&m)
+	p := tea.NewProgram(&m, opts...)
 	finalModel, err := p.Run()
 	if err != nil {
 		return nil, fmt.Errorf("error running TUI: %w", err)

@@ -220,13 +220,21 @@ func renderScanning(m *Model) string {
 		statusText = fmt.Sprintf("Scan status: %s", m.ScanStatus)
 	}
 
-	return fmt.Sprintf(
-		"%s %s\n\n%s\n\n%s\n",
+	s := fmt.Sprintf(
+		"%s %s\n\n%s\n\n",
 		m.Spinner.View(),
 		lipgloss.NewStyle().Bold(true).Render(statusText),
 		m.Progress.View(),
-		lipgloss.NewStyle().Foreground(subtle).Render("Press q to cancel"),
 	)
+
+	if len(m.ResultsTable.Rows()) > 0 {
+		s += lipgloss.NewStyle().Bold(true).Render("Latest Findings:") + "\n"
+		s += m.ResultsTable.View() + "\n\n"
+		s += lipgloss.NewStyle().Foreground(subtle).Render("Press Enter to view details, q to cancel")
+	} else {
+		s += lipgloss.NewStyle().Foreground(subtle).Render("Press q to cancel")
+	}
+	return s
 }
 
 func renderFormStep(m *Model) string {

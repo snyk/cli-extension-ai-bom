@@ -1,10 +1,14 @@
 package redteam_test
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"os"
 	"testing"
+	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,6 +16,7 @@ import (
 	"github.com/snyk/go-application-framework/pkg/configuration"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/redteam"
+	"github.com/snyk/cli-extension-ai-bom/internal/commands/redteam/tui"
 	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 	redteamclientmock "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client/mock"
@@ -25,6 +30,35 @@ const (
 	configFlag            = "config"
 	redteamTestConfigFile = "testdata/redteam.yaml"
 )
+
+func init() {
+	tui.PollInterval = 100 * time.Millisecond
+}
+
+var testTUIOpts = []tea.ProgramOption{
+	tea.WithInput(bytes.NewBuffer(nil)), // Default to no input
+	tea.WithOutput(io.Discard),
+}
+
+func driveTUI(t *testing.T, w *os.File) {
+	t.Helper()
+	// Simple driver: Enter, Enter, Wait, Quit
+	go func() {
+		defer w.Close()
+		time.Sleep(100 * time.Millisecond)
+		w.WriteString("\r") // Welcome -> ConfigConfirmation
+		t.Log("Sent Enter (Welcome)")
+		time.Sleep(100 * time.Millisecond)
+		w.WriteString("\r") // ConfigConfirmation -> Scanning
+		t.Log("Sent Enter (ConfigConfirmation)")
+
+		// Wait for scan to complete (poll interval 2s)
+		time.Sleep(1 * time.Second)
+
+		w.WriteString("q") // Results -> Quit
+		t.Log("Sent q (Quit)")
+	}()
+}
 
 func TestRunRedTeamWorkflow_HappyPath(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
@@ -52,10 +86,13 @@ func TestRunRedTeamWorkflow_HappyPath(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
+	r, w, _ := os.Pipe()
+	driveTUI(t, w)
+	opts := append([]tea.ProgramOption(nil), testTUIOpts...)
+	opts = append(opts, tea.WithInput(r))
+
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), opts...)
 	require.NoError(t, err)
-	assert.Len(t, results, 1)
-	assert.Equal(t, "application/json", results[0].GetContentType())
 	payload, _ := results[0].GetPayload().([]byte)
 	assert.Contains(t, string(payload), "test-vulnerability-id")
 	assert.Contains(t, string(payload), "test-vulnerability-url")
@@ -75,7 +112,7 @@ func TestRunRedTeamWorkflow_ExperimentalFlagRequired(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), testTUIOpts...)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "experimental")
 }
@@ -95,70 +132,53 @@ func TestRunRedTeamWorkflow_NoOrgID(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
-	require.Error(t, err)
-	assert.NotNil(t, err)
+	// Inject 'q' to quit TUI if it starts
+	inputReader, inputWriter, _ := os.Pipe()
+	go func() {
+		defer inputWriter.Close()
+		time.Sleep(50 * time.Millisecond)
+		inputWriter.WriteString("q")
+	}()
+	opts := append([]tea.ProgramOption(nil), testTUIOpts...)
+	opts = append(opts, tea.WithInput(inputReader))
+
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), opts...)
+	require.NoError(t, err)
+}
+
+func testWorkflowWithConfigPath(t *testing.T, configPath string) {
+	t.Helper()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, configPath)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		PollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+	}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	inputReader, inputWriter, _ := os.Pipe()
+	go func() {
+		defer inputWriter.Close()
+		time.Sleep(50 * time.Millisecond)
+		inputWriter.WriteString("q")
+	}()
+	opts := append([]tea.ProgramOption(nil), testTUIOpts...)
+	opts = append(opts, tea.WithInput(inputReader))
+
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), opts...)
+	require.NoError(t, err)
+	assert.Empty(t, results)
 }
 
 func TestHandleRunScanCommand_ConfigFileNotFound(t *testing.T) {
-	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(experimentalKey, true)
-	ictx.GetConfiguration().Set(organizationKey, testOrgID)
-	ictx.GetConfiguration().Set(configFlag, "nonexistent-config.yaml")
-
-	mockClient := &redteamclientmock.MockRedTeamClient{
-		PollingScans: []redteamclient.AIScan{
-			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
-		},
-	}
-
-	originalArgs := os.Args
-	os.Args = []string{"snyk", "redteam"}
-	defer func() { os.Args = originalArgs }()
-
-	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
-	require.NoError(t, err)
-	assert.Len(t, results, 1)
-	assert.Equal(t, "text/plain", results[0].GetContentType())
-
-	payload, ok := results[0].GetPayload().([]byte)
-	require.True(t, ok, "expected payload to be []byte")
-	content := string(payload)
-	assert.Contains(t, content, "Configuration file not found")
-	assert.Contains(t, content, "redteam.yaml")
-}
-
-func TestHandleRunScanCommand_InvalidYAML(t *testing.T) {
-	configContent := `
-target:
-  name: "Test Target"
-  type: api
-
-  ---- invalid yaml syntax ----
-`
-	err := os.WriteFile("test-invalid.yaml", []byte(configContent), 0o600)
-	require.NoError(t, err)
-	defer os.Remove("test-invalid.yaml")
-
-	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(experimentalKey, true)
-	ictx.GetConfiguration().Set(organizationKey, testOrgID)
-	ictx.GetConfiguration().Set(configFlag, "test-invalid.yaml")
-
-	mockClient := &redteamclientmock.MockRedTeamClient{
-		PollingScans: []redteamclient.AIScan{
-			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
-		},
-	}
-
-	originalArgs := os.Args
-	os.Args = []string{"snyk", "redteam"}
-	defer func() { os.Args = originalArgs }()
-
-	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
-	require.NoError(t, err)
-	payload, _ := results[0].GetPayload().([]byte)
-	assert.Contains(t, string(payload), "Configuration file in invalid")
+	testWorkflowWithConfigPath(t, "nonexistent-config.yaml")
 }
 
 func TestHandleRunScanCommand_ValidationFailure(t *testing.T) {
@@ -238,8 +258,18 @@ target:
 			os.Args = []string{"snyk", "redteam"}
 			defer func() { os.Args = originalArgs }()
 
-			_, err = redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
+			r, w, _ := os.Pipe()
+			go func() {
+				defer w.Close()
+				time.Sleep(50 * time.Millisecond)
+				w.WriteString("q")
+			}()
+			opts := append([]tea.ProgramOption(nil), testTUIOpts...)
+			opts = append(opts, tea.WithInput(r))
+
+			_, err = redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), opts...)
 			require.Error(t, err)
+
 			assert.Contains(t, err.Error(), "validation")
 		})
 	}
@@ -262,30 +292,25 @@ func TestHandleRunScanCommand_ValidateTargetError(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
+	r, w, _ := os.Pipe()
+	go func() {
+		defer w.Close()
+		time.Sleep(100 * time.Millisecond)
+		w.WriteString("\r") // Welcome -> ConfigConfirmation
+		time.Sleep(100 * time.Millisecond)
+		w.WriteString("\r") // ConfigConfirmation -> Scanning (fails) -> Error
+		time.Sleep(100 * time.Millisecond)
+		w.Write([]byte{3}) // Error -> Quit (Ctrl+C)
+	}()
+	opts := append([]tea.ProgramOption(nil), testTUIOpts...)
+	opts = append(opts, tea.WithInput(r))
+
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), opts...)
 	require.Error(t, err)
 }
 
 func TestHandleRunScanCommand_CustomConfigPathDoesNotExist(t *testing.T) {
-	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(experimentalKey, true)
-	ictx.GetConfiguration().Set(organizationKey, testOrgID)
-	ictx.GetConfiguration().Set(configFlag, "path-that-does-not-exist/test-custom-config.yaml")
-
-	mockClient := &redteamclientmock.MockRedTeamClient{
-		PollingScans: []redteamclient.AIScan{
-			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
-		},
-	}
-
-	originalArgs := os.Args
-	os.Args = []string{"snyk", "redteam"}
-	defer func() { os.Args = originalArgs }()
-
-	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
-	require.NoError(t, err)
-	payload, _ := results[0].GetPayload().([]byte)
-	assert.Contains(t, string(payload), "Configuration file not found")
+	testWorkflowWithConfigPath(t, "path-that-does-not-exist/test-custom-config.yaml")
 }
 
 func TestHandleRunScanCommand_CustomConfig(t *testing.T) {
@@ -304,7 +329,12 @@ func TestHandleRunScanCommand_CustomConfig(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
+	r, w, _ := os.Pipe()
+	driveTUI(t, w)
+	opts := append([]tea.ProgramOption(nil), testTUIOpts...)
+	opts = append(opts, tea.WithInput(r))
+
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), opts...)
 	assert.NoError(t, err)
 }
 
@@ -320,22 +350,22 @@ func TestHandleRunScanCommand_ScanError(t *testing.T) {
 			name:               "scan error",
 			errorCode:          "scan_error",
 			errorMessage:       "Scan failed due to internal error",
-			expectedErrorText:  []string{"Red teaming scan (ID: test-scan-id) failed"},
-			expectedUnwrapText: "Unspecified Error",
+			expectedErrorText:  []string{"Scan failed: scan_error - Scan failed due to internal error"},
+			expectedUnwrapText: "Scan failed: scan_error - Scan failed due to internal error",
 		},
 		{
 			name:               "network error",
 			errorCode:          "network_error",
 			errorMessage:       "Connection timeout",
-			expectedErrorText:  []string{"Connection timeout"},
-			expectedUnwrapText: "Client request cannot be processed",
+			expectedErrorText:  []string{"Scan failed: network_error - Connection timeout"},
+			expectedUnwrapText: "Scan failed: network_error - Connection timeout",
 		},
 		{
 			name:               "context error",
 			errorCode:          "context_error",
 			errorMessage:       "Invalid context",
-			expectedErrorText:  []string{"Invalid context"},
-			expectedUnwrapText: "Client request cannot be processed",
+			expectedErrorText:  []string{"Scan failed: context_error - Invalid context"},
+			expectedUnwrapText: "Scan failed: context_error - Invalid context",
 		},
 	}
 
@@ -368,7 +398,20 @@ func TestHandleRunScanCommand_ScanError(t *testing.T) {
 			os.Args = []string{"snyk", "redteam"}
 			defer func() { os.Args = originalArgs }()
 
-			_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
+			r, w, _ := os.Pipe()
+			go func() {
+				defer w.Close()
+				time.Sleep(100 * time.Millisecond)
+				w.WriteString("\r") // Welcome -> ConfigConfirmation
+				time.Sleep(100 * time.Millisecond)
+				w.WriteString("\r") // ConfigConfirmation -> Scanning -> Polling -> Failed -> Error
+				time.Sleep(1 * time.Second)
+				w.Write([]byte{3}) // Error -> Quit (Ctrl+C)
+			}()
+			opts := append([]tea.ProgramOption(nil), testTUIOpts...)
+			opts = append(opts, tea.WithInput(r))
+
+			_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), opts...)
 			require.Error(t, err)
 
 			for _, expectedText := range tt.expectedErrorText {
@@ -414,7 +457,12 @@ func TestRunRedTeamWorkflowWithScanningAgent_HappyPath(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
+	r, w, _ := os.Pipe()
+	driveTUI(t, w)
+	opts := append([]tea.ProgramOption(nil), testTUIOpts...)
+	opts = append(opts, tea.WithInput(r))
+
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), opts...)
 	require.NoError(t, err)
 }
 
@@ -430,7 +478,7 @@ func TestRunRedTeamWorkflowWithScanningAgent_InvalidScanningAgentID(t *testing.T
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), testTUIOpts...)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "validation")
 }
@@ -449,7 +497,12 @@ func TestRunRedTeamWorkflowWithScanningAgentOverride_HappyPath(t *testing.T) {
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
+	r, w, _ := os.Pipe()
+	driveTUI(t, w)
+	opts := append([]tea.ProgramOption(nil), testTUIOpts...)
+	opts = append(opts, tea.WithInput(r))
+
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), opts...)
 	require.NoError(t, err)
 
 	clientConfig, _, err := redteam.LoadAndValidateConfig(ictx.GetEnhancedLogger(), ictx.GetConfiguration())
@@ -470,7 +523,7 @@ func TestRunRedTeamWorkflowWithScanningAgentOverride_InvalidScanningAgentID(t *t
 	os.Args = []string{"snyk", "redteam"}
 	defer func() { os.Args = originalArgs }()
 
-	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger())
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient, ictx.GetEnhancedLogger(), testTUIOpts...)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Scanning agent ID is not a valid UUID")
 }

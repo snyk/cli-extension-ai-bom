@@ -86,13 +86,14 @@ type TickMsg time.Time
 
 // ScanStatusMsg carries updates from the poller.
 type ScanStatusMsg struct {
-	Status   redteamclient.AIScanStatus
-	Progress float64
-	Done     int
-	Total    int
-	ScanID   string
-	Err      error
-	Feedback redteamclient.AIScanFeedback
+	Status        redteamclient.AIScanStatus
+	Progress      float64
+	Done          int
+	Total         int
+	ScanID        string
+	Err           error
+	Feedback      redteamclient.AIScanFeedback
+	LatestResults *redteamclient.GetAIVulnerabilitiesResponseData
 }
 
 // ScanCompleteMsg carries the final results.

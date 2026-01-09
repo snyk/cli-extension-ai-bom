@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/rs/zerolog"
 	"github.com/snyk/go-application-framework/pkg/configuration"
 	"github.com/snyk/go-application-framework/pkg/workflow"
@@ -89,6 +90,7 @@ func RunRedTeamWorkflow(
 	invocationCtx workflow.InvocationContext,
 	redTeamClient redteamclient.RedTeamClient,
 	logger *zerolog.Logger,
+	opts ...tea.ProgramOption,
 ) ([]workflow.Data, error) {
 	// If logger is nil (e.g. called from tests without updated signature), fallback
 	if logger == nil {
@@ -113,7 +115,7 @@ func RunRedTeamWorkflow(
 		// The handleRunScanCommand or TUI will handle the missing OrgID.
 	}
 
-	results, err := handleRunScanCommand(invocationCtx, redTeamClient, logger)
+	results, err := handleRunScanCommand(invocationCtx, redTeamClient, logger, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -124,6 +126,7 @@ func handleRunScanCommand(
 	invocationCtx workflow.InvocationContext,
 	redTeamClient redteamclient.RedTeamClient,
 	logger *zerolog.Logger,
+	opts ...tea.ProgramOption,
 ) ([]workflow.Data, *redteam_errors.RedTeamError) {
 	// If logger is nil (fallback)
 	if logger == nil {
@@ -158,7 +161,7 @@ func handleRunScanCommand(
 	}
 
 	// Start Interactive TUI
-	data, tuiErr := tui.Run(ctx, redTeamClient, orgID, invocationCtx, initConfig)
+	data, tuiErr := tui.Run(ctx, redTeamClient, orgID, invocationCtx, initConfig, opts...)
 	if tuiErr != nil {
 		return nil, redteam_errors.NewGenericRedTeamError(fmt.Sprintf("TUI failed: %v", tuiErr), tuiErr)
 	}

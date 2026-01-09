@@ -14,9 +14,7 @@ import (
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 )
 
-const (
-	pollInterval = time.Second * 2
-)
+var PollInterval = time.Second * 2
 
 func (m *Model) Init() tea.Cmd {
 	return tea.Batch(textinput.Blink, m.Spinner.Tick)
@@ -115,7 +113,9 @@ func (m *Model) updateScanCompleteMsg(msg ScanCompleteMsg) (tea.Model, tea.Cmd) 
 	m.Result = msg.Result
 	m.RawResults = msg.RawResults
 	m.ResultsTable.SetRows(msg.Rows)
-	m.Step = StepResults
+	if m.Step != StepFindingDetails {
+		m.Step = StepResults
+	}
 	m.ResultsTable.SetWidth(m.Width - 4)
 	return m, nil
 }
@@ -215,7 +215,15 @@ func (m *Model) updateFindingDetailsStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.DetailViewport, cmd = m.DetailViewport.Update(msg)
 	if msg.String() == "q" || msg.Type == tea.KeyEsc {
-		m.Step = StepResults
+		isRunning := m.ScanStatus == redteamclient.AIScanStatusStarted ||
+			m.ScanStatus == redteamclient.AIScanStatusSubmitted ||
+			m.ScanStatus == redteamclient.AIScanStatusQueued
+
+		if isRunning {
+			m.Step = StepScanning
+		} else {
+			m.Step = StepResults
+		}
 		m.SelectedFinding = nil
 		return m, nil
 	}
@@ -223,10 +231,13 @@ func (m *Model) updateFindingDetailsStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) updateScanningStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.ResultsTable, cmd = m.ResultsTable.Update(msg)
+
 	if msg.String() == "q" {
 		return m, tea.Quit
 	}
-	if msg.String() == "e" || msg.Type == tea.KeyEnter {
+	if msg.String() == "e" {
 		// Retry / Edit config
 		// Go back to the first config step
 		m.Err = nil
@@ -237,7 +248,23 @@ func (m *Model) updateScanningStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, textinput.Blink
 	}
-	return m, nil
+
+	if msg.Type == tea.KeyEnter {
+		// Select finding
+		idx := m.ResultsTable.Cursor()
+		if idx >= 0 && m.RawResults != nil && idx < len(m.RawResults.Results) {
+			m.SelectedFinding = &m.RawResults.Results[idx]
+			m.Step = StepFindingDetails
+
+			// Prepare viewport content
+			content := formatFindingDetails(m.SelectedFinding)
+			m.DetailViewport.SetContent(content)
+			m.DetailViewport.GotoTop()
+			return m, nil
+		}
+	}
+
+	return m, cmd
 }
 
 func (m *Model) updateConfigConfirmationStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -338,6 +365,12 @@ func (m *Model) updateScanStatus(msg *ScanStatusMsg) (tea.Model, tea.Cmd) {
 	m.ScanDone = msg.Done
 	m.ScanTotal = msg.Total
 
+	if msg.LatestResults != nil {
+		m.RawResults = msg.LatestResults
+		rows := resultsToRows(msg.LatestResults)
+		m.ResultsTable.SetRows(rows)
+	}
+
 	cmd := m.Progress.SetPercent(msg.Progress)
 
 	if msg.Status == redteamclient.AIScanStatusCompleted {
@@ -410,7 +443,8 @@ func startScan(m *Model) tea.Cmd {
 }
 
 func pollScan(m *Model) tea.Cmd {
-	return tea.Tick(pollInterval, func(_ time.Time) tea.Msg {
+	lastDone := m.ScanDone
+	return tea.Tick(PollInterval, func(_ time.Time) tea.Msg {
 		scan, err := m.Client.GetScan(m.Ctx, m.OrgID, m.ScanID)
 		if err != nil {
 			return ScanStatusMsg{Err: err}
@@ -425,13 +459,23 @@ func pollScan(m *Model) tea.Cmd {
 			progress = float64(done) / float64(total)
 		}
 
+		var latestResults *redteamclient.GetAIVulnerabilitiesResponseData
+		// Optimization: fetch results if we have new progress
+		if done > lastDone {
+			res, err := m.Client.GetScanResults(m.Ctx, m.OrgID, m.ScanID)
+			if err == nil {
+				latestResults = &res
+			}
+		}
+
 		return ScanStatusMsg{
-			Status:   scan.Status,
-			Progress: progress,
-			Done:     done,
-			Total:    total,
-			ScanID:   m.ScanID,
-			Feedback: scan.Feedback,
+			Status:        scan.Status,
+			Progress:      progress,
+			Done:          done,
+			Total:         total,
+			ScanID:        m.ScanID,
+			Feedback:      scan.Feedback,
+			LatestResults: latestResults,
 		}
 	})
 }
@@ -443,16 +487,12 @@ func fetchResults(m *Model) tea.Cmd {
 			return ScanCompleteMsg{Err: err}
 		}
 
-		// Parse results into ScanResult
-		// This is a simplification. Real implementation should aggregate results.
 		res := &ScanResult{
 			Summary: "Scan completed successfully.",
 		}
 
-		var rows []table.Row
 		for i := range results.Results {
 			v := &results.Results[i]
-			// Update stats
 			switch v.Severity {
 			case "critical":
 				res.Criticals++
@@ -463,21 +503,27 @@ func fetchResults(m *Model) tea.Cmd {
 			case "low":
 				res.Lows++
 			}
-
-			// Create table row
-			// Severity | Issue | Summary
-			// Truncate summary if needed
-			summary := v.Evidence.Content.Reason
-			if len(summary) > 50 {
-				summary = summary[:47] + "..."
-			}
-			rows = append(rows, table.Row{
-				v.Severity,
-				v.Definition.Name,
-				summary,
-			})
 		}
+
+		rows := resultsToRows(&results)
 
 		return ScanCompleteMsg{Result: res, RawResults: &results, Rows: rows}
 	}
+}
+
+func resultsToRows(results *redteamclient.GetAIVulnerabilitiesResponseData) []table.Row {
+	rows := make([]table.Row, 0, len(results.Results))
+	for i := range results.Results {
+		v := &results.Results[i]
+		summary := v.Evidence.Content.Reason
+		if len(summary) > 50 {
+			summary = summary[:47] + "..."
+		}
+		rows = append(rows, table.Row{
+			v.Severity,
+			v.Definition.Name,
+			summary,
+		})
+	}
+	return rows
 }
