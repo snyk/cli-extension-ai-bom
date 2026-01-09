@@ -330,16 +330,19 @@ func renderFindingDetails(m *Model) string {
 
 func getDogArt() string {
 	dog := []string{
-		"      ,    /_",
-		"     /|   | |",
-		"   _/_\\___/_|_",
-		"  /           \\",
-		" |  O       O  |",
-		" |      ^      |",
-		"  \\    ___    /",
-		"   \\_______/",
-		"     | | |",
-		"    _| | |_",
+		"      |         |      ",
+		"     /|         |\\     ",
+		"    | |         | |    ",
+		"    | |/-------\\| |    ",
+		"    \\             /    ",
+		"     |  \\    /  |     ",
+		"     |\\o/    \\o/|      ",
+		"     |   | |   |     ",
+		"     \\/  | |  \\/      ",
+		"      |  | |  |      ",
+		"      \\  ( )  /       ",
+		"       \\_/ \\_/        ",
+		"         \\U/          ",
 	}
 	return lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render(strings.Join(dog, "\n"))
 }
