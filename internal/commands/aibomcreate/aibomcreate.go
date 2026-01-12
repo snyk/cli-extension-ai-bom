@@ -28,7 +28,7 @@ func RegisterWorkflows(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom", pflag.ExitOnError)
 	flagset.Bool(utils.FlagExperimental, false, "This is an experiment feature that will contain breaking changes in future revisions")
 	flagset.Bool(utils.FlagHTML, false, "Output the AI BOM in HTML format instead of JSON")
-	flagset.Bool(utils.FlagMonitor, false, "Monitor to use for the AI BOM")
+	flagset.Bool(utils.FlagUpload, false, "Upload the AI BOM")
 	flagset.String(utils.FlagRepoName, "", "Repository name to use for the AI BOM")
 
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
@@ -66,7 +66,7 @@ func RunAiBomWorkflow(
 	config.Set(configuration.RAW_CMD_ARGS, os.Args[1:])
 	experimental := config.GetBool(utils.FlagExperimental)
 	path := config.GetString(configuration.INPUT_DIRECTORY)
-	monitor := config.GetBool(utils.FlagMonitor)
+	upload := config.GetBool(utils.FlagUpload)
 	repoName := config.GetString(utils.FlagRepoName)
 
 	// As this is an experimental feature, we only want to continue if the experimental flag is set
@@ -86,8 +86,8 @@ func RunAiBomWorkflow(
 	}
 	logger.Debug().Msgf("running command with orgId: %s", orgID)
 
-	if monitor && repoName == "" {
-		logger.Debug().Msg("monitor flag is set but repo name is not set")
+	if upload && repoName == "" {
+		logger.Debug().Msg("upload flag is set but repo name is not set")
 		return nil, errors.NewInvalidArgumentError("repo name is required when monitor flag is set").SnykError
 	}
 
@@ -129,7 +129,7 @@ func RunAiBomWorkflow(
 	var aiBomDoc string
 	var createAIBomErr *errors.AiBomError
 
-	if monitor {
+	if upload {
 		aiBomDoc, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgID, bundleHash, repoName)
 	} else {
 		aiBomDoc, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgID, bundleHash)

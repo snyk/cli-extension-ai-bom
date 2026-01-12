@@ -70,7 +70,7 @@ func TestAiBomWorkflow_Upload_HAPPY(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	cfg := ictx.GetConfiguration()
 	cfg.Set(utils.FlagExperimental, true)
-	cfg.Set(utils.FlagMonitor, true)
+	cfg.Set(utils.FlagUpload, true)
 	cfg.Set(utils.FlagRepoName, "repo-name")
 	cfg.Set(configuration.ORGANIZATION, "org-id")
 	mockCodeService := codemock.NewMockCodeService(ctrl)
