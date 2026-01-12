@@ -28,6 +28,8 @@ func RegisterWorkflows(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom", pflag.ExitOnError)
 	flagset.Bool(utils.FlagExperimental, false, "This is an experiment feature that will contain breaking changes in future revisions")
 	flagset.Bool(utils.FlagHTML, false, "Output the AI BOM in HTML format instead of JSON")
+	flagset.Bool(utils.FlagMonitor, false, "Monitor to use for the AI BOM")
+	flagset.String(utils.FlagRepoName, "", "Repository name to use for the AI BOM")
 
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
 	if _, err := e.Register(WorkflowID, configuration, AiBomWorkflow); err != nil {
@@ -64,6 +66,8 @@ func RunAiBomWorkflow(
 	config.Set(configuration.RAW_CMD_ARGS, os.Args[1:])
 	experimental := config.GetBool(utils.FlagExperimental)
 	path := config.GetString(configuration.INPUT_DIRECTORY)
+	monitor := config.GetBool(utils.FlagMonitor)
+	repoName := config.GetString(utils.FlagRepoName)
 
 	// As this is an experimental feature, we only want to continue if the experimental flag is set
 	if !experimental {
@@ -81,6 +85,11 @@ func RunAiBomWorkflow(
 		return nil, errors.NewUnauthorizedError("").SnykError
 	}
 	logger.Debug().Msgf("running command with orgId: %s", orgID)
+
+	if monitor && repoName == "" {
+		logger.Debug().Msg("monitor flag is set but repo name is not set")
+		return nil, errors.NewInvalidArgumentError("repo name is required when monitor flag is set").SnykError
+	}
 
 	logger.Debug().Msg("checking api availability")
 	aiBomErr := aiBomClient.CheckAPIAvailability(ctx, orgID)
@@ -117,10 +126,18 @@ func RunAiBomWorkflow(
 		return nil, bundleErr.SnykError
 	}
 
-	aiBomDoc, aiBomErr := aiBomClient.GenerateAIBOM(ctx, orgID, bundleHash)
-	if aiBomErr != nil {
-		logger.Debug().Err(aiBomErr.SnykError).Msg("error while generating AI-BOM")
-		return nil, aiBomErr.SnykError
+	var aiBomDoc string
+	var createAIBomErr *errors.AiBomError
+
+	if monitor {
+		aiBomDoc, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgID, bundleHash, repoName)
+	} else {
+		aiBomDoc, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgID, bundleHash)
+	}
+
+	if createAIBomErr != nil {
+		logger.Debug().Err(createAIBomErr.SnykError).Msg("error while generating AI-BOM")
+		return nil, createAIBomErr.SnykError
 	}
 	logger.Debug().Msg("Successfully generated AI BOM document.")
 	workflowData := newWorkflowData("application/json", []byte(aiBomDoc))

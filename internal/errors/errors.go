@@ -31,3 +31,7 @@ func NewNoSupportedFilesError() *AiBomError {
 func NewCommandIsExperimentalError() *AiBomError {
 	return &AiBomError{SnykError: cli_errors.NewCommandIsExperimentalError("Snyk aibom is experimental and likely to change.")}
 }
+
+func NewInvalidArgumentError(msg string) *AiBomError {
+	return &AiBomError{SnykError: cli_errors.NewCommandArgsError(msg)}
+}
