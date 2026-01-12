@@ -55,6 +55,21 @@ func (mr *MockAiBomClientMockRecorder) CheckAPIAvailability(ctx, orgID any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckAPIAvailability", reflect.TypeOf((*MockAiBomClient)(nil).CheckAPIAvailability), ctx, orgID)
 }
 
+// CreateAndUploadAIBOM mocks base method.
+func (m *MockAiBomClient) CreateAndUploadAIBOM(ctx context.Context, orgID, bundleHash, repoName string) (string, *errors.AiBomError) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateAndUploadAIBOM", ctx, orgID, bundleHash, repoName)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(*errors.AiBomError)
+	return ret0, ret1
+}
+
+// CreateAndUploadAIBOM indicates an expected call of CreateAndUploadAIBOM.
+func (mr *MockAiBomClientMockRecorder) CreateAndUploadAIBOM(ctx, orgID, bundleHash, repoName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAndUploadAIBOM", reflect.TypeOf((*MockAiBomClient)(nil).CreateAndUploadAIBOM), ctx, orgID, bundleHash, repoName)
+}
+
 // GenerateAIBOM mocks base method.
 func (m *MockAiBomClient) GenerateAIBOM(ctx context.Context, orgID, bundleHash string) (string, *errors.AiBomError) {
 	m.ctrl.T.Helper()
