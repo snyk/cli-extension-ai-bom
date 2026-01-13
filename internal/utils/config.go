@@ -9,6 +9,7 @@ const (
 	ConfigurationSnykCodeClientProxyURL = "SNYK_CODE_CLIENT_PROXY_URL"
 	FlagUpload                          = "upload"
 	FlagRepoName                        = "repo"
+	FlagOrgID                           = "org-id"
 
 	// redteam flags.
 	FlagConfig                 = "config"
