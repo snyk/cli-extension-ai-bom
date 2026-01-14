@@ -147,22 +147,30 @@ func RunAiBomWorkflow(
 	workflowData := newWorkflowData("application/json", []byte(aiBomDoc))
 
 	if config.GetBool(utils.FlagHTML) {
-		tmpl, err := template.New(WorkflowID.String()).Parse(htmlTemplate)
+		html, err := generateHTML(aiBomDoc)
 		if err != nil {
-			logger.Debug().Err(err).Msg("error while parsing HTML template")
-			return nil, errors.NewInternalError("Error parsing HTML template.").SnykError
+			logger.Debug().Err(err).Msg("error while generating HTML workflow data")
+			return nil, err
 		}
 
-		var html strings.Builder
-		if err := tmpl.Execute(&html, aiBomDoc); err != nil {
-			logger.Debug().Err(err).Msg("error while executing HTML template")
-			return nil, errors.NewInternalError("Error executing HTML template.").SnykError
-		}
-
-		workflowData = newWorkflowData("text/html", []byte(html.String()))
+		workflowData = newWorkflowData("text/html", []byte(html))
 	}
 
 	return []workflow.Data{workflowData}, nil
+}
+
+func generateHTML(aiBomDoc string) (string, error) {
+	tmpl, err := template.New(WorkflowID.String()).Parse(htmlTemplate)
+	if err != nil {
+		return "", errors.NewInternalError("Error parsing HTML template.").SnykError
+	}
+
+	var html strings.Builder
+	if err := tmpl.Execute(&html, aiBomDoc); err != nil {
+		return "", errors.NewInternalError("Error executing HTML template.").SnykError
+	}
+
+	return html.String(), nil
 }
 
 //nolint:ireturn // Unable to change return type of external library
