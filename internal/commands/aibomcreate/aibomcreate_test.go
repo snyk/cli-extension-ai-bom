@@ -11,7 +11,6 @@ import (
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
@@ -67,87 +66,115 @@ func TestAiBomWorkflow_HAPPY(t *testing.T) {
 }
 
 func TestAiBomWorkflow_Upload_HAPPY(t *testing.T) {
-	testCases := []struct {
-		name        string
-		orgID       string
-		upload      bool
-		repoName    string
-		customOrgID string
-		mocks       func(aiBomClient *aibomclientmock.MockAiBomClient)
-	}{
-		{
-			name:        "with custom ord id",
-			orgID:       "org-id",
-			upload:      true,
-			repoName:    "repo-name",
-			customOrgID: "custom-org-id",
-			mocks: func(aiBomClient *aibomclientmock.MockAiBomClient) {
-				checkAPIAvailablilityCall := aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), "custom-org-id").Times(1).Return(nil)
-				aiBomClient.EXPECT().CreateAndUploadAIBOM(
-					gomock.Any(),
-					"custom-org-id",
-					"bundle-hash",
-					"repo-name",
-				).Times(1).Return(exampleAIBOM, nil).After(checkAPIAvailablilityCall)
-			},
-		},
-		{
-			name:        "fallback to org id if custom org id is not provided",
-			orgID:       "org-id",
-			upload:      true,
-			repoName:    "repo-name",
-			customOrgID: "",
-			mocks: func(aiBomClient *aibomclientmock.MockAiBomClient) {
-				checkAPIAvailablilityCall := aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), "org-id").Times(1).Return(nil)
-				aiBomClient.EXPECT().CreateAndUploadAIBOM(
-					gomock.Any(),
-					"org-id",
-					"bundle-hash",
-					"repo-name",
-				).Times(1).Return(exampleAIBOM, nil).After(checkAPIAvailablilityCall)
-			},
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ctrl := gomock.NewController(t)
+	cfg := ictx.GetConfiguration()
+	cfg.Set(utils.FlagExperimental, true)
+	cfg.Set(utils.FlagUpload, true)
+	cfg.Set(utils.FlagRepoName, "repo-name")
+	cfg.Set(configuration.ORGANIZATION, "org-id")
+	mockCodeService := codemock.NewMockCodeService(ctrl)
+	mockDepgraphService := depgraphmock.NewMockDepgraphService(ctrl)
+	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
+
+	depgraphResult := depgraph.DepgraphResult{
+		DepgraphBytes: []json.RawMessage{
+			json.RawMessage(`{"foo": "bar"}`),
 		},
 	}
+	mockDepgraphService.EXPECT().GetDepgraph(gomock.Any()).Times(1).Return(&depgraphResult, nil)
 
-	for _, testCase := range testCases {
-		// arrange
-		ictx := frameworkmock.NewMockInvocationContext(t)
-		ctrl := gomock.NewController(t)
-		cfg := ictx.GetConfiguration()
-		cfg.Set(utils.FlagExperimental, true)
-		cfg.Set(utils.FlagUpload, testCase.upload)
-		cfg.Set(utils.FlagRepoName, testCase.repoName)
-		cfg.Set(configuration.ORGANIZATION, testCase.orgID)
-		cfg.Set(utils.FlagOrgID, testCase.customOrgID)
-		mockCodeService := codemock.NewMockCodeService(ctrl)
-		mockDepgraphService := depgraphmock.NewMockDepgraphService(ctrl)
-		aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
+	depGraphMap := map[string][]byte{"/_0.snykdepgraph": depgraphResult.DepgraphBytes[0]}
 
-		depgraphResult := depgraph.DepgraphResult{
-			DepgraphBytes: []json.RawMessage{
-				json.RawMessage(`{"foo": "bar"}`),
-			},
-		}
-		mockDepgraphService.EXPECT().GetDepgraph(gomock.Any()).Times(1).Return(&depgraphResult, nil)
+	mockCodeService.EXPECT().UploadBundle(gomock.Any(), depGraphMap, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
+		Return("bundle-hash", nil)
+	checkAPIAvailablilityCall := aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), "org-id").Times(1).Return(nil)
 
-		depGraphMap := map[string][]byte{"/_0.snykdepgraph": depgraphResult.DepgraphBytes[0]}
+	aiBomClient.EXPECT().
+		CreateAndUploadAIBOM(gomock.Any(), "org-id", "bundle-hash", "repo-name").Times(1).Return(exampleAIBOM, nil).After(checkAPIAvailablilityCall)
 
-		mockCodeService.EXPECT().UploadBundle(gomock.Any(), depGraphMap, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
-			Return("bundle-hash", nil)
+	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService, aiBomClient)
+	assert.Nil(t, err)
+	assert.Len(t, workflowData, 1)
+	aiBom := workflowData[0].GetPayload()
+	actual, ok := aiBom.([]byte)
+	assert.True(t, ok)
+	assert.Equal(t, exampleAIBOM, string(actual))
+}
 
-		testCase.mocks(aiBomClient)
+func TestAiBomWorkflow_Upload_With_OrgID_HAPPY(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ctrl := gomock.NewController(t)
+	cfg := ictx.GetConfiguration()
+	cfg.Set(utils.FlagExperimental, true)
+	cfg.Set(utils.FlagUpload, true)
+	cfg.Set(utils.FlagRepoName, "repo-name")
+	cfg.Set(configuration.ORGANIZATION, "org-id")
+	cfg.Set(utils.FlagOrgID, "custom-org-id")
+	mockCodeService := codemock.NewMockCodeService(ctrl)
+	mockDepgraphService := depgraphmock.NewMockDepgraphService(ctrl)
+	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
 
-		// act
-		workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService, aiBomClient)
-
-		// assert
-		require.Nil(t, err)
-		assert.Len(t, workflowData, 1)
-		aiBom := workflowData[0].GetPayload()
-		actual, ok := aiBom.([]byte)
-		assert.True(t, ok)
-		assert.Equal(t, exampleAIBOM, string(actual))
+	depgraphResult := depgraph.DepgraphResult{
+		DepgraphBytes: []json.RawMessage{
+			json.RawMessage(`{"foo": "bar"}`),
+		},
 	}
+	mockDepgraphService.EXPECT().GetDepgraph(gomock.Any()).Times(1).Return(&depgraphResult, nil)
+
+	depGraphMap := map[string][]byte{"/_0.snykdepgraph": depgraphResult.DepgraphBytes[0]}
+
+	mockCodeService.EXPECT().UploadBundle(gomock.Any(), depGraphMap, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
+		Return("bundle-hash", nil)
+	checkAPIAvailablilityCall := aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), "custom-org-id").Times(1).Return(nil)
+
+	aiBomClient.EXPECT().
+		CreateAndUploadAIBOM(gomock.Any(), "custom-org-id", "bundle-hash", "repo-name").Times(1).Return(exampleAIBOM, nil).After(checkAPIAvailablilityCall)
+
+	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService, aiBomClient)
+	assert.Nil(t, err)
+	assert.Len(t, workflowData, 1)
+	aiBom := workflowData[0].GetPayload()
+	actual, ok := aiBom.([]byte)
+	assert.True(t, ok)
+	assert.Equal(t, exampleAIBOM, string(actual))
+}
+
+func TestAiBomWorkflow_Upload_Fallback_To_OrgID_HAPPY(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ctrl := gomock.NewController(t)
+	cfg := ictx.GetConfiguration()
+	cfg.Set(utils.FlagExperimental, true)
+	cfg.Set(utils.FlagUpload, true)
+	cfg.Set(utils.FlagRepoName, "repo-name")
+	cfg.Set(configuration.ORGANIZATION, "default-org-id")
+	mockCodeService := codemock.NewMockCodeService(ctrl)
+	mockDepgraphService := depgraphmock.NewMockDepgraphService(ctrl)
+	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
+
+	depgraphResult := depgraph.DepgraphResult{
+		DepgraphBytes: []json.RawMessage{
+			json.RawMessage(`{"foo": "bar"}`),
+		},
+	}
+	mockDepgraphService.EXPECT().GetDepgraph(gomock.Any()).Times(1).Return(&depgraphResult, nil)
+
+	depGraphMap := map[string][]byte{"/_0.snykdepgraph": depgraphResult.DepgraphBytes[0]}
+
+	mockCodeService.EXPECT().UploadBundle(gomock.Any(), depGraphMap, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
+		Return("bundle-hash", nil)
+	checkAPIAvailablilityCall := aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), "default-org-id").Times(1).Return(nil)
+
+	aiBomClient.EXPECT().
+		CreateAndUploadAIBOM(gomock.Any(), "default-org-id", "bundle-hash", "repo-name").Times(1).Return(exampleAIBOM, nil).After(checkAPIAvailablilityCall)
+
+	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, mockCodeService, mockDepgraphService, aiBomClient)
+	assert.Nil(t, err)
+	assert.Len(t, workflowData, 1)
+	aiBom := workflowData[0].GetPayload()
+	actual, ok := aiBom.([]byte)
+	assert.True(t, ok)
+	assert.Equal(t, exampleAIBOM, string(actual))
 }
 
 func TestAiBomWorkflow_HTML(t *testing.T) {
