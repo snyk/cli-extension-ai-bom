@@ -115,14 +115,15 @@ func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, bundleHash s
 }
 
 func (c *AIBOMClientImpl) CreateAndUploadAIBOM(ctx context.Context, orgID, bundleHash, repoName string) (string, *errors.AiBomError) {
+	progressBar := c.userInterface.NewProgressBar()
+	progressBar.SetTitle("Creating")
+
 	jobID, err := c.uploadAIBOM(ctx, orgID, bundleHash, repoName)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while uploading the aibom")
 		return "", err
 	}
 
-	progressBar := c.userInterface.NewProgressBar()
-	progressBar.SetTitle("Creating")
 	progressErr := progressBar.UpdateProgress(ui.InfiniteProgress)
 	if progressErr != nil {
 		c.logger.Debug().Err(progressErr).Msg("Failed to update progress bar")
