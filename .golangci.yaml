@@ -144,7 +144,6 @@ linters-settings:
 
 # NOTE(pkey): Can't change the return types so ignoring.
 issues:
-  new: true
   exclude-rules:
     - path: internal/commands/redteam/redteam.go
       linters:
