@@ -100,3 +100,6 @@ require (
 )
 
 // replace github.com/snyk/error-catalog-golang-public => ../error-catalog/packages/error-catalog-golang-public/src
+
+// TODO: remove this once go application framework updates their dependency
+replace github.com/go-viper/mapstructure/v2 => github.com/go-viper/mapstructure/v2 v2.4.0
