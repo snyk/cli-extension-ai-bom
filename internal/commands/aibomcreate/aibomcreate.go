@@ -30,7 +30,6 @@ func RegisterWorkflows(e workflow.Engine) error {
 	flagset.Bool(utils.FlagHTML, false, "Output the AI BOM in HTML format instead of JSON")
 	flagset.Bool(utils.FlagUpload, false, "Upload the AI BOM")
 	flagset.String(utils.FlagRepoName, "", "Repository name to use for the AI BOM")
-	flagset.String(utils.FlagOrgID, "", "Custom Organization ID to use for the AI BOM")
 
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
 	if _, err := e.Register(WorkflowID, configuration, AiBomWorkflow); err != nil {
@@ -69,10 +68,6 @@ func RunAiBomWorkflow(
 	path := config.GetString(configuration.INPUT_DIRECTORY)
 	upload := config.GetBool(utils.FlagUpload)
 	repoName := config.GetString(utils.FlagRepoName)
-	orgID := config.GetString(utils.FlagOrgID)
-	if orgID == "" {
-		orgID = config.GetString(configuration.ORGANIZATION)
-	}
 
 	// As this is an experimental feature, we only want to continue if the experimental flag is set
 	if !experimental {
@@ -81,6 +76,7 @@ func RunAiBomWorkflow(
 	}
 
 	ctx := context.Background()
+	orgID := config.GetString(configuration.ORGANIZATION)
 	if orgID == "" {
 		logger.Debug().Msg("no org id found")
 		// This check captures unauthorized users that don't provide an explicit orgId.
