@@ -7,6 +7,8 @@ const (
 	// aibom flags.
 	FlagHTML                            = "html"
 	ConfigurationSnykCodeClientProxyURL = "SNYK_CODE_CLIENT_PROXY_URL"
+	FlagUpload                          = "upload"
+	FlagRepoName                        = "repo"
 
 	// redteam flags.
 	FlagConfig                 = "config"

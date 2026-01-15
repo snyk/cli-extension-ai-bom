@@ -46,7 +46,7 @@ func TestGenerateAIBOM_Happy(t *testing.T) {
 			jobID = uuid.New().String()
 			response := aibomclient.CreateAiBomResponseBody{
 				Data: aibomclient.JobData{
-					Id: uuid.MustParse(jobID),
+					ID: uuid.MustParse(jobID),
 				},
 			}
 			w.WriteHeader(http.StatusAccepted)
@@ -75,7 +75,7 @@ func TestGenerateAIBOM_Happy(t *testing.T) {
 						Relationships: &aibomclient.JobDataRelationships{
 							AiBom: aibomclient.RelationshipObjectToOne{
 								Data: aibomclient.RelationshipObjectToOneData{
-									Id: uuid.MustParse(aiBomID),
+									ID: uuid.MustParse(aiBomID),
 								},
 							},
 						},
@@ -211,7 +211,7 @@ func TestGenerateAIBOM_JobErrored(t *testing.T) {
 			jobID = uuid.New().String()
 			response := aibomclient.CreateAiBomResponseBody{
 				Data: aibomclient.JobData{
-					Id: uuid.MustParse(jobID),
+					ID: uuid.MustParse(jobID),
 				},
 			}
 			w.WriteHeader(http.StatusAccepted)
@@ -263,7 +263,7 @@ func TestGenerateAIBOM_PollForAIBOMHTTPError(t *testing.T) {
 			jobID = uuid.New().String()
 			response := aibomclient.CreateAiBomResponseBody{
 				Data: aibomclient.JobData{
-					Id: uuid.MustParse(jobID),
+					ID: uuid.MustParse(jobID),
 				},
 			}
 			w.WriteHeader(http.StatusAccepted)
@@ -337,7 +337,7 @@ func TestGenerateAIBOM_PollForAIBOMAuthAndNotFoundErrors(t *testing.T) {
 					jobID = uuid.New().String()
 					response := aibomclient.CreateAiBomResponseBody{
 						Data: aibomclient.JobData{
-							Id: uuid.MustParse(jobID),
+							ID: uuid.MustParse(jobID),
 						},
 					}
 					w.WriteHeader(http.StatusAccepted)
@@ -386,7 +386,7 @@ func TestGenerateAIBOM_GetAIBOMHTTPError(t *testing.T) {
 			jobID = uuid.New().String()
 			response := aibomclient.CreateAiBomResponseBody{
 				Data: aibomclient.JobData{
-					Id: uuid.MustParse(jobID),
+					ID: uuid.MustParse(jobID),
 				},
 			}
 			w.WriteHeader(http.StatusAccepted)
@@ -402,7 +402,7 @@ func TestGenerateAIBOM_GetAIBOMHTTPError(t *testing.T) {
 					Relationships: &aibomclient.JobDataRelationships{
 						AiBom: aibomclient.RelationshipObjectToOne{
 							Data: aibomclient.RelationshipObjectToOneData{
-								Id: uuid.MustParse(aiBomID),
+								ID: uuid.MustParse(aiBomID),
 							},
 						},
 					},
@@ -479,7 +479,7 @@ func TestGenerateAIBOM_GetAIBOMAuthErrors(t *testing.T) {
 					jobID = uuid.New().String()
 					response := aibomclient.CreateAiBomResponseBody{
 						Data: aibomclient.JobData{
-							Id: uuid.MustParse(jobID),
+							ID: uuid.MustParse(jobID),
 						},
 					}
 					w.WriteHeader(http.StatusAccepted)
@@ -495,7 +495,7 @@ func TestGenerateAIBOM_GetAIBOMAuthErrors(t *testing.T) {
 							Relationships: &aibomclient.JobDataRelationships{
 								AiBom: aibomclient.RelationshipObjectToOne{
 									Data: aibomclient.RelationshipObjectToOneData{
-										Id: uuid.MustParse(aiBomID),
+										ID: uuid.MustParse(aiBomID),
 									},
 								},
 							},

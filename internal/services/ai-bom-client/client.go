@@ -29,6 +29,12 @@ type AiBomClient interface {
 		orgID,
 		bundleHash string,
 	) (string, *errors.AiBomError)
+	CreateAndUploadAIBOM(
+		ctx context.Context,
+		orgID,
+		bundleHash,
+		repoName string,
+	) (string, *errors.AiBomError)
 }
 
 type AIBOMClientImpl struct {
@@ -108,6 +114,42 @@ func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, bundleHash s
 	return aiBom, nil
 }
 
+func (c *AIBOMClientImpl) CreateAndUploadAIBOM(ctx context.Context, orgID, bundleHash, repoName string) (string, *errors.AiBomError) {
+	progressBar := c.userInterface.NewProgressBar()
+	progressBar.SetTitle("Creating")
+
+	jobID, err := c.uploadAIBOM(ctx, orgID, bundleHash, repoName)
+	if err != nil {
+		c.logger.Debug().Err(err.SnykError).Msg("error while uploading the aibom")
+		return "", err
+	}
+
+	progressErr := progressBar.UpdateProgress(ui.InfiniteProgress)
+	if progressErr != nil {
+		c.logger.Debug().Err(progressErr).Msg("Failed to update progress bar")
+	}
+	defer func() {
+		progressErr = progressBar.Clear()
+		if progressErr != nil {
+			c.logger.Debug().Err(progressErr).Msg("Failed to clear progress bar")
+		}
+	}()
+
+	aiBomID, err := c.pollForAIBOMReady(ctx, orgID, jobID)
+	if err != nil {
+		c.logger.Debug().Err(err.SnykError).Msg("error while polling for the aibom")
+		return "", err
+	}
+
+	aiBom, err := c.getAIBOM(ctx, orgID, aiBomID)
+	if err != nil {
+		c.logger.Debug().Err(err.SnykError).Msg("error while getting the aibom")
+		return "", err
+	}
+
+	return aiBom, nil
+}
+
 func (c *AIBOMClientImpl) aiBomErrorFromHTTPClientError(endPoint string, err error) *errors.AiBomError {
 	c.logger.Debug().Err(err).Msg(fmt.Sprintf("%s request HTTP error", endPoint))
 	if strings.Contains(strings.ToLower(err.Error()), "authentication") {
@@ -144,7 +186,7 @@ func (c *AIBOMClientImpl) createAIBOM(
 	err := data.FromFileBundleStoreData(FileBundleStoreData{
 		Type: FileBundleStoreDataTypeAiBomFileBundle,
 		Attributes: FileBundleStoreAttributes{
-			BundleId: bundleHash,
+			BundleID: bundleHash,
 		},
 	})
 	if err != nil {
@@ -191,7 +233,7 @@ func (c *AIBOMClientImpl) createAIBOM(
 		return "", errors.NewInternalError(fmt.Sprintf("Failed to unmarshal CreateAiBomResponseBody: %s", err.Error()))
 	}
 
-	aibomJobID := aiBomRespBody.Data.Id.String()
+	aibomJobID := aiBomRespBody.Data.ID.String()
 	c.logger.Debug().Str("aiBomJobId", aibomJobID).Msg("created ai bom")
 
 	return aibomJobID, nil
@@ -274,7 +316,7 @@ func (c *AIBOMClientImpl) processJobResponse(
 		if jobResp.Data.Relationships == nil {
 			return "", false, errors.NewInternalError("Finished AI-BOM job returned without relationships")
 		}
-		aiBomID = jobResp.Data.Relationships.AiBom.Data.Id.String()
+		aiBomID = jobResp.Data.Relationships.AiBom.Data.ID.String()
 		if aiBomID == "" {
 			return "", false, errors.NewInternalError("Finished AI-BOM job returned without an AI-BOM ID")
 		}
@@ -334,6 +376,67 @@ func (c *AIBOMClientImpl) getAIBOM(
 	c.logger.Debug().Str("aiBom", string(attributesBytes)).Msg("got AI-BOM")
 
 	return aiBom, nil
+}
+
+func (c *AIBOMClientImpl) uploadAIBOM(
+	ctx context.Context,
+	orgID,
+	bundleHash,
+	repoName string,
+) (string, *errors.AiBomError) {
+	c.logger.Debug().Str("bundleHash", bundleHash).Msg("uploading aibom")
+
+	data := CreateAndUploadAiBomRequestData{
+		Attributes: CreateAndUploadAiBomAttributes{
+			BundleID: bundleHash,
+			RepoName: repoName,
+		},
+		Type: CreateAndUploadAiBomRequestDataTypeAiBomFileBundle,
+	}
+	body := CreateAndUploadAiBomRequestBody{Data: data}
+
+	reqBytes, err := json.Marshal(body)
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while marshaling request body")
+		return "", errors.NewInternalError(fmt.Sprintf("Error marshaling request body: %s", err.Error()))
+	}
+	url := fmt.Sprintf("%s/rest/orgs/%s/ai_boms/upload?version=%s", c.baseURL, orgID, APIVersion)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBytes))
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while building CreateAndUploadAIBOM request")
+		return "", errors.NewInternalError(fmt.Sprintf("Error building CreateAndUploadAIBOM request: %s", err.Error()))
+	}
+
+	c.setCommonHeaders(url, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", c.aiBomErrorFromHTTPClientError("CreateAndUploadAIBOM", err)
+	}
+
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while reading CreateAndUploadAIBOM response body")
+		return "", errors.NewInternalError(fmt.Sprintf("Failed to read CreateAndUploadAIBOM response body: %s", err.Error()))
+	}
+
+	if resp.StatusCode != http.StatusAccepted {
+		return "", c.aiBomErrorFromHTTPStatusCode("CreateAndUploadAIBOM", resp.StatusCode, bodyBytes)
+	}
+
+	aiBomRespBody := CreateAiBomResponseBody{}
+	err = json.Unmarshal(bodyBytes, &aiBomRespBody)
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while unmarshaling CreateAiBomResponseBody")
+		return "", errors.NewInternalError(fmt.Sprintf("Failed to unmarshal CreateAiBomResponseBody: %s", err.Error()))
+	}
+
+	aibomJobID := aiBomRespBody.Data.ID.String()
+	c.logger.Debug().Str("aiBomJobId", aibomJobID).Msg("created ai bom")
+
+	return aibomJobID, nil
 }
 
 func (c *AIBOMClientImpl) setCommonHeaders(url string, req *http.Request) {
