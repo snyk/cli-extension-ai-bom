@@ -8,8 +8,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/snyk/go-application-framework/pkg/configuration"
+	"github.com/snyk/go-application-framework/pkg/mocks"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/redteam"
 	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
@@ -473,4 +475,70 @@ func TestRunRedTeamWorkflowWithScanningAgentOverride_InvalidScanningAgentID(t *t
 	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Scanning agent ID is not a valid UUID")
+}
+
+func TestRunRedTeamWorkflow_VulnerabilitiesFoundDuringPolling(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, redteamTestConfigFile)
+
+	ui, ok := ictx.GetUserInterface().(*mocks.MockUserInterface)
+	require.True(t, ok, "UI should be a mock")
+	ui.EXPECT().Output(gomock.Any()).DoAndReturn(func(output string) error {
+		assert.Contains(t, output, "New vulnerabilities found. Total:")
+		assert.Contains(t, output, "1 Critical")
+		assert.Contains(t, output, "2 High")
+		assert.Contains(t, output, "3 Medium")
+		assert.Contains(t, output, "4 Low")
+		return nil
+	}).Times(1)
+
+	done1, total1 := 5, 10
+	done2, total2 := 10, 10
+	criticals, highs, mediums, lows := 1, 2, 3, 4
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		PollingScans: []redteamclient.AIScan{
+			{
+				ID:     "test-scan-id",
+				Status: redteamclient.AIScanStatusStarted,
+				Feedback: redteamclient.AIScanFeedback{
+					Status: &redteamclient.AIScanFeedbackStatus{Done: &done1, Total: &total1},
+				},
+				Criticals: &criticals,
+				Highs:     &highs,
+				Mediums:   &mediums,
+				Lows:      &lows,
+			},
+			{
+				ID:     "test-scan-id",
+				Status: redteamclient.AIScanStatusCompleted,
+				Feedback: redteamclient.AIScanFeedback{
+					Status: &redteamclient.AIScanFeedbackStatus{Done: &done2, Total: &total2},
+				},
+				Criticals: &criticals,
+				Highs:     &highs,
+				Mediums:   &mediums,
+				Lows:      &lows,
+			},
+		},
+		ScanResults: redteamclient.GetAIVulnerabilitiesResponseData{
+			ID: uuid.New().String(),
+			Results: []redteamclient.AIVulnerability{
+				{
+					ID:  "test-vulnerability-id",
+					URL: "test-vulnerability-url",
+				},
+			},
+		},
+	}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
 }

@@ -129,7 +129,7 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 	progressBar, cleanup := setupProgressBar(userInterface, logger, clientConfig.Target.Name)
 	defer cleanup()
 
-	scanStatus, pollErr := pollForScanComplete(ctx, logger, redTeamClient, orgID, scanID, progressBar)
+	scanStatus, pollErr := pollForScanComplete(ctx, logger, redTeamClient, orgID, scanID, progressBar, userInterface)
 	if pollErr != nil {
 		return nil, pollErr
 	}
@@ -292,6 +292,41 @@ func getInvalidConfigMessage() string {
 	`
 }
 
+type vulnerabilityCounts struct {
+	criticals int
+	highs     int
+	mediums   int
+	lows      int
+}
+
+func (v vulnerabilityCounts) total() int {
+	return v.criticals + v.highs + v.mediums + v.lows
+}
+
+func (v vulnerabilityCounts) hasChanged(other vulnerabilityCounts) bool {
+	return v.criticals != other.criticals ||
+		v.highs != other.highs ||
+		v.mediums != other.mediums ||
+		v.lows != other.lows
+}
+
+func getVulnerabilityCounts(scanData *redteamclient.AIScan) vulnerabilityCounts {
+	counts := vulnerabilityCounts{}
+	if scanData.Criticals != nil {
+		counts.criticals = *scanData.Criticals
+	}
+	if scanData.Highs != nil {
+		counts.highs = *scanData.Highs
+	}
+	if scanData.Mediums != nil {
+		counts.mediums = *scanData.Mediums
+	}
+	if scanData.Lows != nil {
+		counts.lows = *scanData.Lows
+	}
+	return counts
+}
+
 func pollForScanComplete(
 	ctx context.Context,
 	logger *zerolog.Logger,
@@ -299,8 +334,10 @@ func pollForScanComplete(
 	orgID string,
 	scanID string,
 	progressBar ui.ProgressBar,
+	userInterface ui.UserInterface,
 ) (*redteamclient.AIScan, *redteam_errors.RedTeamError) {
 	numberOfPolls := 0
+	prevCounts := vulnerabilityCounts{}
 
 	for numberOfPolls <= maxPollAttempts {
 		numberOfPolls++
@@ -311,10 +348,13 @@ func pollForScanComplete(
 		}
 
 		if scanData.Feedback.Status != nil {
-			progressBar.SetTitle("Running a scan... It might take a while.")
-			if err := progressBar.UpdateProgress(float64(*scanData.Feedback.Status.Done) / float64(*scanData.Feedback.Status.Total)); err != nil {
-				logger.Debug().Err(err).Msg("Failed to update progress bar")
-			}
+			progressBar.SetTitle(fmt.Sprintf("Scanning %s (%d/%d)", scanData.Target.Name, *scanData.Feedback.Status.Done, *scanData.Feedback.Status.Total))
+		}
+
+		currentCounts := getVulnerabilityCounts(scanData)
+		if currentCounts.total() > 0 && currentCounts.hasChanged(prevCounts) {
+			outputVulnerabilityFindings(userInterface, logger, currentCounts)
+			prevCounts = currentCounts
 		}
 
 		logger.Debug().
@@ -331,6 +371,14 @@ func pollForScanComplete(
 
 	logger.Debug().Msgf("Polling timed out on scan ID: %s. This should not happen in reality.", scanID)
 	return nil, redteam_errors.NewPollingTimeoutError()
+}
+
+func outputVulnerabilityFindings(userInterface ui.UserInterface, logger *zerolog.Logger, counts vulnerabilityCounts) {
+	message := fmt.Sprintf("New vulnerabilities found. Total: %d Critical, %d High, %d Medium, %d Low",
+		counts.criticals, counts.highs, counts.mediums, counts.lows)
+	if err := userInterface.Output(message); err != nil {
+		logger.Debug().Err(err).Msg("Failed to output vulnerability findings")
+	}
 }
 
 func newWorkflowData(contentType string, data []byte) workflow.Data {
