@@ -43,5 +43,5 @@ redteam: ## Run redteam workflow (use: make redteam -- --help)
 .PHONY: build-cli
 build-cli: ## Build extension changes with the CLI
 	@echo "Building extension changes with the CLI..."
-	@./scripts/build-with-cli.sh
+	@./scripts/build-with-cli.sh $(CLI_PATH)
 
