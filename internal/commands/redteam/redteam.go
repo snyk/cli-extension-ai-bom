@@ -374,7 +374,7 @@ func pollForScanComplete(
 }
 
 func outputVulnerabilityFindings(userInterface ui.UserInterface, logger *zerolog.Logger, counts vulnerabilityCounts) {
-	message := fmt.Sprintf("New vulnerabilities found. Total: %d Critical, %d High, %d Medium, %d Low",
+	message := fmt.Sprintf("\nNew vulnerabilities found. Total: %d Critical, %d High, %d Medium, %d Low",
 		counts.criticals, counts.highs, counts.mediums, counts.lows)
 	if err := userInterface.Output(message); err != nil {
 		logger.Debug().Err(err).Msg("Failed to output vulnerability findings")
