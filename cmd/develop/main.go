@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/snyk/go-application-framework/pkg/devtools"
@@ -12,10 +13,10 @@ import (
 
 func initAll(e workflow.Engine) error {
 	if err := aibom.Init(e); err != nil {
-		return err
+		return fmt.Errorf("aibom init: %w", err)
 	}
 	if err := redteam.Init(e); err != nil {
-		return err
+		return fmt.Errorf("redteam init: %w", err)
 	}
 	return nil
 }
