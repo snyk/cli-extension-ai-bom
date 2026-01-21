@@ -1,6 +1,6 @@
 module github.com/snyk/cli-extension-ai-bom
 
-go 1.24.12
+go 1.24.4
 
 require (
 	github.com/go-playground/validator/v10 v10.14.1
