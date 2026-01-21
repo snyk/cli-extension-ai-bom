@@ -33,8 +33,15 @@ test: ## Run unit tests
 generate: ## Run commands described by //go:generate directives within source code
 	go generate ./...
 
+.PHONY: redteam
+redteam: ## Run redteam workflow (use: make redteam -- --help)
+	go run cmd/develop/main.go redteam --experimental $(filter-out $@,$(MAKECMDGOALS))
+
+%:
+	@:
+
 .PHONY: build-cli
 build-cli: ## Build extension changes with the CLI
 	@echo "Building extension changes with the CLI..."
-	@./scripts/build-with-cli.sh
+	@./scripts/build-with-cli.sh $(CLI_PATH)
 
