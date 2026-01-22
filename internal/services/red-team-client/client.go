@@ -125,6 +125,9 @@ func (c *ClientImpl) GetScanResults(ctx context.Context, orgID, scanID string) (
 		return GetAIVulnerabilitiesResponseData{}, err
 	}
 
+	if resp.StatusCode == http.StatusNotFound {
+		return GetAIVulnerabilitiesResponseData{}, redteam_errors.NewNotFoundError("This scan was not found")
+	}
 	if resp.StatusCode != http.StatusOK {
 		return GetAIVulnerabilitiesResponseData{}, c.redTeamErrorFromHTTPStatusCode("GetScanResults", resp.StatusCode, bodyBytes)
 	}
@@ -227,11 +230,11 @@ func (c *ClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode 
 	c.logger.Debug().Str("responseBody", string(bodyBytes)).Msg(errMsg)
 	switch statusCode {
 	case http.StatusUnauthorized:
-		authErr := redteam_errors.NewUnauthorizedError(errMsg)
-		return authErr
+		return redteam_errors.NewUnauthorizedError(errMsg)
+	case http.StatusNotFound:
+		return redteam_errors.NewNotFoundError(errMsg)
 	default:
-		serverErr := redteam_errors.NewServerError(errMsg)
-		return serverErr
+		return redteam_errors.NewServerError(errMsg)
 	}
 }
 

@@ -89,3 +89,7 @@ func NewGenericRedTeamError(msg string, err error) *RedTeamError {
 func NewUnauthorizedError(msg string) *RedTeamError {
 	return newRedTeamError(snyk_common_errors.NewUnauthorisedError(msg), msg)
 }
+
+func NewNotFoundError(msg string) *RedTeamError {
+	return newRedTeamError(cli_errors.NewGeneralCLIFailureError(msg), msg)
+}
