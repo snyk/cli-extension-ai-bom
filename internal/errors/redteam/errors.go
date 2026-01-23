@@ -91,5 +91,5 @@ func NewUnauthorizedError(msg string) *RedTeamError {
 }
 
 func NewNotFoundError(msg string) *RedTeamError {
-	return newRedTeamError(cli_errors.NewGeneralCLIFailureError(msg), msg)
+	return newRedTeamError(snyk_common_errors.NewBadRequestError(msg), msg)
 }

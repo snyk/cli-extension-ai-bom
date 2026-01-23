@@ -265,8 +265,9 @@ func (c *ClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error)
 		switch snykErr.StatusCode {
 		case http.StatusBadRequest:
 			return redteam_errors.NewBadRequestError(errorMsg)
+		case http.StatusNotFound:
+			return redteam_errors.NewNotFoundError(errorMsg)
 		case http.StatusInternalServerError:
-			// Override the error message to be more user friendly
 			return redteam_errors.NewServerError("Server responded with a 500. Please try again later or contact support.")
 		}
 	}
