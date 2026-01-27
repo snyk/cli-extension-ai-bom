@@ -17,6 +17,7 @@ import (
 
 	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 
+	redteamget "github.com/snyk/cli-extension-ai-bom/internal/commands/redteamget"
 	scanningagent "github.com/snyk/cli-extension-ai-bom/internal/commands/redteamscanningagent"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
@@ -41,6 +42,9 @@ const (
 func RegisterWorkflows(e workflow.Engine) error {
 	if err := RegisterRedTeamWorkflow(e); err != nil {
 		return fmt.Errorf("error while registering red team workflow: %w", err)
+	}
+	if err := redteamget.RegisterRedTeamGetWorkflow(e); err != nil {
+		return fmt.Errorf("error while registering red team get workflow: %w", err)
 	}
 	if err := scanningagent.RegisterRedTeamScanningAgentWorkflows(e); err != nil {
 		return fmt.Errorf("error while registering red team scanning agent workflow: %w", err)
