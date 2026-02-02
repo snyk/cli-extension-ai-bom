@@ -50,7 +50,27 @@ func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) 
 	config := invocationCtx.GetConfiguration()
 	baseAPIURL := config.GetString(configuration.API_URL)
 	aiBomClient := aiBomClient.NewAiBomClient(logger, invocationCtx.GetNetworkAccess().GetHttpClient(), ui, userAgent, baseAPIURL)
-	return RunAiBomWorkflow(invocationCtx, aiBomClient)
+
+	orgID := config.GetString(configuration.ORGANIZATION)
+	if orgID == "" {
+		logger.Debug().Msg("no org id found")
+		// This check captures unauthorized users that don't provide an explicit orgId.
+		// Without this check the orgId would be empty and the api availability check would fail with 404.
+		// Users that do provide an explicit orgId will be handled by the api availability check
+		return nil, errors.NewUnauthorizedError("").SnykError
+	}
+
+	orgIDUUID, err := uuid.Parse(orgID)
+	if err != nil {
+		logger.Debug().Err(err).Msg("error while parsing orgID")
+		return nil, errors.NewInternalError("error while parsing orgID").SnykError
+	}
+
+	fileUploadClient := fileupload.NewClient(invocationCtx.GetNetworkAccess().GetHttpClient(), fileupload.Config{
+		BaseURL: baseAPIURL,
+	})
+
+	return RunAiBomWorkflow(invocationCtx, orgIDUUID, aiBomClient, fileUploadClient)
 }
 
 //go:embed aibom.html
@@ -58,7 +78,9 @@ var htmlTemplate string
 
 func RunAiBomWorkflow(
 	invocationCtx workflow.InvocationContext,
+	orgID uuid.UUID,
 	aiBomClient aiBomClient.AiBomClient,
+	fileUploadClient fileupload.Client,
 ) ([]workflow.Data, error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
@@ -68,7 +90,6 @@ func RunAiBomWorkflow(
 	path := config.GetString(configuration.INPUT_DIRECTORY)
 	upload := config.GetBool(utils.FlagUpload)
 	repoName := config.GetString(utils.FlagRepoName)
-	baseURL := config.GetString(configuration.API_URL)
 
 	// As this is an experimental feature, we only want to continue if the experimental flag is set
 	if !experimental {
@@ -77,14 +98,6 @@ func RunAiBomWorkflow(
 	}
 
 	ctx := context.Background()
-	orgID := config.GetString(configuration.ORGANIZATION)
-	if orgID == "" {
-		logger.Debug().Msg("no org id found")
-		// This check captures unauthorized users that don't provide an explicit orgId.
-		// Without this check the orgId would be empty and the api availability check would fail with 404.
-		// Users that do provide an explicit orgId will be handled by the api availability check
-		return nil, errors.NewUnauthorizedError("").SnykError
-	}
 	logger.Debug().Msgf("running command with orgId: %s", orgID)
 
 	if upload && repoName == "" {
@@ -92,14 +105,8 @@ func RunAiBomWorkflow(
 		return nil, errors.NewInvalidArgumentError("repo name is required when monitor flag is set").SnykError
 	}
 
-	orgIDUUID, err := uuid.Parse(orgID)
-	if err != nil {
-		logger.Debug().Err(err).Msg("error while parsing orgID")
-		return nil, errors.NewInternalError("error while parsing orgID").SnykError
-	}
-
 	logger.Debug().Msg("checking api availability")
-	aiBomErr := aiBomClient.CheckAPIAvailability(ctx, orgIDUUID)
+	aiBomErr := aiBomClient.CheckAPIAvailability(ctx, orgID)
 
 	if aiBomErr != nil {
 		logger.Debug().Msg("api availability check failed")
@@ -107,11 +114,6 @@ func RunAiBomWorkflow(
 	}
 
 	logger.Debug().Msg("AI BOM workflow start")
-
-	fileUploadClient := fileupload.NewClient(invocationCtx.GetNetworkAccess().GetHttpClient(), fileupload.Config{
-		BaseURL: baseURL,
-		OrgID:   orgIDUUID,
-	})
 
 	uploadRevisionID, err := filterAndUploadFiles(ctx, fileUploadClient, logger, path)
 	if err != nil {
@@ -123,9 +125,9 @@ func RunAiBomWorkflow(
 	var createAIBomErr *errors.AiBomError
 
 	if upload {
-		aiBomDoc, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgIDUUID, uploadRevisionID, repoName)
+		aiBomDoc, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
 	} else {
-		aiBomDoc, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgIDUUID, uploadRevisionID)
+		aiBomDoc, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgID, uploadRevisionID)
 	}
 
 	if createAIBomErr != nil {
