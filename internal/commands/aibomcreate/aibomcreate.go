@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -29,8 +27,6 @@ import (
 )
 
 var WorkflowID = workflow.NewWorkflowIdentifier("aibom")
-
-const FilterAndUploadFilesTimeout = 5 * time.Minute
 
 func RegisterWorkflows(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom", pflag.ExitOnError)
@@ -153,43 +149,24 @@ func RunAiBomWorkflow(
 }
 
 func filterAndUploadFiles(ctx context.Context, client fileupload.Client, logger *zerolog.Logger, inputPath string) (uuid.UUID, error) {
-	uploadCtx, cancelFindFiles := context.WithTimeout(ctx, FilterAndUploadFilesTimeout)
-	defer cancelFindFiles()
-
 	textFilesFilter := filefilter.NewPipeline(
 		filefilter.WithConcurrency(runtime.NumCPU()),
 		filefilter.WithFilters(
+			// The file upload api only supports files up to 50mb
 			filefilter.FileSizeFilter(logger),
+			// we only want to upload text files
 			filefilter.TextFileOnlyFilter(logger),
 		),
 		filefilter.WithLogger(logger),
 	)
-	pathsChan := textFilesFilter.Filter(uploadCtx, []string{inputPath})
+	pathsChan := textFilesFilter.Filter(ctx, []string{inputPath})
 
-	// for file inputPath we need to compute the relativity of the file path w.r.t. the file's dir
-	dir := inputPath
-	ok, err := isFile(inputPath)
-	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to determine if inputPath is a file: %w", err)
-	}
-	if ok {
-		dir = filepath.Dir(inputPath)
-	}
-
-	uploadRevision, err := client.CreateRevisionFromChan(uploadCtx, pathsChan, dir)
+	uploadRevision, err := client.CreateRevisionFromChan(ctx, pathsChan, inputPath)
 	if err != nil {
 		return uuid.UUID{}, fmt.Errorf("failed to create upload revision: %w", err)
 	}
 
 	return uploadRevision.RevisionID, nil
-}
-
-func isFile(path string) (bool, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false, fmt.Errorf("failed to stat path: %w", err)
-	}
-	return !info.IsDir(), nil
 }
 
 func generateHTML(aiBomDoc string) (string, error) {
