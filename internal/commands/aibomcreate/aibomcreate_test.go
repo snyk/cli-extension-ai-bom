@@ -1,6 +1,7 @@
 package aibomcreate_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -135,7 +136,7 @@ func TestAiBomWorkflow_UPLOAD_BUNDLE_FAIL(t *testing.T) {
 	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
 	uploadRevisionID := uuid.New()
 	fileUploadClient := fileuploadmock.NewMockClient(ctrl)
-	uploadErr := errors.NewInternalError("Upload error")
+	uploadErr := fmt.Errorf("upload error")
 
 	fileUploadClient.EXPECT().CreateRevisionFromChan(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(fileupload.UploadResult{
 		RevisionID: uploadRevisionID,
@@ -144,7 +145,7 @@ func TestAiBomWorkflow_UPLOAD_BUNDLE_FAIL(t *testing.T) {
 	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 
 	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
-	assert.Equal(t, uploadErr.SnykError, err)
+	assert.Equal(t, fmt.Errorf("failed to create upload revision: %w", uploadErr), err)
 }
 
 func TestAiBomWorkflow_AIBOM_GENERATION_FAIL(t *testing.T) {
