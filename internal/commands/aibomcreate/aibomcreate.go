@@ -20,8 +20,6 @@ import (
 
 	"github.com/snyk/cli-extension-ai-bom/internal/errors"
 	aiBomClient "github.com/snyk/cli-extension-ai-bom/internal/services/ai-bom-client"
-	"github.com/snyk/cli-extension-ai-bom/internal/services/code"
-	"github.com/snyk/cli-extension-ai-bom/internal/services/depgraph"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
@@ -51,14 +49,12 @@ func RegisterWorkflows(e workflow.Engine) error {
 var userAgent = "cli-extension-ai-bom"
 
 func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (output []workflow.Data, err error) {
-	codeService := code.NewCodeServiceImpl()
-	depGraphService := depgraph.NewDepgraphServiceImpl()
 	logger := invocationCtx.GetEnhancedLogger()
 	ui := invocationCtx.GetUserInterface()
 	config := invocationCtx.GetConfiguration()
 	baseAPIURL := config.GetString(configuration.API_URL)
 	aiBomClient := aiBomClient.NewAiBomClient(logger, invocationCtx.GetNetworkAccess().GetHttpClient(), ui, userAgent, baseAPIURL)
-	return RunAiBomWorkflow(invocationCtx, codeService, depGraphService, aiBomClient)
+	return RunAiBomWorkflow(invocationCtx, aiBomClient)
 }
 
 //go:embed aibom.html
@@ -66,8 +62,6 @@ var htmlTemplate string
 
 func RunAiBomWorkflow(
 	invocationCtx workflow.InvocationContext,
-	_ code.CodeService,
-	depgraphService depgraph.DepgraphService,
 	aiBomClient aiBomClient.AiBomClient,
 ) ([]workflow.Data, error) {
 	logger := invocationCtx.GetEnhancedLogger()
@@ -116,23 +110,6 @@ func RunAiBomWorkflow(
 	}
 
 	logger.Debug().Msg("AI BOM workflow start")
-
-	depGraphResult, err := depgraphService.GetDepgraph(invocationCtx)
-	if err != nil {
-		// We just log a warning here; no return as we want to still proceed even without depgraphs.
-		logger.Warn().Msg("Failed to get the depgraph")
-	} else {
-		numGraphs := len(depGraphResult.DepgraphBytes)
-		logger.Debug().Msgf("Generated %d depgraph(s)\n", numGraphs)
-	}
-
-	// transform a depGraphResult into a map[string][]byte
-	depGraphMap := make(map[string][]byte)
-	if depGraphResult != nil {
-		for i, depGraph := range depGraphResult.DepgraphBytes {
-			depGraphMap[fmt.Sprintf("%s_%d.snykdepgraph", path+"/", i)] = depGraph
-		}
-	}
 
 	fileUploadClient := fileupload.NewClient(invocationCtx.GetNetworkAccess().GetHttpClient(), fileupload.Config{
 		OrgID: orgIDUUID,
