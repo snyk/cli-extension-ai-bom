@@ -21,18 +21,20 @@ const (
 	DryRunBundleHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 )
 
+var DryRunUploadRevisionID = uuid.MustParse("00000000-0000-0000-0000-000000000000")
+
 //revive:disable:exported // The interface must be called AiBomClient to standardize.
 type AiBomClient interface {
-	CheckAPIAvailability(ctx context.Context, orgID string) *errors.AiBomError
+	CheckAPIAvailability(ctx context.Context, orgID uuid.UUID) *errors.AiBomError
 	GenerateAIBOM(
 		ctx context.Context,
 		orgID,
-		bundleHash string,
+		uploadRevisionID uuid.UUID,
 	) (string, *errors.AiBomError)
 	CreateAndUploadAIBOM(
 		ctx context.Context,
 		orgID,
-		bundleHash,
+		uploadRevisionID uuid.UUID,
 		repoName string,
 	) (string, *errors.AiBomError)
 }
@@ -74,13 +76,13 @@ func NewAiBomClient(
 
 var APIVersion = "2024-10-15"
 
-func (c *AIBOMClientImpl) CheckAPIAvailability(ctx context.Context, orgID string) *errors.AiBomError {
-	_, err := c.createAIBOM(ctx, orgID, DryRunBundleHash)
+func (c *AIBOMClientImpl) CheckAPIAvailability(ctx context.Context, orgID uuid.UUID) *errors.AiBomError {
+	_, err := c.createAIBOM(ctx, orgID, DryRunUploadRevisionID)
 	return err
 }
 
-func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, bundleHash string) (string, *errors.AiBomError) {
-	jobID, err := c.createAIBOM(ctx, orgID, bundleHash)
+func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID) (string, *errors.AiBomError) {
+	jobID, err := c.createAIBOM(ctx, orgID, uploadRevisionID)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while creating the aibom")
 		return "", err
@@ -114,11 +116,11 @@ func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, bundleHash s
 	return aiBom, nil
 }
 
-func (c *AIBOMClientImpl) CreateAndUploadAIBOM(ctx context.Context, orgID, bundleHash, repoName string) (string, *errors.AiBomError) {
+func (c *AIBOMClientImpl) CreateAndUploadAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID, repoName string) (string, *errors.AiBomError) {
 	progressBar := c.userInterface.NewProgressBar()
 	progressBar.SetTitle("Creating")
 
-	jobID, err := c.uploadAIBOM(ctx, orgID, bundleHash, repoName)
+	jobID, err := c.uploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while uploading the aibom")
 		return "", err
@@ -178,15 +180,15 @@ func (c *AIBOMClientImpl) aiBomErrorFromHTTPStatusCode(endPoint string, statusCo
 func (c *AIBOMClientImpl) createAIBOM(
 	ctx context.Context,
 	orgID,
-	bundleHash string,
+	uploadRevisionID uuid.UUID,
 ) (string, *errors.AiBomError) {
-	c.logger.Debug().Str("bundleHash", bundleHash).Msg("creating aibom")
+	c.logger.Debug().Str("uploadRevisionID", uploadRevisionID.String()).Msg("creating aibom")
 
 	data := CreateAiBomRequestData{}
-	err := data.FromFileBundleStoreData(FileBundleStoreData{
-		Type: FileBundleStoreDataTypeAiBomFileBundle,
-		Attributes: FileBundleStoreAttributes{
-			BundleID: bundleHash,
+	err := data.FromFileUploadAPIData(FileUploadAPIData{
+		Type: FileUploadAPIDataTypeAiBomFileUpload,
+		Attributes: FileUploadAPIAttributes{
+			UploadRevisionID: uploadRevisionID,
 		},
 	})
 	if err != nil {
@@ -241,7 +243,7 @@ func (c *AIBOMClientImpl) createAIBOM(
 
 func (c *AIBOMClientImpl) pollForAIBOMReady(
 	ctx context.Context,
-	orgID string,
+	orgID uuid.UUID,
 	jobID string,
 ) (string, *errors.AiBomError) {
 	url := fmt.Sprintf("%s/rest/orgs/%s/ai_bom_jobs/%s?version=%s", c.baseURL, orgID, jobID, APIVersion)
@@ -332,10 +334,10 @@ func (c *AIBOMClientImpl) processJobResponse(
 
 func (c *AIBOMClientImpl) getAIBOM(
 	ctx context.Context,
-	orgID,
+	orgID uuid.UUID,
 	aiBomID string,
 ) (string, *errors.AiBomError) {
-	url := fmt.Sprintf("%s/rest/orgs/%s/ai_boms/%s?version=%s", c.baseURL, orgID, aiBomID, APIVersion)
+	url := fmt.Sprintf("%s/rest/orgs/%s/ai_boms/%s?version=%s", c.baseURL, orgID.String(), aiBomID, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building GetAIBOM request")
@@ -381,18 +383,24 @@ func (c *AIBOMClientImpl) getAIBOM(
 func (c *AIBOMClientImpl) uploadAIBOM(
 	ctx context.Context,
 	orgID,
-	bundleHash,
+	uploadRevisionID uuid.UUID,
 	repoName string,
 ) (string, *errors.AiBomError) {
-	c.logger.Debug().Str("bundleHash", bundleHash).Msg("uploading aibom")
+	c.logger.Debug().Str("uploadRevisionID", uploadRevisionID.String()).Msg("uploading aibom")
 
-	data := CreateAndUploadAiBomRequestData{
-		Attributes: CreateAndUploadAiBomAttributes{
-			BundleID: bundleHash,
-			RepoName: repoName,
+	data := CreateAndUploadAiBomRequestData{}
+	err := data.FromCreateAndUploadAiBomFileUploadData(CreateAndUploadAiBomFileUploadData{
+		Type: CreateAndUploadAiBomFileUploadDataTypeAiBomFileUpload,
+		Attributes: CreateAndUploadAiBomFileUploadAttributes{
+			UploadRevisionID: uploadRevisionID,
+			RepoName:         repoName,
 		},
-		Type: CreateAndUploadAiBomRequestDataTypeAiBomFileBundle,
+	})
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while creating CreateAndUploadAiBomRequestData")
+		return "", errors.NewInternalError(fmt.Sprintf("Error creating CreateAndUploadAiBomRequestData: %s", err.Error()))
 	}
+
 	body := CreateAndUploadAiBomRequestBody{Data: data}
 
 	reqBytes, err := json.Marshal(body)

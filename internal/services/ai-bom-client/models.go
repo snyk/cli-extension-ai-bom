@@ -11,14 +11,24 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for CreateAndUploadAiBomRequestDataType.
+// Defines values for CreateAndUploadAiBomFileBundleDataType.
 const (
-	CreateAndUploadAiBomRequestDataTypeAiBomFileBundle CreateAndUploadAiBomRequestDataType = "ai_bom_file_bundle"
+	CreateAndUploadAiBomFileBundleDataTypeAiBomFileBundle CreateAndUploadAiBomFileBundleDataType = "ai_bom_file_bundle"
+)
+
+// Defines values for CreateAndUploadAiBomFileUploadDataType.
+const (
+	CreateAndUploadAiBomFileUploadDataTypeAiBomFileUpload CreateAndUploadAiBomFileUploadDataType = "ai_bom_file_upload"
 )
 
 // Defines values for FileBundleStoreDataType.
 const (
 	FileBundleStoreDataTypeAiBomFileBundle FileBundleStoreDataType = "ai_bom_file_bundle"
+)
+
+// Defines values for FileUploadAPIDataType.
+const (
+	FileUploadAPIDataTypeAiBomFileUpload FileUploadAPIDataType = "ai_bom_file_upload"
 )
 
 // Defines values for GetAiBomResponseDataType.
@@ -66,14 +76,41 @@ type CreateAiBomResponseBody struct {
 	Links   PaginatedLinks `json:"links"`
 }
 
-// CreateAndUploadAiBomAttributes defines model for CreateAndUploadAiBomAttributes.
-type CreateAndUploadAiBomAttributes struct {
+// CreateAndUploadAiBomFileBundleAttributes defines model for CreateAndUploadAiBomFileBundleAttributes.
+type CreateAndUploadAiBomFileBundleAttributes struct {
 	// BundleID The id of the bundle that has been uploaded by the user, sha256 hash
 	BundleID string `json:"bundle_id"`
 
 	// RepoName The name of the repository
 	RepoName string `json:"repo_name"`
 }
+
+// CreateAndUploadAiBomFileBundleData defines model for CreateAndUploadAiBomFileBundleData.
+type CreateAndUploadAiBomFileBundleData struct {
+	Attributes CreateAndUploadAiBomFileBundleAttributes `json:"attributes"`
+	Type       CreateAndUploadAiBomFileBundleDataType   `json:"type"`
+}
+
+// CreateAndUploadAiBomFileBundleDataType defines model for CreateAndUploadAiBomFileBundleData.Type.
+type CreateAndUploadAiBomFileBundleDataType string
+
+// CreateAndUploadAiBomFileUploadAttributes defines model for CreateAndUploadAiBomFileUploadAttributes.
+type CreateAndUploadAiBomFileUploadAttributes struct {
+	// RepoName The name of the repository
+	RepoName string `json:"repo_name"`
+
+	// UploadRevisionID The id of the upload revision the has been created by the user
+	UploadRevisionID openapi_types.UUID `json:"upload_revision_id"`
+}
+
+// CreateAndUploadAiBomFileUploadData defines model for CreateAndUploadAiBomFileUploadData.
+type CreateAndUploadAiBomFileUploadData struct {
+	Attributes CreateAndUploadAiBomFileUploadAttributes `json:"attributes"`
+	Type       CreateAndUploadAiBomFileUploadDataType   `json:"type"`
+}
+
+// CreateAndUploadAiBomFileUploadDataType defines model for CreateAndUploadAiBomFileUploadData.Type.
+type CreateAndUploadAiBomFileUploadDataType string
 
 // CreateAndUploadAiBomRequestBody defines model for CreateAndUploadAiBomRequestBody.
 type CreateAndUploadAiBomRequestBody struct {
@@ -82,12 +119,8 @@ type CreateAndUploadAiBomRequestBody struct {
 
 // CreateAndUploadAiBomRequestData defines model for CreateAndUploadAiBomRequestData.
 type CreateAndUploadAiBomRequestData struct {
-	Attributes CreateAndUploadAiBomAttributes      `json:"attributes"`
-	Type       CreateAndUploadAiBomRequestDataType `json:"type"`
+	union json.RawMessage
 }
-
-// CreateAndUploadAiBomRequestDataType defines model for CreateAndUploadAiBomRequestData.Type.
-type CreateAndUploadAiBomRequestDataType string
 
 // Error defines model for Error.
 type Error struct {
@@ -143,6 +176,21 @@ type FileBundleStoreData struct {
 
 // FileBundleStoreDataType defines model for FileBundleStoreData.Type.
 type FileBundleStoreDataType string
+
+// FileUploadAPIAttributes defines model for FileUploadApiAttributes.
+type FileUploadAPIAttributes struct {
+	// UploadRevisionID The id of the upload revision the has been created by the user
+	UploadRevisionID openapi_types.UUID `json:"upload_revision_id"`
+}
+
+// FileUploadAPIData defines model for FileUploadApiData.
+type FileUploadAPIData struct {
+	Attributes FileUploadAPIAttributes `json:"attributes"`
+	Type       FileUploadAPIDataType   `json:"type"`
+}
+
+// FileUploadAPIDataType defines model for FileUploadAPIData.Type.
+type FileUploadAPIDataType string
 
 // GetAiBomResponseBody defines model for GetAiBomResponseBody.
 type GetAiBomResponseBody struct {
@@ -375,6 +423,34 @@ func (t *CreateAiBomRequestData) MergeSCMBundleStoreData(v SCMBundleStoreData) e
 	return err
 }
 
+// AsFileUploadAPIData returns the union data inside the CreateAiBomRequestData as a FileUploadAPIData
+func (t CreateAiBomRequestData) AsFileUploadAPIData() (FileUploadAPIData, error) {
+	var body FileUploadAPIData
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFileUploadAPIData overwrites any union data inside the CreateAiBomRequestData as the provided FileUploadAPIData
+func (t *CreateAiBomRequestData) FromFileUploadAPIData(v FileUploadAPIData) error {
+	v.Type = "ai_bom_file_upload"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFileUploadAPIData performs a merge with any union data inside the CreateAiBomRequestData, using the provided FileUploadAPIData
+func (t *CreateAiBomRequestData) MergeFileUploadAPIData(v FileUploadAPIData) error {
+	v.Type = "ai_bom_file_upload"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t CreateAiBomRequestData) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"type"`
@@ -391,6 +467,8 @@ func (t CreateAiBomRequestData) ValueByDiscriminator() (interface{}, error) {
 	switch discriminator {
 	case "ai_bom_file_bundle":
 		return t.AsFileBundleStoreData()
+	case "ai_bom_file_upload":
+		return t.AsFileUploadAPIData()
 	case "ai_bom_scm_bundle":
 		return t.AsSCMBundleStoreData()
 	default:
@@ -404,6 +482,95 @@ func (t CreateAiBomRequestData) MarshalJSON() ([]byte, error) {
 }
 
 func (t *CreateAiBomRequestData) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCreateAndUploadAiBomFileBundleData returns the union data inside the CreateAndUploadAiBomRequestData as a CreateAndUploadAiBomFileBundleData
+func (t CreateAndUploadAiBomRequestData) AsCreateAndUploadAiBomFileBundleData() (CreateAndUploadAiBomFileBundleData, error) {
+	var body CreateAndUploadAiBomFileBundleData
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateAndUploadAiBomFileBundleData overwrites any union data inside the CreateAndUploadAiBomRequestData as the provided CreateAndUploadAiBomFileBundleData
+func (t *CreateAndUploadAiBomRequestData) FromCreateAndUploadAiBomFileBundleData(v CreateAndUploadAiBomFileBundleData) error {
+	v.Type = "ai_bom_file_bundle"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateAndUploadAiBomFileBundleData performs a merge with any union data inside the CreateAndUploadAiBomRequestData, using the provided CreateAndUploadAiBomFileBundleData
+func (t *CreateAndUploadAiBomRequestData) MergeCreateAndUploadAiBomFileBundleData(v CreateAndUploadAiBomFileBundleData) error {
+	v.Type = "ai_bom_file_bundle"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateAndUploadAiBomFileUploadData returns the union data inside the CreateAndUploadAiBomRequestData as a CreateAndUploadAiBomFileUploadData
+func (t CreateAndUploadAiBomRequestData) AsCreateAndUploadAiBomFileUploadData() (CreateAndUploadAiBomFileUploadData, error) {
+	var body CreateAndUploadAiBomFileUploadData
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateAndUploadAiBomFileUploadData overwrites any union data inside the CreateAndUploadAiBomRequestData as the provided CreateAndUploadAiBomFileUploadData
+func (t *CreateAndUploadAiBomRequestData) FromCreateAndUploadAiBomFileUploadData(v CreateAndUploadAiBomFileUploadData) error {
+	v.Type = "ai_bom_file_upload"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateAndUploadAiBomFileUploadData performs a merge with any union data inside the CreateAndUploadAiBomRequestData, using the provided CreateAndUploadAiBomFileUploadData
+func (t *CreateAndUploadAiBomRequestData) MergeCreateAndUploadAiBomFileUploadData(v CreateAndUploadAiBomFileUploadData) error {
+	v.Type = "ai_bom_file_upload"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CreateAndUploadAiBomRequestData) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t CreateAndUploadAiBomRequestData) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "ai_bom_file_bundle":
+		return t.AsCreateAndUploadAiBomFileBundleData()
+	case "ai_bom_file_upload":
+		return t.AsCreateAndUploadAiBomFileUploadData()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t CreateAndUploadAiBomRequestData) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CreateAndUploadAiBomRequestData) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

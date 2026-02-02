@@ -4,11 +4,19 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"text/template"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/snyk/go-application-framework/pkg/apiclients/fileupload"
 	"github.com/snyk/go-application-framework/pkg/configuration"
 	"github.com/snyk/go-application-framework/pkg/workflow"
+
+	"github.com/snyk/cli-extension-secrets/pkg/filefilter"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/errors"
 	aiBomClient "github.com/snyk/cli-extension-ai-bom/internal/services/ai-bom-client"
@@ -23,6 +31,8 @@ import (
 )
 
 var WorkflowID = workflow.NewWorkflowIdentifier("aibom")
+
+const FilterAndUploadFilesTimeout = 5 * time.Minute
 
 func RegisterWorkflows(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom", pflag.ExitOnError)
@@ -56,7 +66,7 @@ var htmlTemplate string
 
 func RunAiBomWorkflow(
 	invocationCtx workflow.InvocationContext,
-	codeService code.CodeService,
+	_ code.CodeService,
 	depgraphService depgraph.DepgraphService,
 	aiBomClient aiBomClient.AiBomClient,
 ) ([]workflow.Data, error) {
@@ -91,8 +101,14 @@ func RunAiBomWorkflow(
 		return nil, errors.NewInvalidArgumentError("repo name is required when monitor flag is set").SnykError
 	}
 
+	orgIDUUID, err := uuid.Parse(orgID)
+	if err != nil {
+		logger.Debug().Err(err).Msg("error while parsing orgID")
+		return nil, errors.NewInternalError("error while parsing orgID").SnykError
+	}
+
 	logger.Debug().Msg("checking api availability")
-	aiBomErr := aiBomClient.CheckAPIAvailability(ctx, orgID)
+	aiBomErr := aiBomClient.CheckAPIAvailability(ctx, orgIDUUID)
 
 	if aiBomErr != nil {
 		logger.Debug().Msg("api availability check failed")
@@ -118,21 +134,23 @@ func RunAiBomWorkflow(
 		}
 	}
 
-	ui := invocationCtx.GetUserInterface()
-	bundleHash, bundleErr := codeService.UploadBundle(path, depGraphMap,
-		invocationCtx.GetNetworkAccess().GetHttpClient(), logger, config, ui)
-	if bundleErr != nil {
-		logger.Debug().Err(bundleErr.SnykError).Msg("error while uploading bundle")
-		return nil, bundleErr.SnykError
+	fileUploadClient := fileupload.NewClient(invocationCtx.GetNetworkAccess().GetHttpClient(), fileupload.Config{
+		OrgID: orgIDUUID,
+	})
+
+	uploadRevisionID, err := filterAndUploadFiles(ctx, fileUploadClient, logger, path)
+	if err != nil {
+		logger.Error().Err(err).Msg("error while filtering and uploading files")
+		return nil, err
 	}
 
 	var aiBomDoc string
 	var createAIBomErr *errors.AiBomError
 
 	if upload {
-		aiBomDoc, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgID, bundleHash, repoName)
+		aiBomDoc, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgIDUUID, uploadRevisionID, repoName)
 	} else {
-		aiBomDoc, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgID, bundleHash)
+		aiBomDoc, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgIDUUID, uploadRevisionID)
 	}
 
 	if createAIBomErr != nil {
@@ -153,6 +171,46 @@ func RunAiBomWorkflow(
 	}
 
 	return []workflow.Data{workflowData}, nil
+}
+
+func filterAndUploadFiles(ctx context.Context, client fileupload.Client, logger *zerolog.Logger, inputPath string) (uuid.UUID, error) {
+	uploadCtx, cancelFindFiles := context.WithTimeout(ctx, FilterAndUploadFilesTimeout)
+	defer cancelFindFiles()
+
+	textFilesFilter := filefilter.NewPipeline(
+		filefilter.WithConcurrency(runtime.NumCPU()),
+		filefilter.WithFilters(
+			filefilter.FileSizeFilter(logger),
+			filefilter.TextFileOnlyFilter(logger),
+		),
+		filefilter.WithLogger(logger),
+	)
+	pathsChan := textFilesFilter.Filter(uploadCtx, []string{inputPath})
+
+	// for file inputPath we need to compute the relativity of the file path w.r.t. the file's dir
+	dir := inputPath
+	ok, err := isFile(inputPath)
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("failed to determine if inputPath is a file: %w", err)
+	}
+	if ok {
+		dir = filepath.Dir(inputPath)
+	}
+
+	uploadRevision, err := client.CreateRevisionFromChan(uploadCtx, pathsChan, dir)
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("failed to create upload revision: %w", err)
+	}
+
+	return uploadRevision.RevisionID, nil
+}
+
+func isFile(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false, fmt.Errorf("failed to stat path: %w", err)
+	}
+	return !info.IsDir(), nil
 }
 
 func generateHTML(aiBomDoc string) (string, error) {

@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	uuid "github.com/google/uuid"
 	errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -42,7 +43,7 @@ func (m *MockAiBomClient) EXPECT() *MockAiBomClientMockRecorder {
 }
 
 // CheckAPIAvailability mocks base method.
-func (m *MockAiBomClient) CheckAPIAvailability(ctx context.Context, orgID string) *errors.AiBomError {
+func (m *MockAiBomClient) CheckAPIAvailability(ctx context.Context, orgID uuid.UUID) *errors.AiBomError {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CheckAPIAvailability", ctx, orgID)
 	ret0, _ := ret[0].(*errors.AiBomError)
@@ -56,31 +57,31 @@ func (mr *MockAiBomClientMockRecorder) CheckAPIAvailability(ctx, orgID any) *gom
 }
 
 // CreateAndUploadAIBOM mocks base method.
-func (m *MockAiBomClient) CreateAndUploadAIBOM(ctx context.Context, orgID, bundleHash, repoName string) (string, *errors.AiBomError) {
+func (m *MockAiBomClient) CreateAndUploadAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID, repoName string) (string, *errors.AiBomError) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateAndUploadAIBOM", ctx, orgID, bundleHash, repoName)
+	ret := m.ctrl.Call(m, "CreateAndUploadAIBOM", ctx, orgID, uploadRevisionID, repoName)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(*errors.AiBomError)
 	return ret0, ret1
 }
 
 // CreateAndUploadAIBOM indicates an expected call of CreateAndUploadAIBOM.
-func (mr *MockAiBomClientMockRecorder) CreateAndUploadAIBOM(ctx, orgID, bundleHash, repoName any) *gomock.Call {
+func (mr *MockAiBomClientMockRecorder) CreateAndUploadAIBOM(ctx, orgID, uploadRevisionID, repoName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAndUploadAIBOM", reflect.TypeOf((*MockAiBomClient)(nil).CreateAndUploadAIBOM), ctx, orgID, bundleHash, repoName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAndUploadAIBOM", reflect.TypeOf((*MockAiBomClient)(nil).CreateAndUploadAIBOM), ctx, orgID, uploadRevisionID, repoName)
 }
 
 // GenerateAIBOM mocks base method.
-func (m *MockAiBomClient) GenerateAIBOM(ctx context.Context, orgID, bundleHash string) (string, *errors.AiBomError) {
+func (m *MockAiBomClient) GenerateAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID) (string, *errors.AiBomError) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenerateAIBOM", ctx, orgID, bundleHash)
+	ret := m.ctrl.Call(m, "GenerateAIBOM", ctx, orgID, uploadRevisionID)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(*errors.AiBomError)
 	return ret0, ret1
 }
 
 // GenerateAIBOM indicates an expected call of GenerateAIBOM.
-func (mr *MockAiBomClientMockRecorder) GenerateAIBOM(ctx, orgID, bundleHash any) *gomock.Call {
+func (mr *MockAiBomClientMockRecorder) GenerateAIBOM(ctx, orgID, uploadRevisionID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateAIBOM", reflect.TypeOf((*MockAiBomClient)(nil).GenerateAIBOM), ctx, orgID, bundleHash)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateAIBOM", reflect.TypeOf((*MockAiBomClient)(nil).GenerateAIBOM), ctx, orgID, uploadRevisionID)
 }
