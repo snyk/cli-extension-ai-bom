@@ -16,9 +16,7 @@ import (
 	"github.com/snyk/go-application-framework/pkg/runtimeinfo"
 )
 
-var (
-	MockOrgID = uuid.MustParse("c8dbe227-1968-5654-a467-58d73f8f0311")
-)
+var MockOrgID = uuid.MustParse("c8dbe227-1968-5654-a467-58d73f8f0311")
 
 func NewMockInvocationContext(
 	t *testing.T,
