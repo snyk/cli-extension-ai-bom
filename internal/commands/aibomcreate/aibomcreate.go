@@ -72,6 +72,7 @@ func RunAiBomWorkflow(
 	path := config.GetString(configuration.INPUT_DIRECTORY)
 	upload := config.GetBool(utils.FlagUpload)
 	repoName := config.GetString(utils.FlagRepoName)
+	baseURL := config.GetString(configuration.API_URL)
 
 	// As this is an experimental feature, we only want to continue if the experimental flag is set
 	if !experimental {
@@ -112,7 +113,8 @@ func RunAiBomWorkflow(
 	logger.Debug().Msg("AI BOM workflow start")
 
 	fileUploadClient := fileupload.NewClient(invocationCtx.GetNetworkAccess().GetHttpClient(), fileupload.Config{
-		OrgID: orgIDUUID,
+		BaseURL: baseURL,
+		OrgID:   orgIDUUID,
 	})
 
 	uploadRevisionID, err := filterAndUploadFiles(ctx, fileUploadClient, logger, path)
