@@ -17,10 +17,6 @@ import (
 	errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
 )
 
-const (
-	DryRunBundleHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-)
-
 var DryRunUploadRevisionID = uuid.MustParse("00000000-0000-0000-0000-000000000000")
 
 //revive:disable:exported // The interface must be called AiBomClient to standardize.
