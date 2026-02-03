@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	libGoMock "github.com/golang/mock/gomock"
+	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
 
 	"github.com/rs/zerolog"
@@ -15,6 +16,8 @@ import (
 	"github.com/snyk/go-application-framework/pkg/runtimeinfo"
 )
 
+var MockOrgID = uuid.MustParse("c8dbe227-1968-5654-a467-58d73f8f0311")
+
 func NewMockInvocationContext(
 	t *testing.T,
 ) *mocks.MockInvocationContext {
@@ -23,7 +26,7 @@ func NewMockInvocationContext(
 
 	mockConfig := configuration.New()
 	mockConfig.Set(configuration.AUTHENTICATION_TOKEN, "<MOCK_API_TOKEN>")
-	mockConfig.Set(configuration.ORGANIZATION, "<MOCK_ORG_PUBLIC_ID>")
+	mockConfig.Set(configuration.ORGANIZATION, MockOrgID.String())
 	mockConfig.Set("name", "mock-project")
 	mockConfig.Set("version", "0.0.0")
 

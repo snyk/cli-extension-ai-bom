@@ -4,16 +4,20 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"text/template"
 
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/snyk/go-application-framework/pkg/apiclients/fileupload"
 	"github.com/snyk/go-application-framework/pkg/configuration"
 	"github.com/snyk/go-application-framework/pkg/workflow"
 
+	"github.com/snyk/cli-extension-secrets/pkg/filefilter"
+
 	"github.com/snyk/cli-extension-ai-bom/internal/errors"
 	aiBomClient "github.com/snyk/cli-extension-ai-bom/internal/services/ai-bom-client"
-	"github.com/snyk/cli-extension-ai-bom/internal/services/code"
-	"github.com/snyk/cli-extension-ai-bom/internal/services/depgraph"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
@@ -41,14 +45,33 @@ func RegisterWorkflows(e workflow.Engine) error {
 var userAgent = "cli-extension-ai-bom"
 
 func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) (output []workflow.Data, err error) {
-	codeService := code.NewCodeServiceImpl()
-	depGraphService := depgraph.NewDepgraphServiceImpl()
 	logger := invocationCtx.GetEnhancedLogger()
 	ui := invocationCtx.GetUserInterface()
 	config := invocationCtx.GetConfiguration()
 	baseAPIURL := config.GetString(configuration.API_URL)
 	aiBomClient := aiBomClient.NewAiBomClient(logger, invocationCtx.GetNetworkAccess().GetHttpClient(), ui, userAgent, baseAPIURL)
-	return RunAiBomWorkflow(invocationCtx, codeService, depGraphService, aiBomClient)
+
+	orgID := config.GetString(configuration.ORGANIZATION)
+	if orgID == "" {
+		logger.Debug().Msg("no org id found")
+		// This check captures unauthorized users that don't provide an explicit orgId.
+		// Without this check the orgId would be empty and the api availability check would fail with 404.
+		// Users that do provide an explicit orgId will be handled by the api availability check
+		return nil, errors.NewUnauthorizedError("").SnykError
+	}
+
+	orgIDUUID, err := uuid.Parse(orgID)
+	if err != nil {
+		logger.Debug().Err(err).Msg("error while parsing orgID")
+		return nil, errors.NewInternalError("error while parsing orgID").SnykError
+	}
+
+	fileUploadClient := fileupload.NewClient(invocationCtx.GetNetworkAccess().GetHttpClient(), fileupload.Config{
+		OrgID:   orgIDUUID,
+		BaseURL: baseAPIURL,
+	})
+
+	return RunAiBomWorkflow(invocationCtx, orgIDUUID, aiBomClient, fileUploadClient)
 }
 
 //go:embed aibom.html
@@ -56,9 +79,9 @@ var htmlTemplate string
 
 func RunAiBomWorkflow(
 	invocationCtx workflow.InvocationContext,
-	codeService code.CodeService,
-	depgraphService depgraph.DepgraphService,
+	orgID uuid.UUID,
 	aiBomClient aiBomClient.AiBomClient,
+	fileUploadClient fileupload.Client,
 ) ([]workflow.Data, error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
@@ -76,14 +99,6 @@ func RunAiBomWorkflow(
 	}
 
 	ctx := context.Background()
-	orgID := config.GetString(configuration.ORGANIZATION)
-	if orgID == "" {
-		logger.Debug().Msg("no org id found")
-		// This check captures unauthorized users that don't provide an explicit orgId.
-		// Without this check the orgId would be empty and the api availability check would fail with 404.
-		// Users that do provide an explicit orgId will be handled by the api availability check
-		return nil, errors.NewUnauthorizedError("").SnykError
-	}
 	logger.Debug().Msgf("running command with orgId: %s", orgID)
 
 	if upload && repoName == "" {
@@ -101,38 +116,19 @@ func RunAiBomWorkflow(
 
 	logger.Debug().Msg("AI BOM workflow start")
 
-	depGraphResult, err := depgraphService.GetDepgraph(invocationCtx)
+	uploadRevisionID, err := filterAndUploadFiles(ctx, fileUploadClient, logger, path)
 	if err != nil {
-		// We just log a warning here; no return as we want to still proceed even without depgraphs.
-		logger.Warn().Msg("Failed to get the depgraph")
-	} else {
-		numGraphs := len(depGraphResult.DepgraphBytes)
-		logger.Debug().Msgf("Generated %d depgraph(s)\n", numGraphs)
-	}
-
-	// transform a depGraphResult into a map[string][]byte
-	depGraphMap := make(map[string][]byte)
-	if depGraphResult != nil {
-		for i, depGraph := range depGraphResult.DepgraphBytes {
-			depGraphMap[fmt.Sprintf("%s_%d.snykdepgraph", path+"/", i)] = depGraph
-		}
-	}
-
-	ui := invocationCtx.GetUserInterface()
-	bundleHash, bundleErr := codeService.UploadBundle(path, depGraphMap,
-		invocationCtx.GetNetworkAccess().GetHttpClient(), logger, config, ui)
-	if bundleErr != nil {
-		logger.Debug().Err(bundleErr.SnykError).Msg("error while uploading bundle")
-		return nil, bundleErr.SnykError
+		logger.Error().Err(err).Msg("error while filtering and uploading files")
+		return nil, err
 	}
 
 	var aiBomDoc string
 	var createAIBomErr *errors.AiBomError
 
 	if upload {
-		aiBomDoc, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgID, bundleHash, repoName)
+		aiBomDoc, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
 	} else {
-		aiBomDoc, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgID, bundleHash)
+		aiBomDoc, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgID, uploadRevisionID)
 	}
 
 	if createAIBomErr != nil {
@@ -153,6 +149,27 @@ func RunAiBomWorkflow(
 	}
 
 	return []workflow.Data{workflowData}, nil
+}
+
+func filterAndUploadFiles(ctx context.Context, client fileupload.Client, logger *zerolog.Logger, inputPath string) (uuid.UUID, error) {
+	textFilesFilter := filefilter.NewPipeline(
+		filefilter.WithConcurrency(runtime.NumCPU()),
+		filefilter.WithFilters(
+			// The file upload api only supports files up to 50mb
+			filefilter.FileSizeFilter(logger),
+			// we only want to upload text files
+			filefilter.TextFileOnlyFilter(logger),
+		),
+		filefilter.WithLogger(logger),
+	)
+	pathsChan := textFilesFilter.Filter(ctx, []string{inputPath})
+
+	uploadRevision, err := client.CreateRevisionFromChan(ctx, pathsChan, inputPath)
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("failed to create upload revision: %w", err)
+	}
+
+	return uploadRevision.RevisionID, nil
 }
 
 func generateHTML(aiBomDoc string) (string, error) {

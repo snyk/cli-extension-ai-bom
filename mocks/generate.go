@@ -5,7 +5,6 @@ package mocks
 //go:generate mockgen -package httpmock -destination httpmock/round_tripper_mock.go net/http RoundTripper
 
 // Local library mocks
-//go:generate mockgen -package codemock -destination codemock/code_mock.go github.com/snyk/cli-extension-ai-bom/internal/services/code CodeService
-//go:generate mockgen -package depgraphmock -destination depgraphmock/depgraph_mock.go github.com/snyk/cli-extension-ai-bom/internal/services/depgraph DepgraphService
+//go:generate mockgen -package fileuploadmock -destination fileuploadmock/client_mock.go github.com/snyk/go-application-framework/pkg/apiclients/fileupload Client
 //go:generate mockgen -package aibomclientmock -destination aibomclientmock/client_mock.go github.com/snyk/cli-extension-ai-bom/internal/services/ai-bom-client AiBomClient
 //go:generate mockgen -package redteamclientmock -destination redteamclientmock/client_mock.go github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client RedTeamClient
