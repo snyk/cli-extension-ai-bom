@@ -67,6 +67,7 @@ func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) 
 	}
 
 	fileUploadClient := fileupload.NewClient(invocationCtx.GetNetworkAccess().GetHttpClient(), fileupload.Config{
+		OrgID:   orgIDUUID,
 		BaseURL: baseAPIURL,
 	})
 
