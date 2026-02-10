@@ -167,13 +167,13 @@ func filterAndUploadFiles(ctx context.Context, client fileupload.Client, logger 
 
 	textFilesFilter := filefilter.NewPipeline(
 		filefilter.WithConcurrency(runtime.NumCPU()),
+		// we only want to upload files that are not excluded by the rules
 		filefilter.WithExcludeGlobs(rules),
 		filefilter.WithFilters(
 			// The file upload api only supports files up to 50mb
 			filefilter.FileSizeFilter(logger),
 			// we only want to upload text files
 			filefilter.TextFileOnlyFilter(logger),
-			// we only want to upload files that are not excluded by the rules
 		),
 		filefilter.WithLogger(logger),
 	)
