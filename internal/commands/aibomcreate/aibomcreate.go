@@ -2,6 +2,7 @@ package aibomcreate
 
 import (
 	"context"
+	stdErrors "errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -12,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/snyk/go-application-framework/pkg/apiclients/fileupload"
 	"github.com/snyk/go-application-framework/pkg/configuration"
+	frameworkUtils "github.com/snyk/go-application-framework/pkg/utils"
 	"github.com/snyk/go-application-framework/pkg/workflow"
 
 	"github.com/snyk/cli-extension-secrets/pkg/filefilter"
@@ -118,6 +120,10 @@ func RunAiBomWorkflow(
 
 	uploadRevisionID, err := filterAndUploadFiles(ctx, fileUploadClient, logger, path)
 	if err != nil {
+		if stdErrors.Is(err, fileupload.ErrNoFilesProvided) {
+			return nil, errors.NewNoSupportedFilesError().SnykError
+		}
+
 		logger.Error().Err(err).Msg("error while filtering and uploading files")
 		return nil, err
 	}
@@ -152,13 +158,22 @@ func RunAiBomWorkflow(
 }
 
 func filterAndUploadFiles(ctx context.Context, client fileupload.Client, logger *zerolog.Logger, inputPath string) (uuid.UUID, error) {
+	filter := frameworkUtils.NewFileFilter(inputPath, logger, frameworkUtils.WithThreadNumber(runtime.NumCPU()))
+
+	rules, err := filter.GetRules([]string{".gitignore", ".dcignore", ".snyk"})
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("failed to get file filter rules: %w", err)
+	}
+
 	textFilesFilter := filefilter.NewPipeline(
 		filefilter.WithConcurrency(runtime.NumCPU()),
+		filefilter.WithExcludeGlobs(rules),
 		filefilter.WithFilters(
 			// The file upload api only supports files up to 50mb
 			filefilter.FileSizeFilter(logger),
 			// we only want to upload text files
 			filefilter.TextFileOnlyFilter(logger),
+			// we only want to upload files that are not excluded by the rules
 		),
 		filefilter.WithLogger(logger),
 	)
