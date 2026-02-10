@@ -148,6 +148,24 @@ func TestAiBomWorkflow_UPLOAD_BUNDLE_FAIL(t *testing.T) {
 	assert.Equal(t, fmt.Errorf("failed to create upload revision: %w", uploadErr), err)
 }
 
+func TestAiBomWorkflow_NO_SUPPORTED_FILES(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
+	ctrl := gomock.NewController(t)
+	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
+	uploadRevisionID := uuid.New()
+	fileUploadClient := fileuploadmock.NewMockClient(ctrl)
+
+	fileUploadClient.EXPECT().CreateRevisionFromChan(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(fileupload.UploadResult{
+		RevisionID: uploadRevisionID,
+	}, fileupload.ErrNoFilesProvided)
+
+	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
+
+	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
+	assert.Equal(t, errors.NewNoSupportedFilesError().SnykError.Error(), err.Error())
+}
+
 func TestAiBomWorkflow_AIBOM_GENERATION_FAIL(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
