@@ -252,20 +252,29 @@ or use the --config flag to specify a custom path.`
 }
 
 func handleScanFailure(scanStatus *redteamclient.AIScan, scanID string) *redteam_errors.RedTeamError {
+	var hint string
+	vulnCounts := getVulnerabilityCounts(scanStatus)
+	if vulnCounts.total() > 0 {
+		hint = fmt.Sprintf("\n\nNote: Partial results are available (%d found before failure). "+
+			"Run 'snyk redteam --experimental get --id=%s' to retrieve them.",
+			vulnCounts.total(), scanID)
+	}
+
 	if len(scanStatus.Feedback.Error) > 0 {
 		backendError := scanStatus.Feedback.Error[0]
 
 		switch backendError.Code {
 		case "context_error":
-			return redteam_errors.NewScanContextError(backendError.Message, scanID)
+			return redteam_errors.NewScanContextError(backendError.Message+hint, scanID)
 		case "network_error":
-			return redteam_errors.NewScanNetworkError(backendError.Message, scanID)
+			return redteam_errors.NewScanNetworkError(backendError.Message+hint, scanID)
 		default:
 			errorMsg := fmt.Sprintf(
-				"Red teaming scan (ID: %s) failed. \nError type: %s \nMessage: %s",
+				"Red teaming scan (ID: %s) failed. \nError type: %s \nMessage: %s%s",
 				scanID,
 				backendError.Code,
 				backendError.Message,
+				hint,
 			)
 			return redteam_errors.NewScanError(errorMsg, scanID)
 		}
