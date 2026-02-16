@@ -567,9 +567,30 @@
        EMPTY STATE
        =================================================================== */
       .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
         text-align: center;
         padding: var(--pcl-spacing-48) var(--pcl-spacing-24);
         color: var(--color-fg-tertiary);
+      }
+
+      .empty-state-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: var(--pcl-radius-xl);
+        background-color: rgba(21, 128, 61, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--pcl-spacing-16);
+      }
+
+      .empty-state-icon svg {
+        width: 28px;
+        height: 28px;
+        color: var(--pcl-color-primitives-green-300);
       }
 
       .empty-state-title {
@@ -577,6 +598,12 @@
         font-weight: var(--pcl-font-weight-semibold);
         color: var(--color-fg-secondary);
         margin-bottom: var(--pcl-spacing-8);
+      }
+
+      .empty-state-description {
+        font-size: var(--pcl-font-size-xs);
+        color: var(--color-fg-tertiary);
+        max-width: 400px;
       }
 
       /* ===================================================================
@@ -875,26 +902,17 @@
           return severityOrder(a.severity) - severityOrder(b.severity);
         });
 
-        if (results.length === 0) {
-          root.innerHTML =
-            '<h1 class="report-title">Red teaming report</h1>' +
-            '<p class="report-subtitle">Report ID: ' + escapeHtml(data.id) + "</p>" +
-            '<div class="empty-state">' +
-            '<div class="empty-state-title">No issues found</div>' +
-            "<p>The red teaming scan completed without finding any vulnerabilities.</p>" +
-            "</div>";
-          return;
-        }
-
         var html = "";
 
         html +=
           '<h1 class="report-title">Red teaming report</h1>' +
           '<p class="report-subtitle">Report ID: ' + escapeHtml(data.id) + "</p>" +
           '<p class="report-subtitle">Target URL: ' +
-          urls.map(function (u) {
-            return '<a href="' + escapeAttr(u) + '" target="_blank" rel="noopener">' + escapeHtml(u) + "</a>";
-          }).join(", ") +
+          (urls.length > 0
+            ? urls.map(function (u) {
+                return '<a href="' + escapeAttr(u) + '" target="_blank" rel="noopener">' + escapeHtml(u) + "</a>";
+              }).join(", ")
+            : "\u2014") +
           "</p>";
 
         html +=
@@ -921,6 +939,27 @@
           "</div>" +
           "</div>" +
           "</div>";
+
+        if (results.length === 0) {
+          html +=
+            '<div class="issues-table-wrapper">' +
+            '<div class="issues-table-header">' +
+            '<span class="issues-table-title">Issues <span class="issues-table-count">0</span></span>' +
+            "</div>" +
+            '<div class="empty-state">' +
+            '<div class="empty-state-icon">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">' +
+            '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />' +
+            "</svg>" +
+            "</div>" +
+            '<div class="empty-state-title">No issues found</div>' +
+            '<p class="empty-state-description">The red teaming scan completed without finding any issues.</p>' +
+            "</div>" +
+            "</div>";
+
+          root.innerHTML = html;
+          return;
+        }
 
         var GROUP_BY_OPTIONS = ["None", "Severity", "Issue type"];
         frameworkNames.forEach(function (name) {
