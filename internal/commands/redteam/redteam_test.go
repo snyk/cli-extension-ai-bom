@@ -477,6 +477,148 @@ func TestRunRedTeamWorkflowWithScanningAgentOverride_InvalidScanningAgentID(t *t
 	require.Contains(t, err.Error(), "Scanning agent ID is not a valid UUID")
 }
 
+func TestRunRedTeamWorkflow_HTMLOutput(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, redteamTestConfigFile)
+	ictx.GetConfiguration().Set("html", true)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		PollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusStarted},
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+		ScanResults: redteamclient.GetAIVulnerabilitiesResponseData{
+			ID: "report-123",
+			Results: []redteamclient.AIVulnerability{
+				{
+					ID: "vuln-001",
+					Definition: redteamclient.AIVulnerabilityDefinition{
+						ID:          "capability_extraction",
+						Name:        "Capability extraction",
+						Description: "Test description",
+					},
+					Tags:     []string{"framework: OWASP, LLM01 - Prompt Injection"},
+					Severity: "high",
+					URL:      "https://example.com/api/chat",
+					Turns: []redteamclient.Turn{
+						{
+							Request:  strPtr("test request"),
+							Response: strPtr("test response"),
+						},
+					},
+					Evidence: redteamclient.AIVulnerabilityEvidence{
+						Type: "json",
+						Content: redteamclient.AIVulnerabilityEvidenceContent{
+							Reason: "test reason",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam", "--html"}
+	defer func() { os.Args = originalArgs }()
+
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "text/html", results[0].GetContentType())
+
+	payload, ok := results[0].GetPayload().([]byte)
+	require.True(t, ok)
+	html := string(payload)
+	assert.Contains(t, html, "<!doctype html>")
+	assert.Contains(t, html, "report-123")
+	assert.Contains(t, html, "vuln-001")
+	assert.Contains(t, html, "Capability extraction")
+	assert.Contains(t, html, "https://example.com/api/chat")
+}
+
+func TestRunRedTeamWorkflow_HTMLOutputWithEmptyResults(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, redteamTestConfigFile)
+	ictx.GetConfiguration().Set("html", true)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		PollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+		ScanResults: redteamclient.GetAIVulnerabilitiesResponseData{
+			ID:      "report-empty",
+			Results: []redteamclient.AIVulnerability{},
+		},
+	}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam", "--html"}
+	defer func() { os.Args = originalArgs }()
+
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "text/html", results[0].GetContentType())
+
+	payload, ok := results[0].GetPayload().([]byte)
+	require.True(t, ok)
+	html := string(payload)
+	assert.Contains(t, html, "report-empty")
+	assert.Contains(t, html, "No issues found")
+}
+
+func TestRunRedTeamWorkflow_HTMLOutputWithoutTags(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, redteamTestConfigFile)
+	ictx.GetConfiguration().Set("html", true)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		PollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusStarted},
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+		ScanResults: redteamclient.GetAIVulnerabilitiesResponseData{
+			ID: "report-no-tags",
+			Results: []redteamclient.AIVulnerability{
+				{
+					ID: "vuln-no-tags",
+					Definition: redteamclient.AIVulnerabilityDefinition{
+						ID:   "test_def",
+						Name: "Test Definition",
+					},
+					Severity: "medium",
+					URL:      "https://example.com",
+				},
+			},
+		},
+	}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam", "--html"}
+	defer func() { os.Args = originalArgs }()
+
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "text/html", results[0].GetContentType())
+
+	payload, ok := results[0].GetPayload().([]byte)
+	require.True(t, ok)
+	html := string(payload)
+	assert.Contains(t, html, "vuln-no-tags")
+	assert.Contains(t, html, "Test Definition")
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
 func TestRunRedTeamWorkflow_VulnerabilitiesFoundDuringPolling(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
