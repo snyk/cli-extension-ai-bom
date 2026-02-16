@@ -262,19 +262,19 @@ func handleScanFailure(scanStatus *redteamclient.AIScan, scanID string) *redteam
 
 	if len(scanStatus.Feedback.Error) > 0 {
 		backendError := scanStatus.Feedback.Error[0]
+		message := backendError.Message + hint
 
 		switch backendError.Code {
 		case "context_error":
-			return redteam_errors.NewScanContextError(backendError.Message+hint, scanID)
+			return redteam_errors.NewScanContextError(message, scanID)
 		case "network_error":
-			return redteam_errors.NewScanNetworkError(backendError.Message+hint, scanID)
+			return redteam_errors.NewScanNetworkError(message, scanID)
 		default:
 			errorMsg := fmt.Sprintf(
-				"Red teaming scan (ID: %s) failed. \nError type: %s \nMessage: %s%s",
+				"Red teaming scan (ID: %s) failed. \nError type: %s \nMessage: %s",
 				scanID,
 				backendError.Code,
-				backendError.Message,
-				hint,
+				message,
 			)
 			return redteam_errors.NewScanError(errorMsg, scanID)
 		}
