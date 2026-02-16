@@ -615,6 +615,103 @@ func TestRunRedTeamWorkflow_HTMLOutputWithoutTags(t *testing.T) {
 	assert.Contains(t, html, "Test Definition")
 }
 
+func TestRunRedTeamWorkflow_HTMLFileOutput(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, redteamTestConfigFile)
+
+	tmpFile := t.TempDir() + "/report.html"
+	ictx.GetConfiguration().Set("html-file-output", tmpFile)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		PollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+		ScanResults: redteamclient.GetAIVulnerabilitiesResponseData{
+			ID: "report-file",
+			Results: []redteamclient.AIVulnerability{
+				{
+					ID: "vuln-file-001",
+					Definition: redteamclient.AIVulnerabilityDefinition{
+						ID:   "test_def",
+						Name: "File Output Test",
+					},
+					Severity: "high",
+					URL:      "https://example.com/api",
+				},
+			},
+		},
+	}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam", "--html-file-output", tmpFile}
+	defer func() { os.Args = originalArgs }()
+
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "application/json", results[0].GetContentType())
+
+	fileContent, readErr := os.ReadFile(tmpFile)
+	require.NoError(t, readErr)
+	html := string(fileContent)
+	assert.Contains(t, html, "<!doctype html>")
+	assert.Contains(t, html, "vuln-file-001")
+	assert.Contains(t, html, "File Output Test")
+}
+
+func TestRunRedTeamWorkflow_HTMLFileOutputWithHTMLFlag(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, redteamTestConfigFile)
+
+	tmpFile := t.TempDir() + "/report.html"
+	ictx.GetConfiguration().Set("html-file-output", tmpFile)
+	ictx.GetConfiguration().Set("html", true)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		PollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusCompleted},
+		},
+		ScanResults: redteamclient.GetAIVulnerabilitiesResponseData{
+			ID: "report-both",
+			Results: []redteamclient.AIVulnerability{
+				{
+					ID: "vuln-both-001",
+					Definition: redteamclient.AIVulnerabilityDefinition{
+						ID:   "test_def",
+						Name: "Both Output Test",
+					},
+					Severity: "medium",
+					URL:      "https://example.com/api",
+				},
+			},
+		},
+	}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam", "--html", "--html-file-output", tmpFile}
+	defer func() { os.Args = originalArgs }()
+
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "text/html", results[0].GetContentType())
+
+	stdoutPayload, ok := results[0].GetPayload().([]byte)
+	require.True(t, ok)
+	assert.Contains(t, string(stdoutPayload), "vuln-both-001")
+
+	fileContent, readErr := os.ReadFile(tmpFile)
+	require.NoError(t, readErr)
+	html := string(fileContent)
+	assert.Contains(t, html, "<!doctype html>")
+	assert.Contains(t, html, "vuln-both-001")
+	assert.Contains(t, html, "Both Output Test")
+}
+
 func strPtr(s string) *string {
 	return &s
 }

@@ -60,6 +60,7 @@ func RegisterRedTeamWorkflow(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom-redteam", pflag.ExitOnError)
 	flagset.Bool(utils.FlagExperimental, false, "This is an experiment feature that will contain breaking changes in future revisions")
 	flagset.Bool(utils.FlagHTML, false, "Output the red team report in HTML format instead of JSON")
+	flagset.String(utils.FlagHTMLFileOutput, "", "Write the HTML report to the specified file path")
 	flagset.String(utils.FlagConfig, "redteam.yaml", "Path to the red team configuration file")
 	flagset.String(utils.FlagRedTeamScanningAgentID, "", "Scanning agent ID (overrides configuration file)")
 
@@ -157,6 +158,22 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 	results, resultsErr := getScanResults(ctx, logger, redTeamClient, orgID, scanID)
 	if resultsErr != nil {
 		return nil, resultsErr
+	}
+
+	htmlFileOutput := config.GetString(utils.FlagHTMLFileOutput)
+	if htmlFileOutput != "" {
+		htmlOutput, htmlErr := htmlFromResults(results)
+		if htmlErr != nil {
+			logger.Debug().Err(htmlErr).Msg("error while generating HTML report for file output")
+			return nil, redteam_errors.NewGenericRedTeamError("Failed generating HTML report", htmlErr)
+		}
+
+		if writeErr := os.WriteFile(htmlFileOutput, []byte(htmlOutput), 0o600); writeErr != nil {
+			logger.Debug().Err(writeErr).Msgf("error writing HTML report to %s", htmlFileOutput)
+			return nil, redteam_errors.NewGenericRedTeamError(fmt.Sprintf("Failed writing HTML report to %s", htmlFileOutput), writeErr)
+		}
+
+		logger.Info().Msgf("HTML report written to %s", htmlFileOutput)
 	}
 
 	if config.GetBool(utils.FlagHTML) {
@@ -399,17 +416,21 @@ func outputVulnerabilityFindings(userInterface ui.UserInterface, logger *zerolog
 	}
 }
 
-func convertResultsToHTML(logger *zerolog.Logger, results []workflow.Data) ([]workflow.Data, *redteam_errors.RedTeamError) {
+func htmlFromResults(results []workflow.Data) (string, error) {
 	if len(results) == 0 {
-		return results, nil
+		return "", fmt.Errorf("no results to generate HTML from")
 	}
 
 	payload, ok := results[0].GetPayload().([]byte)
 	if !ok {
-		return nil, redteam_errors.NewGenericRedTeamError("Failed to read scan results for HTML generation", fmt.Errorf("unexpected payload type"))
+		return "", fmt.Errorf("unexpected payload type")
 	}
 
-	htmlOutput, err := generateRedTeamHTML(string(payload))
+	return generateRedTeamHTML(string(payload))
+}
+
+func convertResultsToHTML(logger *zerolog.Logger, results []workflow.Data) ([]workflow.Data, *redteam_errors.RedTeamError) {
+	htmlOutput, err := htmlFromResults(results)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error while generating HTML report")
 		return nil, redteam_errors.NewGenericRedTeamError("Failed generating HTML report", err)
