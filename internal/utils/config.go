@@ -12,6 +12,7 @@ const (
 
 	// redteam flags.
 	FlagConfig                 = "config"
+	FlagHTMLFileOutput         = "html-file-output"
 	FlagRedTeamScanningAgentID = "scanning-agent-id"
 
 	// redteam scanning-agent flags.

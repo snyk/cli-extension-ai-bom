@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
+	"text/template"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -32,8 +34,10 @@ import (
 
 var WorkflowID = workflow.NewWorkflowIdentifier("redteam")
 
+//go:embed redteam-report.html
+var redteamHTMLTemplate string
+
 const (
-	//
 	maxPollDuration = 24 * time.Hour
 	pollInterval    = 5000 * time.Millisecond
 	maxPollAttempts = int(maxPollDuration / pollInterval)
@@ -55,6 +59,8 @@ func RegisterWorkflows(e workflow.Engine) error {
 func RegisterRedTeamWorkflow(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom-redteam", pflag.ExitOnError)
 	flagset.Bool(utils.FlagExperimental, false, "This is an experiment feature that will contain breaking changes in future revisions")
+	flagset.Bool(utils.FlagHTML, false, "Output the red team report in HTML format instead of JSON")
+	flagset.String(utils.FlagHTMLFileOutput, "", "Write the HTML report to the specified file path")
 	flagset.String(utils.FlagConfig, "redteam.yaml", "Path to the red team configuration file")
 	flagset.String(utils.FlagRedTeamScanningAgentID, "", "Scanning agent ID (overrides configuration file)")
 
@@ -149,7 +155,39 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 
 	logger.Info().Msgf("Red team scan completed with ID: %s", scanID)
 
-	return getScanResults(ctx, logger, redTeamClient, orgID, scanID)
+	results, resultsErr := getScanResults(ctx, logger, redTeamClient, orgID, scanID)
+	if resultsErr != nil {
+		return nil, resultsErr
+	}
+
+	returnHTML := config.GetBool(utils.FlagHTML)
+	htmlFileOutput := config.GetString(utils.FlagHTMLFileOutput)
+	needsHTML := returnHTML || htmlFileOutput != ""
+
+	var htmlOutput string
+	if needsHTML {
+		var htmlErr error
+		htmlOutput, htmlErr = htmlFromResults(results)
+		if htmlErr != nil {
+			logger.Debug().Err(htmlErr).Msg("error while generating HTML report")
+			return nil, redteam_errors.NewGenericRedTeamError("Failed generating HTML report", htmlErr)
+		}
+	}
+
+	if htmlFileOutput != "" {
+		if writeErr := os.WriteFile(htmlFileOutput, []byte(htmlOutput), 0o600); writeErr != nil {
+			logger.Debug().Err(writeErr).Msgf("error writing HTML report to %s", htmlFileOutput)
+			return nil, redteam_errors.NewGenericRedTeamError(fmt.Sprintf("Failed writing HTML report to %s", htmlFileOutput), writeErr)
+		}
+
+		logger.Info().Msgf("HTML report written to %s", htmlFileOutput)
+	}
+
+	if returnHTML {
+		return []workflow.Data{newWorkflowData("text/html", []byte(htmlOutput))}, nil
+	}
+
+	return results, nil
 }
 
 //nolint:ireturn,nolintlint // Unable to change return type of external library
@@ -383,6 +421,33 @@ func outputVulnerabilityFindings(userInterface ui.UserInterface, logger *zerolog
 	if err := userInterface.Output(message); err != nil {
 		logger.Debug().Err(err).Msg("Failed to output vulnerability findings")
 	}
+}
+
+func htmlFromResults(results []workflow.Data) (string, error) {
+	if len(results) == 0 {
+		return "", fmt.Errorf("no results to generate HTML from")
+	}
+
+	payload, ok := results[0].GetPayload().([]byte)
+	if !ok {
+		return "", fmt.Errorf("unexpected payload type")
+	}
+
+	return generateRedTeamHTML(string(payload))
+}
+
+func generateRedTeamHTML(jsonData string) (string, error) {
+	tmpl, err := template.New("redteam-report").Parse(redteamHTMLTemplate)
+	if err != nil {
+		return "", fmt.Errorf("error parsing HTML template: %w", err)
+	}
+
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, jsonData); err != nil {
+		return "", fmt.Errorf("error executing HTML template: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 func newWorkflowData(contentType string, data []byte) workflow.Data {

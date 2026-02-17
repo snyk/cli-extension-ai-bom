@@ -1,0 +1,1223 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Red teaming report</title>
+    <style>
+      /* ===================================================================
+       DESIGN TOKENS — Primitives (from your design system)
+       =================================================================== */
+      :root {
+        --pcl-font-family-mono: "Geist Mono", ui-monospace, monospace;
+        --pcl-font-family-sans:
+          "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+
+        --pcl-font-size-2xs: 12px;
+        --pcl-font-size-xs: 13px;
+        --pcl-font-size-sm: 14px;
+        --pcl-font-size-base: 16px;
+        --pcl-font-size-lg: 18px;
+        --pcl-font-size-xl: 20px;
+        --pcl-font-size-2xl: 24px;
+
+        --pcl-font-weight-normal: 400;
+        --pcl-font-weight-medium: 500;
+        --pcl-font-weight-semibold: 600;
+        --pcl-font-weight-bold: 700;
+
+        --pcl-font-line-height-xs: 20px;
+        --pcl-font-line-height-sm: 24px;
+        --pcl-font-line-height-base: 28px;
+
+        --pcl-radius-sm: 4px;
+        --pcl-radius-md: 6px;
+        --pcl-radius-lg: 8px;
+        --pcl-radius-xl: 12px;
+        --pcl-radius-full: 9999px;
+
+        --pcl-spacing-4: 4px;
+        --pcl-spacing-6: 6px;
+        --pcl-spacing-8: 8px;
+        --pcl-spacing-10: 10px;
+        --pcl-spacing-12: 12px;
+        --pcl-spacing-16: 16px;
+        --pcl-spacing-20: 20px;
+        --pcl-spacing-24: 24px;
+        --pcl-spacing-32: 32px;
+        --pcl-spacing-40: 40px;
+        --pcl-spacing-48: 48px;
+
+        /* Color primitives */
+        --pcl-color-primitives-black: #000000;
+        --pcl-color-primitives-white: #ffffff;
+        --pcl-color-primitives-neutral-50: #fafafa;
+        --pcl-color-primitives-neutral-100: #f4f4f5;
+        --pcl-color-primitives-neutral-200: #e4e4e7;
+        --pcl-color-primitives-neutral-300: #d4d4d8;
+        --pcl-color-primitives-neutral-400: #9f9fa9;
+        --pcl-color-primitives-neutral-500: #71717b;
+        --pcl-color-primitives-neutral-600: #52525c;
+        --pcl-color-primitives-neutral-700: #3f3f46;
+        --pcl-color-primitives-neutral-800: #27272a;
+        --pcl-color-primitives-neutral-900: #18181b;
+        --pcl-color-primitives-neutral-950: #09090b;
+        --pcl-color-primitives-red-100: #ffe2e2;
+        --pcl-color-primitives-red-200: #ffc9c9;
+        --pcl-color-primitives-red-300: #ffa2a2;
+        --pcl-color-primitives-red-500: #fb2c36;
+        --pcl-color-primitives-red-700: #c10007;
+        --pcl-color-primitives-red-800: #9f0712;
+        --pcl-color-primitives-red-900: #82181a;
+        --pcl-color-primitives-red-950: #460809;
+        --pcl-color-primitives-orange-100: #ffedd4;
+        --pcl-color-primitives-orange-200: #ffd6a8;
+        --pcl-color-primitives-orange-300: #ffb86a;
+        --pcl-color-primitives-orange-500: #ff6900;
+        --pcl-color-primitives-orange-700: #ca3500;
+        --pcl-color-primitives-orange-800: #9f2d00;
+        --pcl-color-primitives-yellow-100: #fef9c2;
+        --pcl-color-primitives-yellow-200: #fff085;
+        --pcl-color-primitives-yellow-300: #ffdf20;
+        --pcl-color-primitives-yellow-500: #efb100;
+        --pcl-color-primitives-yellow-700: #a65f00;
+        --pcl-color-primitives-yellow-800: #894b00;
+        --pcl-color-primitives-blue-300: #8ec5ff;
+        --pcl-color-primitives-blue-500: #2b7fff;
+        --pcl-color-primitives-green-300: #7bf1a8;
+
+        --pcl-color-primitives-white-alpha-6: rgba(255, 255, 255, 0.06);
+        --pcl-color-primitives-white-alpha-8: rgba(255, 255, 255, 0.08);
+        --pcl-color-primitives-white-alpha-12: rgba(255, 255, 255, 0.12);
+      }
+
+      /* ===================================================================
+       SEMANTIC TOKENS — Dark theme
+       =================================================================== */
+      [data-theme="dark"] {
+        --color-bg: var(--pcl-color-primitives-neutral-900);
+        --color-bg-surface: var(--pcl-color-primitives-neutral-800);
+        --color-bg-surface-secondary: var(--pcl-color-primitives-neutral-900);
+        --color-bg-surface-tertiary: var(--pcl-color-primitives-neutral-950);
+
+        --color-fg: var(--pcl-color-primitives-neutral-100);
+        --color-fg-secondary: var(--pcl-color-primitives-neutral-300);
+        --color-fg-tertiary: var(--pcl-color-primitives-neutral-400);
+        --color-fg-muted: var(--pcl-color-primitives-neutral-500);
+
+        --color-border: var(--pcl-color-primitives-neutral-700);
+        --color-border-secondary: var(--pcl-color-primitives-neutral-600);
+
+        --color-severity-critical-bg: var(--pcl-color-primitives-red-800);
+        --color-severity-critical-fg: var(--pcl-color-primitives-red-100);
+        --color-severity-high-bg: var(--pcl-color-primitives-orange-800);
+        --color-severity-high-fg: var(--pcl-color-primitives-orange-100);
+        --color-severity-medium-bg: var(--pcl-color-primitives-yellow-700);
+        --color-severity-medium-fg: var(--pcl-color-primitives-yellow-100);
+        --color-severity-low-bg: var(--pcl-color-primitives-neutral-600);
+        --color-severity-low-fg: var(--pcl-color-primitives-neutral-200);
+
+        --color-link: var(--pcl-color-primitives-blue-300);
+        --color-accent: var(--pcl-color-primitives-blue-500);
+      }
+
+      /* ===================================================================
+       RESET & BASE
+       =================================================================== */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: var(--pcl-font-family-sans);
+        font-size: var(--pcl-font-size-sm);
+        line-height: var(--pcl-font-line-height-sm);
+        color: var(--color-fg);
+        background-color: var(--color-bg);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      code,
+      pre {
+        font-family: var(--pcl-font-family-mono);
+      }
+
+      /* ===================================================================
+       LAYOUT
+       =================================================================== */
+      .report-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: var(--pcl-spacing-32) var(--pcl-spacing-24);
+      }
+
+      /* ===================================================================
+       REPORT TITLE
+       =================================================================== */
+      .report-title {
+        font-size: var(--pcl-font-size-2xl);
+        font-weight: var(--pcl-font-weight-semibold);
+        color: var(--color-fg);
+        margin-bottom: var(--pcl-spacing-8);
+      }
+
+      .report-subtitle {
+        font-size: var(--pcl-font-size-sm);
+        color: var(--color-fg-tertiary);
+        margin-bottom: var(--pcl-spacing-4);
+      }
+
+      .report-subtitle:last-of-type {
+        margin-bottom: var(--pcl-spacing-32);
+      }
+
+      .report-subtitle a {
+        color: var(--color-link);
+        text-decoration: none;
+        font-family: var(--pcl-font-family-mono);
+        font-size: var(--pcl-font-size-xs);
+      }
+
+      .report-subtitle a:hover {
+        text-decoration: underline;
+      }
+
+      /* ===================================================================
+       SUMMARY BAR
+       =================================================================== */
+      .summary-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--pcl-spacing-24);
+        padding: var(--pcl-spacing-16) var(--pcl-spacing-20);
+        background-color: var(--color-bg-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--pcl-radius-lg);
+        margin-bottom: var(--pcl-spacing-32);
+      }
+
+      .summary-item {
+        display: flex;
+        flex-direction: column;
+        gap: var(--pcl-spacing-4);
+        flex: 1;
+      }
+
+      .summary-item-label {
+        font-size: var(--pcl-font-size-2xs);
+        color: var(--color-fg-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        font-weight: var(--pcl-font-weight-medium);
+      }
+
+      .summary-item-value {
+        font-size: var(--pcl-font-size-lg);
+        font-weight: var(--pcl-font-weight-semibold);
+        color: var(--color-fg);
+      }
+
+      .summary-severity-counts {
+        display: flex;
+        align-items: center;
+        gap: var(--pcl-spacing-16);
+      }
+
+      /* ===================================================================
+       SEVERITY BADGES (Pill style)
+       =================================================================== */
+      .severity-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--pcl-spacing-6);
+        font-size: var(--pcl-font-size-xs);
+        font-weight: var(--pcl-font-weight-medium);
+        line-height: 1;
+      }
+
+      .severity-badge-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: var(--pcl-radius-sm);
+        font-size: 11px;
+        font-weight: var(--pcl-font-weight-bold);
+      }
+
+      .severity-badge-count {
+        color: var(--color-fg-secondary);
+      }
+
+      .severity-badge-icon--critical {
+        background-color: var(--color-severity-critical-bg);
+        color: var(--color-severity-critical-fg);
+      }
+
+      .severity-badge-icon--high {
+        background-color: var(--color-severity-high-bg);
+        color: var(--color-severity-high-fg);
+      }
+
+      .severity-badge-icon--medium {
+        background-color: var(--color-severity-medium-bg);
+        color: var(--color-severity-medium-fg);
+      }
+
+      .severity-badge-icon--low {
+        background-color: var(--color-severity-low-bg);
+        color: var(--color-severity-low-fg);
+      }
+
+      .severity-label {
+        display: inline-block;
+        padding: var(--pcl-spacing-2) var(--pcl-spacing-10);
+        border-radius: var(--pcl-radius-sm);
+        font-size: var(--pcl-font-size-xs);
+        font-weight: var(--pcl-font-weight-medium);
+        line-height: var(--pcl-font-line-height-xs);
+        text-transform: capitalize;
+        padding: 0 var(--pcl-spacing-6);
+      }
+
+      .severity-label--critical {
+        background-color: var(--color-severity-critical-bg);
+        color: var(--color-severity-critical-fg);
+      }
+
+      .severity-label--high {
+        background-color: var(--color-severity-high-bg);
+        color: var(--color-severity-high-fg);
+      }
+
+      .severity-label--medium {
+        background-color: var(--color-severity-medium-bg);
+        color: var(--color-severity-medium-fg);
+      }
+
+      .severity-label--low {
+        background-color: var(--color-severity-low-bg);
+        color: var(--color-severity-low-fg);
+      }
+
+      /* ===================================================================
+       TAGS
+       =================================================================== */
+      .tag {
+        display: inline-block;
+        padding: var(--pcl-spacing-2) var(--pcl-spacing-8);
+        border-radius: var(--pcl-radius-sm);
+        font-size: var(--pcl-font-size-2xs);
+        font-family: var(--pcl-font-family-mono);
+        background-color: var(--pcl-color-primitives-white-alpha-8);
+        color: var(--color-fg-secondary);
+        border: 1px solid var(--color-border);
+        line-height: var(--pcl-font-line-height-xs);
+      }
+
+      .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--pcl-spacing-6);
+      }
+
+      /* ===================================================================
+       FRAMEWORKS SECTION
+       =================================================================== */
+      .frameworks-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--pcl-spacing-12);
+      }
+
+      .framework-row {
+        display: flex;
+        align-items: baseline;
+        gap: var(--pcl-spacing-12);
+      }
+
+      .framework-name {
+        font-size: var(--pcl-font-size-2xs);
+        font-weight: var(--pcl-font-weight-semibold);
+        color: var(--color-fg-tertiary);
+        white-space: nowrap;
+        min-width: 120px;
+      }
+
+      .framework-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--pcl-spacing-6);
+      }
+
+      .framework-tag {
+        display: inline-block;
+        padding: var(--pcl-spacing-2) var(--pcl-spacing-8);
+        border-radius: var(--pcl-radius-sm);
+        font-size: var(--pcl-font-size-2xs);
+        font-family: var(--pcl-font-family-mono);
+        background-color: var(--pcl-color-primitives-white-alpha-8);
+        color: var(--color-fg-secondary);
+        border: 1px solid var(--color-border);
+        line-height: var(--pcl-font-line-height-xs);
+      }
+
+      /* ===================================================================
+       TABLE (Issues list)
+       =================================================================== */
+      .issues-table-wrapper {
+        border: 1px solid var(--color-border);
+        border-radius: var(--pcl-radius-lg);
+        overflow: hidden;
+        margin-bottom: var(--pcl-spacing-48);
+      }
+
+      .issues-table-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--pcl-spacing-12) var(--pcl-spacing-20);
+        background-color: var(--color-bg-surface);
+        border-bottom: 1px solid var(--color-border);
+        gap: var(--pcl-spacing-16);
+      }
+
+      .issues-table-title {
+        font-size: var(--pcl-font-size-sm);
+        font-weight: var(--pcl-font-weight-medium);
+        color: var(--color-fg);
+        white-space: nowrap;
+      }
+
+      .issues-table-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 22px;
+        padding: 0 var(--pcl-spacing-6);
+        border-radius: var(--pcl-radius-sm);
+        background-color: var(--pcl-color-primitives-white-alpha-12);
+        font-size: var(--pcl-font-size-2xs);
+        font-weight: var(--pcl-font-weight-medium);
+        color: var(--color-fg-secondary);
+        margin-left: var(--pcl-spacing-8);
+      }
+
+      .segmented-control {
+        display: flex;
+        align-items: center;
+        background-color: var(--color-bg-surface-tertiary);
+        border: 1px solid var(--color-border);
+        border-radius: var(--pcl-radius-md);
+        padding: 2px;
+        gap: 2px;
+      }
+
+      .segmented-control-label {
+        font-size: var(--pcl-font-size-2xs);
+        color: var(--color-fg-tertiary);
+        margin-right: var(--pcl-spacing-8);
+        white-space: nowrap;
+      }
+
+      .segmented-control-btn {
+        padding: var(--pcl-spacing-4) var(--pcl-spacing-12);
+        border: none;
+        border-radius: var(--pcl-radius-sm);
+        background: transparent;
+        color: var(--color-fg-tertiary);
+        font-size: var(--pcl-font-size-2xs);
+        font-family: var(--pcl-font-family-sans);
+        font-weight: var(--pcl-font-weight-medium);
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          background-color 0.15s,
+          color 0.15s;
+      }
+
+      .segmented-control-btn:hover {
+        color: var(--color-fg-secondary);
+      }
+
+      .segmented-control-btn--active {
+        background-color: var(--pcl-color-primitives-white-alpha-12);
+        color: var(--color-fg);
+      }
+
+      .segmented-control-divider {
+        width: 1px;
+        height: 16px;
+        background-color: var(--color-border);
+        margin: 0 var(--pcl-spacing-4);
+        flex-shrink: 0;
+      }
+
+      .group-header-row td {
+        padding: var(--pcl-spacing-10) var(--pcl-spacing-20);
+        font-size: var(--pcl-font-size-xs);
+        font-weight: var(--pcl-font-weight-semibold);
+        color: var(--color-fg-secondary);
+        background-color: var(--color-bg-surface-tertiary);
+        border-bottom: 1px solid var(--color-border);
+        letter-spacing: 0.3px;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .group-header-row td .group-caret {
+        display: inline-block;
+        margin-right: var(--pcl-spacing-8);
+        font-size: var(--pcl-font-size-xs);
+        color: var(--color-fg-tertiary);
+        transition: transform 0.15s ease;
+      }
+
+      .group-header-row.collapsed td .group-caret {
+        transform: rotate(-90deg);
+      }
+
+      .group-header-row td .group-count {
+        font-weight: var(--pcl-font-weight-normal);
+        color: var(--color-fg-tertiary);
+        margin-left: var(--pcl-spacing-6);
+        font-size: var(--pcl-font-size-2xs);
+      }
+
+      .group-item-row.hidden {
+        display: none;
+      }
+
+      .issues-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .issues-table thead {
+        background-color: var(--color-bg-surface);
+      }
+
+      .issues-table th {
+        text-align: left;
+        font-size: var(--pcl-font-size-2xs);
+        font-weight: var(--pcl-font-weight-medium);
+        color: var(--color-fg-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: var(--pcl-spacing-10) var(--pcl-spacing-20);
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      .issues-table td {
+        padding: var(--pcl-spacing-16) var(--pcl-spacing-20);
+        border-bottom: 1px solid var(--color-border);
+        vertical-align: top;
+      }
+
+      .issues-table tbody tr:last-child td {
+        border-bottom: none;
+      }
+
+      .issues-table tbody tr {
+        cursor: pointer;
+      }
+
+      .issues-table tbody tr:hover {
+        background-color: var(--pcl-color-primitives-white-alpha-6);
+      }
+
+      .issues-table .col-id {
+        color: var(--color-fg-tertiary);
+        font-family: var(--pcl-font-family-mono);
+        font-size: var(--pcl-font-size-2xs);
+        white-space: nowrap;
+      }
+
+      .issues-table .col-name {
+        font-weight: var(--pcl-font-weight-medium);
+        color: var(--color-fg);
+      }
+
+      .issues-table .group-item-row .col-name {
+        padding-left: var(--pcl-spacing-40);
+      }
+
+      .issues-table .col-severity {
+        width: 100px;
+      }
+
+      .issues-table .col-url a {
+        color: var(--color-link);
+        text-decoration: none;
+      }
+
+      .issues-table .col-url a:hover {
+        text-decoration: underline;
+      }
+
+      /* ===================================================================
+       EMPTY STATE
+       =================================================================== */
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: var(--pcl-spacing-48) var(--pcl-spacing-24);
+        color: var(--color-fg-tertiary);
+      }
+
+      .empty-state-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: var(--pcl-radius-xl);
+        background-color: rgba(21, 128, 61, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--pcl-spacing-16);
+      }
+
+      .empty-state-icon svg {
+        width: 28px;
+        height: 28px;
+        color: var(--pcl-color-primitives-green-300);
+      }
+
+      .empty-state-title {
+        font-size: var(--pcl-font-size-lg);
+        font-weight: var(--pcl-font-weight-semibold);
+        color: var(--color-fg-secondary);
+        margin-bottom: var(--pcl-spacing-8);
+      }
+
+      .empty-state-description {
+        font-size: var(--pcl-font-size-xs);
+        color: var(--color-fg-tertiary);
+        max-width: 400px;
+      }
+
+      /* ===================================================================
+       ISSUE DETAIL CARD
+       =================================================================== */
+      .issue-card {
+        background-color: var(--color-bg-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--pcl-radius-lg);
+        margin-bottom: var(--pcl-spacing-24);
+        overflow: hidden;
+      }
+
+      .issue-card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: var(--pcl-spacing-16);
+        padding: var(--pcl-spacing-20);
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      .issue-card-header-left {
+        display: flex;
+        flex-direction: column;
+        gap: var(--pcl-spacing-4);
+      }
+
+      .issue-card-title {
+        font-size: var(--pcl-font-size-base);
+        font-weight: var(--pcl-font-weight-semibold);
+        color: var(--color-fg);
+      }
+
+      .issue-card-description {
+        font-size: var(--pcl-font-size-xs);
+        color: var(--color-fg-tertiary);
+      }
+
+      .issue-card-id {
+        font-size: var(--pcl-font-size-2xs);
+        color: var(--color-fg-tertiary);
+      }
+
+      .issue-card-id code {
+        font-family: var(--pcl-font-family-mono);
+      }
+
+      .issue-card-back-link {
+        font-size: var(--pcl-font-size-2xs);
+        color: var(--color-link);
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .issue-card-back-link:hover {
+        text-decoration: underline;
+      }
+
+      .issue-card-section {
+        padding: var(--pcl-spacing-20);
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      .issue-card-section:last-child {
+        border-bottom: none;
+      }
+
+      .issue-card-section-title {
+        font-size: var(--pcl-font-size-2xs);
+        font-weight: var(--pcl-font-weight-semibold);
+        color: var(--color-fg-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        margin-bottom: var(--pcl-spacing-12);
+      }
+
+      /* ===================================================================
+       CONVERSATION TURNS
+       =================================================================== */
+      .conversation-turns {
+        display: flex;
+        flex-direction: column;
+        gap: var(--pcl-spacing-16);
+      }
+
+      .conversation-turn {
+        display: flex;
+        flex-direction: column;
+        gap: var(--pcl-spacing-8);
+      }
+
+      .conversation-label {
+        font-size: var(--pcl-font-size-2xs);
+        font-weight: var(--pcl-font-weight-semibold);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+
+      .conversation-label--request {
+        color: var(--pcl-color-primitives-orange-300);
+      }
+
+      .conversation-label--response {
+        color: var(--pcl-color-primitives-blue-300);
+      }
+
+      .conversation-bubble {
+        font-size: var(--pcl-font-size-xs);
+        line-height: var(--pcl-font-line-height-sm);
+        color: var(--color-fg-secondary);
+        background-color: var(--color-bg-surface-tertiary);
+        border: 1px solid var(--color-border);
+        border-radius: var(--pcl-radius-md);
+        padding: var(--pcl-spacing-12) var(--pcl-spacing-16);
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: var(--pcl-font-family-mono);
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      /* ===================================================================
+       REASONING
+       =================================================================== */
+      .evidence-block {
+        font-size: var(--pcl-font-size-xs);
+        color: var(--color-fg-secondary);
+        line-height: var(--pcl-font-line-height-sm);
+      }
+
+      /* ===================================================================
+       SECTION DIVIDER
+       =================================================================== */
+      .section-divider {
+        border: none;
+        border-top: 1px solid var(--color-border);
+        margin: var(--pcl-spacing-40) 0;
+      }
+
+      .section-heading {
+        font-size: var(--pcl-font-size-lg);
+        font-weight: var(--pcl-font-weight-semibold);
+        color: var(--color-fg);
+        margin-bottom: var(--pcl-spacing-20);
+      }
+
+      /* ===================================================================
+       RESPONSIVE
+       =================================================================== */
+      @media (max-width: 768px) {
+        .report-container {
+          padding: var(--pcl-spacing-16);
+        }
+
+        .summary-bar {
+          flex-direction: column;
+          gap: var(--pcl-spacing-16);
+        }
+
+        .issues-table th,
+        .issues-table td {
+          padding: var(--pcl-spacing-10) var(--pcl-spacing-12);
+        }
+
+        .issue-card-header {
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="report-container" id="report-root"></div>
+
+    <script>
+      const REPORT_DATA = {{.}};
+    </script>
+
+    <script>
+      (function () {
+        var root = document.getElementById("report-root");
+
+        function escapeHtml(str) {
+          if (str == null) return "";
+          var div = document.createElement("div");
+          div.textContent = String(str);
+          return div.innerHTML;
+        }
+
+        function escapeAttr(str) {
+          return escapeHtml(str).replace(/"/g, "&quot;");
+        }
+
+        function shortId(id) {
+          return id ? id.substring(0, 8) : "\u2014";
+        }
+
+        function severityCounts(results) {
+          var counts = { critical: 0, high: 0, medium: 0, low: 0 };
+          results.forEach(function (r) {
+            var s = (r.severity || "").toLowerCase();
+            if (counts.hasOwnProperty(s)) counts[s]++;
+          });
+          return counts;
+        }
+
+        function severityOrder(severity) {
+          var order = { critical: 0, high: 1, medium: 2, low: 3 };
+          var s = (severity || "").toLowerCase();
+          return order[s] !== undefined ? order[s] : 4;
+        }
+
+        function severityBadgeIcon(level, count) {
+          var letter = level.charAt(0).toUpperCase();
+          return (
+            '<span class="severity-badge">' +
+            '<span class="severity-badge-icon severity-badge-icon--' + level + '">' + letter + "</span>" +
+            '<span class="severity-badge-count">' + count + "</span>" +
+            "</span>"
+          );
+        }
+
+        function severityLabel(level) {
+          return (
+            '<span class="severity-label severity-label--' + level + '">' +
+            level.charAt(0).toUpperCase() + level.slice(1) +
+            "</span>"
+          );
+        }
+
+        function parseFrameworkTags(tags) {
+          var map = new Map();
+          if (!tags) return map;
+          tags.forEach(function (tag) {
+            if (!tag.startsWith("framework:")) return;
+            var rest = tag.substring("framework:".length).trim();
+            var commaIdx = rest.indexOf(",");
+            var frameworkName, section;
+            if (commaIdx !== -1) {
+              frameworkName = rest.substring(0, commaIdx).trim();
+              section = rest.substring(commaIdx + 1).trim();
+            } else {
+              frameworkName = rest.trim();
+              section = null;
+            }
+            if (!map.has(frameworkName)) {
+              map.set(frameworkName, []);
+            }
+            if (section) {
+              map.get(frameworkName).push(section);
+            }
+          });
+          return map;
+        }
+
+        function detectFrameworkNames(results) {
+          var names = new Set();
+          results.forEach(function (r) {
+            var tags = r.tags || [];
+            tags.forEach(function (tag) {
+              if (!tag.startsWith("framework:")) return;
+              var rest = tag.substring("framework:".length).trim();
+              var commaIdx = rest.indexOf(",");
+              var name = commaIdx !== -1 ? rest.substring(0, commaIdx).trim() : rest.trim();
+              if (name) names.add(name);
+            });
+          });
+          return Array.from(names).sort();
+        }
+
+        function groupByDefinition(results) {
+          var map = new Map();
+          results.forEach(function (r) {
+            var key = r.definition.id;
+            if (!map.has(key)) {
+              map.set(key, { definition: r.definition, items: [] });
+            }
+            map.get(key).items.push(r);
+          });
+          return Array.from(map.values());
+        }
+
+        function uniqueUrls(results) {
+          return Array.from(new Set(results.map(function (r) { return r.url; }).filter(Boolean)));
+        }
+
+        var data = REPORT_DATA;
+        var results = data.results || [];
+        var counts = severityCounts(results);
+        var urls = uniqueUrls(results);
+        var groups = groupByDefinition(results);
+        var frameworkNames = detectFrameworkNames(results);
+
+        var sortedResults = results.slice().sort(function (a, b) {
+          return severityOrder(a.severity) - severityOrder(b.severity);
+        });
+
+        var html = "";
+
+        html +=
+          '<h1 class="report-title">Red teaming report</h1>' +
+          '<p class="report-subtitle">Report ID: ' + escapeHtml(data.id) + "</p>" +
+          '<p class="report-subtitle">Target URL: ' +
+          (urls.length > 0
+            ? urls.map(function (u) {
+                return '<a href="' + escapeAttr(u) + '" target="_blank" rel="noopener">' + escapeHtml(u) + "</a>";
+              }).join(", ")
+            : "\u2014") +
+          "</p>";
+
+        html +=
+          '<div class="summary-bar">' +
+          '<div class="summary-item">' +
+          '<span class="summary-item-label">Total issues</span>' +
+          '<span class="summary-item-value">' + results.length + "</span>" +
+          "</div>" +
+          '<div class="summary-item">' +
+          '<span class="summary-item-label">Target URLs</span>' +
+          '<span class="summary-item-value">' + urls.length + "</span>" +
+          "</div>" +
+          '<div class="summary-item">' +
+          '<span class="summary-item-label">Categories</span>' +
+          '<span class="summary-item-value">' + groups.length + "</span>" +
+          "</div>" +
+          '<div class="summary-item">' +
+          '<span class="summary-item-label">Severity Breakdown</span>' +
+          '<div class="summary-severity-counts">' +
+          severityBadgeIcon("critical", counts.critical) +
+          severityBadgeIcon("high", counts.high) +
+          severityBadgeIcon("medium", counts.medium) +
+          severityBadgeIcon("low", counts.low) +
+          "</div>" +
+          "</div>" +
+          "</div>";
+
+        if (results.length === 0) {
+          html +=
+            '<div class="issues-table-wrapper">' +
+            '<div class="issues-table-header">' +
+            '<span class="issues-table-title">Issues <span class="issues-table-count">0</span></span>' +
+            "</div>" +
+            '<div class="empty-state">' +
+            '<div class="empty-state-icon">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">' +
+            '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />' +
+            "</svg>" +
+            "</div>" +
+            '<div class="empty-state-title">No issues found</div>' +
+            '<p class="empty-state-description">The red teaming scan completed without finding any issues.</p>' +
+            "</div>" +
+            "</div>";
+
+          root.innerHTML = html;
+          return;
+        }
+
+        var GROUP_BY_OPTIONS = ["None", "Severity", "Issue type"];
+        frameworkNames.forEach(function (name) {
+          GROUP_BY_OPTIONS.push(name);
+        });
+
+        function groupIssuesByFramework(issues, frameworkName) {
+          var grouped = new Map();
+          var unmapped = [];
+          issues.forEach(function (r) {
+            var fwMap = parseFrameworkTags(r.tags || []);
+            var sections = fwMap.get(frameworkName);
+            if (sections && sections.length > 0) {
+              sections.forEach(function (sec) {
+                if (!grouped.has(sec)) grouped.set(sec, []);
+                grouped.get(sec).push(r);
+              });
+            } else {
+              unmapped.push(r);
+            }
+          });
+          var result = [];
+          Array.from(grouped.keys()).sort().forEach(function (key) {
+            result.push({ section: key, items: grouped.get(key) });
+          });
+          if (unmapped.length > 0) {
+            result.push({ section: "Other", items: unmapped });
+          }
+          return result;
+        }
+
+        function groupIssuesBySeverity(issues) {
+          var order = ["critical", "high", "medium", "low"];
+          var grouped = new Map();
+          issues.forEach(function (r) {
+            var sev = (r.severity || "low").toLowerCase();
+            if (!grouped.has(sev)) grouped.set(sev, []);
+            grouped.get(sev).push(r);
+          });
+          var result = [];
+          order.forEach(function (sev) {
+            if (grouped.has(sev)) {
+              result.push({
+                section: sev.charAt(0).toUpperCase() + sev.slice(1),
+                items: grouped.get(sev),
+              });
+            }
+          });
+          return result;
+        }
+
+        function groupIssuesByType(issues) {
+          var grouped = new Map();
+          issues.forEach(function (r) {
+            var name = r.definition.name || "Unknown";
+            if (!grouped.has(name)) grouped.set(name, []);
+            grouped.get(name).push(r);
+          });
+          var result = [];
+          Array.from(grouped.keys()).sort().forEach(function (key) {
+            result.push({ section: key, items: grouped.get(key) });
+          });
+          return result;
+        }
+
+        function renderTableRows(issues, groupId) {
+          var groupClass = groupId != null ? ' group-item-row" data-group-id="' + groupId : "";
+          return issues.map(function (r) {
+            var sev = (r.severity || "low").toLowerCase();
+            var safeId = escapeAttr(r.id);
+            return (
+              '<tr class="' + groupClass + '" data-issue-id="' + safeId + '">' +
+              '<td class="col-name">' + escapeHtml(r.definition.name) + "</td>" +
+              '<td class="col-id" title="' + safeId + '">' + escapeHtml(shortId(r.id)) + "</td>" +
+              '<td class="col-severity">' + severityLabel(sev) + "</td>" +
+              "</tr>"
+            );
+          }).join("");
+        }
+
+        function renderTableBody(issues, groupBy) {
+          if (groupBy === "None") {
+            return renderTableRows(issues);
+          }
+          var groups;
+          if (groupBy === "Severity") {
+            groups = groupIssuesBySeverity(issues);
+          } else if (groupBy === "Issue type") {
+            groups = groupIssuesByType(issues);
+          } else {
+            groups = groupIssuesByFramework(issues, groupBy);
+          }
+          return groups.map(function (g, i) {
+            return (
+              '<tr class="group-header-row" data-group-id="' + i + '"><td colspan="3"><span class="group-caret">&#9660;</span>' +
+              escapeHtml(g.section) +
+              ' <span class="group-count">(' + g.items.length + ")</span></td></tr>" +
+              renderTableRows(g.items, i)
+            );
+          }).join("");
+        }
+
+        var hasFrameworks = frameworkNames.length > 0;
+
+        html +=
+          '<div class="issues-table-wrapper" id="issues-table">' +
+          '<div class="issues-table-header">' +
+          '<span class="issues-table-title">Issues <span class="issues-table-count">' + results.length + "</span></span>" +
+          '<div style="display:flex;align-items:center;gap:var(--pcl-spacing-8);">' +
+          '<span class="segmented-control-label">Group by</span>' +
+          '<div class="segmented-control" id="groupByControl">' +
+          GROUP_BY_OPTIONS.map(function (opt, i) {
+            var btn =
+              '<button class="segmented-control-btn' +
+              (opt === "None" ? " segmented-control-btn--active" : "") +
+              '" data-group="' + escapeAttr(opt) + '">' + escapeHtml(opt) + "</button>";
+            var divider = "";
+            if (i === 1 || (hasFrameworks && i === 3)) {
+              divider = '<span class="segmented-control-divider"></span>';
+            }
+            return divider + btn;
+          }).join("") +
+          "</div>" +
+          "</div>" +
+          "</div>" +
+          '<table class="issues-table">' +
+          "<thead><tr><th>Name</th><th>ID</th><th>Severity</th></tr></thead>" +
+          '<tbody id="issuesTableBody">' +
+          renderTableBody(sortedResults, "None") +
+          "</tbody></table></div>";
+
+        function initGroupByControl() {
+          var control = document.getElementById("groupByControl");
+          var tbody = document.getElementById("issuesTableBody");
+          if (!control || !tbody) return;
+          control.addEventListener("click", function (e) {
+            var btn = e.target.closest(".segmented-control-btn");
+            if (!btn) return;
+            control.querySelectorAll(".segmented-control-btn").forEach(function (b) {
+              b.classList.remove("segmented-control-btn--active");
+            });
+            btn.classList.add("segmented-control-btn--active");
+            tbody.innerHTML = renderTableBody(sortedResults, btn.dataset.group);
+            initGroupCollapse();
+          });
+          initGroupCollapse();
+        }
+
+        function initGroupCollapse() {
+          var tbody = document.getElementById("issuesTableBody");
+          if (!tbody) return;
+          tbody.querySelectorAll(".group-header-row").forEach(function (row) {
+            row.addEventListener("click", function () {
+              var groupId = this.dataset.groupId;
+              var isCollapsed = this.classList.toggle("collapsed");
+              tbody.querySelectorAll('.group-item-row[data-group-id="' + groupId + '"]').forEach(function (r) {
+                r.classList.toggle("hidden", isCollapsed);
+              });
+            });
+          });
+        }
+
+        function initTableRowClicks() {
+          document.addEventListener("click", function (e) {
+            var row = e.target.closest("tr[data-issue-id]");
+            if (!row) return;
+            var issueId = row.dataset.issueId;
+            var target = document.getElementById("issue-" + issueId);
+            if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        }
+
+        html += '<hr class="section-divider" />';
+        html += '<h2 class="section-heading">Issue details</h2>';
+
+        sortedResults.forEach(function (r) {
+          var sev = (r.severity || "low").toLowerCase();
+          var safeId = escapeAttr(r.id);
+
+          html +=
+            '<div class="issue-card" id="issue-' + safeId + '">' +
+            '<div class="issue-card-header">' +
+            '<div class="issue-card-header-left">' +
+            '<span class="issue-card-title">' + escapeHtml(r.definition.name) + "</span>" +
+            '<span class="issue-card-description">' + escapeHtml(r.definition.description) + "</span>" +
+            '<span class="issue-card-id">ID: <code>' + escapeHtml(r.id) + "</code></span>" +
+            '<a class="issue-card-back-link" href="#issues-table">\u2191 Back to issues summary</a>' +
+            "</div>" +
+            severityLabel(sev) +
+            "</div>";
+
+          if (r.tags && r.tags.length) {
+            var frameworkMap = parseFrameworkTags(r.tags);
+            if (frameworkMap.size > 0) {
+              html += '<div class="issue-card-section">' +
+                '<div class="issue-card-section-title">Frameworks</div>' +
+                '<div class="frameworks-list">';
+              frameworkMap.forEach(function (sections, frameworkName) {
+                html +=
+                  '<div class="framework-row">' +
+                  '<span class="framework-name">' + escapeHtml(frameworkName) + ":</span>" +
+                  '<div class="framework-tags">' +
+                  sections.map(function (s) {
+                    return '<span class="framework-tag">' + escapeHtml(s) + "</span>";
+                  }).join("") +
+                  "</div></div>";
+              });
+              html += "</div></div>";
+            }
+          }
+
+          if (r.turns && r.turns.length) {
+            html += '<div class="issue-card-section">' +
+              '<div class="issue-card-section-title">Conversation</div>' +
+              '<div class="conversation-turns">';
+
+            r.turns.forEach(function (turn) {
+              var request = (turn.request || "").trim();
+              var response = (turn.response || "").trim();
+              if (request) {
+                html +=
+                  '<div class="conversation-turn">' +
+                  '<span class="conversation-label conversation-label--request">Attacker prompt</span>' +
+                  '<div class="conversation-bubble">' + escapeHtml(request) + "</div>" +
+                  "</div>";
+              }
+              if (response) {
+                html +=
+                  '<div class="conversation-turn">' +
+                  '<span class="conversation-label conversation-label--response">Model response</span>' +
+                  '<div class="conversation-bubble">' + escapeHtml(response) + "</div>" +
+                  "</div>";
+              }
+            });
+
+            html += "</div></div>";
+          }
+
+          if (r.evidence && r.evidence.content) {
+            var reason =
+              typeof r.evidence.content === "string"
+                ? r.evidence.content
+                : r.evidence.content.reason || JSON.stringify(r.evidence.content, null, 2);
+
+            html +=
+              '<div class="issue-card-section">' +
+              '<div class="issue-card-section-title">Reasoning</div>' +
+              '<div class="evidence-block">' + escapeHtml(reason) + "</div>" +
+              "</div>";
+          }
+
+          html += "</div>";
+        });
+
+        root.innerHTML = html;
+        initGroupByControl();
+        initTableRowClicks();
+      })();
+    </script>
+  </body>
+</html>

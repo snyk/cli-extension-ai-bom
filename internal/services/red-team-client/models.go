@@ -96,6 +96,7 @@ type AIScanFeedbackStatus struct {
 type AIVulnerability struct {
 	ID         string                    `json:"id"`
 	Definition AIVulnerabilityDefinition `json:"definition"`
+	Tags       []string                  `json:"tags,omitempty"`
 	Severity   string                    `json:"severity"`
 	URL        string                    `json:"url"`
 	Turns      []Turn                    `json:"turns,omitempty"`
