@@ -160,14 +160,21 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 		return nil, resultsErr
 	}
 
+	returnHTML := config.GetBool(utils.FlagHTML)
 	htmlFileOutput := config.GetString(utils.FlagHTMLFileOutput)
-	if htmlFileOutput != "" {
-		htmlOutput, htmlErr := htmlFromResults(results)
+	needsHTML := returnHTML || htmlFileOutput != ""
+
+	var htmlOutput string
+	if needsHTML {
+		var htmlErr error
+		htmlOutput, htmlErr = htmlFromResults(results)
 		if htmlErr != nil {
-			logger.Debug().Err(htmlErr).Msg("error while generating HTML report for file output")
+			logger.Debug().Err(htmlErr).Msg("error while generating HTML report")
 			return nil, redteam_errors.NewGenericRedTeamError("Failed generating HTML report", htmlErr)
 		}
+	}
 
+	if htmlFileOutput != "" {
 		if writeErr := os.WriteFile(htmlFileOutput, []byte(htmlOutput), 0o600); writeErr != nil {
 			logger.Debug().Err(writeErr).Msgf("error writing HTML report to %s", htmlFileOutput)
 			return nil, redteam_errors.NewGenericRedTeamError(fmt.Sprintf("Failed writing HTML report to %s", htmlFileOutput), writeErr)
@@ -176,8 +183,8 @@ func handleRunScanCommand(invocationCtx workflow.InvocationContext, redTeamClien
 		logger.Info().Msgf("HTML report written to %s", htmlFileOutput)
 	}
 
-	if config.GetBool(utils.FlagHTML) {
-		return convertResultsToHTML(logger, results)
+	if returnHTML {
+		return []workflow.Data{newWorkflowData("text/html", []byte(htmlOutput))}, nil
 	}
 
 	return results, nil
@@ -427,16 +434,6 @@ func htmlFromResults(results []workflow.Data) (string, error) {
 	}
 
 	return generateRedTeamHTML(string(payload))
-}
-
-func convertResultsToHTML(logger *zerolog.Logger, results []workflow.Data) ([]workflow.Data, *redteam_errors.RedTeamError) {
-	htmlOutput, err := htmlFromResults(results)
-	if err != nil {
-		logger.Debug().Err(err).Msg("error while generating HTML report")
-		return nil, redteam_errors.NewGenericRedTeamError("Failed generating HTML report", err)
-	}
-
-	return []workflow.Data{newWorkflowData("text/html", []byte(htmlOutput))}, nil
 }
 
 func generateRedTeamHTML(jsonData string) (string, error) {
