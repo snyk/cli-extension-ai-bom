@@ -3,9 +3,10 @@ package utils
 const (
 	// shared flags.
 	FlagExperimental = "experimental"
+	FlagHTML         = "html"
 
 	// aibom flags.
-	FlagHTML                            = "html"
+
 	ConfigurationSnykCodeClientProxyURL = "SNYK_CODE_CLIENT_PROXY_URL"
 	FlagUpload                          = "upload"
 	FlagRepoName                        = "repo"

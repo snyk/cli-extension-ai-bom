@@ -2,9 +2,13 @@ package redteamget_test
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/snyk/go-application-framework/pkg/configuration"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/redteamget"
 	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
@@ -110,4 +114,151 @@ func TestRunRedTeamGetWorkflow_ScanNotFound(t *testing.T) {
 	_, err := redteamget.RunRedTeamGetWorkflow(ictx, mockClient)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not found")
+}
+
+func TestRunRedTeamGetWorkflow_MissingOrgID(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(configuration.ORGANIZATION, "")
+	ictx.GetConfiguration().Set("id", validScanID)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{}
+
+	_, err := redteamget.RunRedTeamGetWorkflow(ictx, mockClient)
+	require.Error(t, err)
+}
+
+func newHTMLMockClient() *redteamclientmock.MockRedTeamClient {
+	return &redteamclientmock.MockRedTeamClient{
+		ScanResults: redteamclient.GetAIVulnerabilitiesResponseData{
+			ID: "report-get-123",
+			Results: []redteamclient.AIVulnerability{
+				{
+					ID:       "vuln-get-001",
+					Severity: "high",
+					URL:      "https://example.com/api/chat",
+					Definition: redteamclient.AIVulnerabilityDefinition{
+						ID:          "system_prompt_exfiltration",
+						Name:        "System Prompt Exfiltration",
+						Description: "The system prompt was exfiltrated.",
+					},
+					Evidence: redteamclient.AIVulnerabilityEvidence{
+						Type: "raw",
+						Content: redteamclient.AIVulnerabilityEvidenceContent{
+							Reason: "test reason",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestRunRedTeamGetWorkflow_HTMLOutput(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set("id", validScanID)
+	ictx.GetConfiguration().Set("html", true)
+
+	results, err := redteamget.RunRedTeamGetWorkflow(ictx, newHTMLMockClient())
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "text/html", results[0].GetContentType())
+
+	payload, ok := results[0].GetPayload().([]byte)
+	require.True(t, ok)
+	html := string(payload)
+	assert.Contains(t, html, "<!doctype html>")
+	assert.Contains(t, html, "report-get-123")
+	assert.Contains(t, html, "System Prompt Exfiltration")
+}
+
+func TestRunRedTeamGetWorkflow_HTMLFileOutput(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set("id", validScanID)
+
+	tmpFile := t.TempDir() + "/report.html"
+	ictx.GetConfiguration().Set("html-file-output", tmpFile)
+
+	results, err := redteamget.RunRedTeamGetWorkflow(ictx, newHTMLMockClient())
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "application/json", results[0].GetContentType())
+
+	fileContent, readErr := os.ReadFile(tmpFile)
+	require.NoError(t, readErr)
+	html := string(fileContent)
+	assert.Contains(t, html, "<!doctype html>")
+	assert.Contains(t, html, "report-get-123")
+	assert.Contains(t, html, "System Prompt Exfiltration")
+}
+
+func TestRunRedTeamGetWorkflow_HTMLFileOutputWithHTMLFlag(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set("id", validScanID)
+
+	tmpFile := t.TempDir() + "/report.html"
+	ictx.GetConfiguration().Set("html-file-output", tmpFile)
+	ictx.GetConfiguration().Set("html", true)
+
+	results, err := redteamget.RunRedTeamGetWorkflow(ictx, newHTMLMockClient())
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "text/html", results[0].GetContentType())
+
+	stdoutPayload, ok := results[0].GetPayload().([]byte)
+	require.True(t, ok)
+	assert.Contains(t, string(stdoutPayload), "report-get-123")
+
+	fileContent, readErr := os.ReadFile(tmpFile)
+	require.NoError(t, readErr)
+	html := string(fileContent)
+	assert.Contains(t, html, "<!doctype html>")
+	assert.Contains(t, html, "System Prompt Exfiltration")
+}
+
+func TestRunRedTeamGetWorkflow_HTMLOutputWithEmptyResults(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set("id", validScanID)
+	ictx.GetConfiguration().Set("html", true)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		ScanResults: redteamclient.GetAIVulnerabilitiesResponseData{
+			ID:      "report-empty",
+			Results: []redteamclient.AIVulnerability{},
+		},
+	}
+
+	results, err := redteamget.RunRedTeamGetWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "text/html", results[0].GetContentType())
+
+	payload, ok := results[0].GetPayload().([]byte)
+	require.True(t, ok)
+	html := string(payload)
+	assert.Contains(t, html, "report-empty")
+	assert.Contains(t, html, "No issues found")
+}
+
+func TestRunRedTeamGetWorkflow_ServerError(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set("id", validScanID)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		ResultsError: redteam_errors.NewServerError("internal server error"),
+	}
+
+	_, err := redteamget.RunRedTeamGetWorkflow(ictx, mockClient)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "internal server error")
 }
