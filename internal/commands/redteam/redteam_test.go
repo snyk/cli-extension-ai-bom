@@ -386,6 +386,86 @@ func TestHandleRunScanCommand_ScanError(t *testing.T) {
 	}
 }
 
+func TestHandleRunScanCommand_ScanErrorWithVulnerabilities_ShowsGetHint(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, redteamTestConfigFile)
+
+	ui, ok := ictx.GetUserInterface().(*mocks.MockUserInterface)
+	require.True(t, ok, "UI should be a mock")
+	ui.EXPECT().Output(gomock.Any()).Return(nil).AnyTimes()
+
+	criticals, highs, mediums, lows := 1, 2, 0, 0
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		PollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusStarted},
+			{
+				ID:        "test-scan-id",
+				Status:    redteamclient.AIScanStatusFailed,
+				Criticals: &criticals,
+				Highs:     &highs,
+				Mediums:   &mediums,
+				Lows:      &lows,
+				Feedback: redteamclient.AIScanFeedback{
+					Error: []redteamclient.AIScanFeedbackIssue{
+						{
+							Code:    "too_many_failures",
+							Message: "Multiple consecutive failures during scan",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.Error(t, err)
+
+	assert.Contains(t, err.Error(), "Partial results are available (3 found before failure)")
+	assert.Contains(t, err.Error(), "snyk redteam --experimental get --id=test-scan-id")
+}
+
+func TestHandleRunScanCommand_ScanErrorWithoutVulnerabilities_NoGetHint(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, redteamTestConfigFile)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		PollingScans: []redteamclient.AIScan{
+			{ID: "test-scan-id", Status: redteamclient.AIScanStatusStarted},
+			{
+				ID:     "test-scan-id",
+				Status: redteamclient.AIScanStatusFailed,
+				Feedback: redteamclient.AIScanFeedback{
+					Error: []redteamclient.AIScanFeedbackIssue{
+						{
+							Code:    "network_error",
+							Message: "Connection timeout",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	_, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.Error(t, err)
+
+	assert.NotContains(t, err.Error(), "Partial results are available")
+	assert.NotContains(t, err.Error(), "get --id=")
+}
+
 func setupMockRedTeamClient() *redteamclientmock.MockRedTeamClient {
 	return &redteamclientmock.MockRedTeamClient{
 		PollingScans: []redteamclient.AIScan{
