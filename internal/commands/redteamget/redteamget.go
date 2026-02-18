@@ -12,6 +12,7 @@ import (
 	"github.com/snyk/go-application-framework/pkg/workflow"
 	"github.com/spf13/pflag"
 
+	"github.com/snyk/cli-extension-ai-bom/internal/commands/redteam/htmlreport"
 	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
@@ -31,6 +32,8 @@ func RegisterRedTeamGetWorkflow(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom-redteam-get", pflag.ExitOnError)
 	flagset.Bool(utils.FlagExperimental, false, "This is an experimental feature that will contain breaking changes in future revisions")
 	flagset.String(utils.FlagScanningAgentID, "", "Scan ID to retrieve results for")
+	flagset.Bool(utils.FlagHTML, false, "Output the red team report in HTML format instead of JSON")
+	flagset.String(utils.FlagHTMLFileOutput, "", "Write the HTML report to the specified file path")
 
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
 	if _, err := e.Register(getWorkflowID, configuration, redTeamGetWorkflow); err != nil {
@@ -108,15 +111,11 @@ func handleGetScanResults(
 		return nil, redteam_errors.NewGenericRedTeamError("Failed processing scan results", err)
 	}
 
-	workflowData := newWorkflowData(getWorkflowType, "application/json", resultsBytes)
-	return []workflow.Data{workflowData}, nil
-}
+	jsonResults := []workflow.Data{workflow.NewData(getWorkflowType, "application/json", resultsBytes)}
 
-//nolint:ireturn // Unable to change return type of external library
-func newWorkflowData(id workflow.Identifier, contentType string, data []byte) workflow.Data {
-	return workflow.NewData(
-		id,
-		contentType,
-		data,
-	)
+	output, htmlErr := htmlreport.ProcessResults(logger, config, jsonResults)
+	if htmlErr != nil {
+		return nil, redteam_errors.NewGenericRedTeamError("HTML report error", htmlErr)
+	}
+	return output, nil
 }
