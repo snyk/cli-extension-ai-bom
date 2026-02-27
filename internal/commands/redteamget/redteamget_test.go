@@ -65,6 +65,46 @@ func TestRunRedTeamGetWorkflow_HappyPath(t *testing.T) {
 	require.Equal(t, "high", data.Results[0].Severity)
 }
 
+func TestRunRedTeamGetWorkflow_ScanSummaryPropagated(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set("id", validScanID)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		ScanResults: redteamclient.GetAIVulnerabilitiesResponseData{
+			ID:      validScanID,
+			Results: []redteamclient.AIVulnerability{},
+			Summary: &redteamclient.AIScanSummary{
+				Vulnerabilities: []redteamclient.AIScanSummaryVulnerability{
+					{
+						Slug:       "prompt-injection",
+						Name:       "Prompt Injection",
+						Severity:   "high",
+						Status:     "completed",
+						Vulnerable: true,
+					},
+				},
+			},
+		},
+	}
+
+	results, err := redteamget.RunRedTeamGetWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+
+	payload, ok := results[0].GetPayload().([]byte)
+	require.True(t, ok)
+
+	var data redteamclient.GetAIVulnerabilitiesResponseData
+	err = json.Unmarshal(payload, &data)
+	require.NoError(t, err)
+	require.NotNil(t, data.Summary)
+	require.Len(t, data.Summary.Vulnerabilities, 1)
+	require.Equal(t, "prompt-injection", data.Summary.Vulnerabilities[0].Slug)
+	require.Equal(t, true, data.Summary.Vulnerabilities[0].Vulnerable)
+}
+
 func TestRunRedTeamGetWorkflow_MissingID(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, true)
@@ -245,7 +285,7 @@ func TestRunRedTeamGetWorkflow_HTMLOutputWithEmptyResults(t *testing.T) {
 	require.True(t, ok)
 	html := string(payload)
 	assert.Contains(t, html, "report-empty")
-	assert.Contains(t, html, "No issues found")
+	assert.Contains(t, html, "no issues found")
 }
 
 func TestRunRedTeamGetWorkflow_ServerError(t *testing.T) {

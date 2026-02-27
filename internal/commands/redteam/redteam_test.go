@@ -63,6 +63,60 @@ func TestRunRedTeamWorkflow_HappyPath(t *testing.T) {
 	assert.Contains(t, string(payload), "test-vulnerability-url")
 }
 
+func TestRunRedTeamWorkflow_ScanSummaryPropagated(t *testing.T) {
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	ictx.GetConfiguration().Set(experimentalKey, true)
+	ictx.GetConfiguration().Set(organizationKey, testOrgID)
+	ictx.GetConfiguration().Set(configFlag, redteamTestConfigFile)
+
+	mockClient := &redteamclientmock.MockRedTeamClient{
+		PollingScans: []redteamclient.AIScan{
+			{
+				ID:     "test-scan-id",
+				Status: redteamclient.AIScanStatusCompleted,
+			},
+		},
+		ScanResults: redteamclient.GetAIVulnerabilitiesResponseData{
+			ID:      "report-with-summary",
+			Results: []redteamclient.AIVulnerability{},
+			Summary: &redteamclient.AIScanSummary{
+				Vulnerabilities: []redteamclient.AIScanSummaryVulnerability{
+					{
+						Slug:       "prompt-injection",
+						Name:       "Prompt Injection",
+						Severity:   "high",
+						Status:     "completed",
+						Vulnerable: true,
+					},
+					{
+						Slug:       "sensitive-data-exposure",
+						Name:       "Sensitive Data Exposure",
+						Severity:   "high",
+						Status:     "completed",
+						Vulnerable: false,
+					},
+				},
+			},
+		},
+	}
+
+	originalArgs := os.Args
+	os.Args = []string{"snyk", "redteam"}
+	defer func() { os.Args = originalArgs }()
+
+	results, err := redteam.RunRedTeamWorkflow(ictx, mockClient)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "application/json", results[0].GetContentType())
+
+	payload, ok := results[0].GetPayload().([]byte)
+	require.True(t, ok)
+	jsonStr := string(payload)
+	assert.Contains(t, jsonStr, "summary")
+	assert.Contains(t, jsonStr, "prompt-injection")
+	assert.Contains(t, jsonStr, "sensitive-data-exposure")
+}
+
 func TestRunRedTeamWorkflow_ExperimentalFlagRequired(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ictx.GetConfiguration().Set(experimentalKey, false)
@@ -648,7 +702,7 @@ func TestRunRedTeamWorkflow_HTMLOutputWithEmptyResults(t *testing.T) {
 	require.True(t, ok)
 	html := string(payload)
 	assert.Contains(t, html, "report-empty")
-	assert.Contains(t, html, "No issues found")
+	assert.Contains(t, html, "no issues found")
 }
 
 func TestRunRedTeamWorkflow_HTMLOutputWithoutTags(t *testing.T) {

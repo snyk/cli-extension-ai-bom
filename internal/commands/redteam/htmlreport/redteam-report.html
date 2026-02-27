@@ -81,12 +81,15 @@
         --pcl-color-primitives-yellow-200: #fff085;
         --pcl-color-primitives-yellow-300: #ffdf20;
         --pcl-color-primitives-yellow-500: #efb100;
+        --pcl-color-primitives-yellow-600: #d08700;
         --pcl-color-primitives-yellow-700: #a65f00;
         --pcl-color-primitives-yellow-800: #894b00;
+        --pcl-color-primitives-blue-100: #bedbff;
         --pcl-color-primitives-blue-300: #8ec5ff;
         --pcl-color-primitives-blue-500: #2b7fff;
         --pcl-color-primitives-green-300: #7bf1a8;
 
+        --pcl-color-primitives-white-alpha-1: rgba(255, 255, 255, 0.01);
         --pcl-color-primitives-white-alpha-6: rgba(255, 255, 255, 0.06);
         --pcl-color-primitives-white-alpha-8: rgba(255, 255, 255, 0.08);
         --pcl-color-primitives-white-alpha-12: rgba(255, 255, 255, 0.12);
@@ -105,6 +108,7 @@
         --color-fg-secondary: var(--pcl-color-primitives-neutral-300);
         --color-fg-tertiary: var(--pcl-color-primitives-neutral-400);
         --color-fg-muted: var(--pcl-color-primitives-neutral-500);
+        --color-fg-caution: var(--pcl-color-primitives-yellow-600);
 
         --color-border: var(--pcl-color-primitives-neutral-700);
         --color-border-secondary: var(--pcl-color-primitives-neutral-600);
@@ -119,6 +123,7 @@
         --color-severity-low-fg: var(--pcl-color-primitives-neutral-200);
 
         --color-link: var(--pcl-color-primitives-blue-300);
+        --color-link-hover: var(--pcl-color-primitives-blue-100);
         --color-accent: var(--pcl-color-primitives-blue-500);
       }
 
@@ -189,8 +194,27 @@
       }
 
       /* ===================================================================
-       SUMMARY BAR
-       =================================================================== */
+  ERROR BANNER
+  =================================================================== */
+      .error-banner {
+        display: flex;
+        align-items: center;
+        gap: var(--pcl-spacing-10);
+        padding: var(--pcl-spacing-12) var(--pcl-spacing-16);
+        border-radius: var(--pcl-radius-lg);
+        border: 1px solid var(--color-fg-caution);
+        color: var(--color-fg-caution);
+        font-size: var(--pcl-font-size-sm);
+        margin-bottom: var(--pcl-spacing-24);
+      }
+
+      .error-banner svg {
+        flex-shrink: 0;
+      }
+
+      /* ===================================================================
+  SUMMARY BAR
+  =================================================================== */
       .summary-bar {
         display: flex;
         flex-wrap: wrap;
@@ -230,7 +254,7 @@
       }
 
       /* ===================================================================
-       SEVERITY BADGES (Pill style)
+       SEVERITY BADGES (Pill style — matches screenshots)
        =================================================================== */
       .severity-badge {
         display: inline-flex;
@@ -248,14 +272,15 @@
         width: 22px;
         height: 22px;
         border-radius: var(--pcl-radius-sm);
-        font-size: 11px;
-        font-weight: var(--pcl-font-weight-bold);
+        font-size: var(--pcl-font-size-xs);
+        font-weight: var(--pcl-font-weight-medium);
       }
 
       .severity-badge-count {
         color: var(--color-fg-secondary);
       }
 
+      /* Severity icon colors */
       .severity-badge-icon--critical {
         background-color: var(--color-severity-critical-bg);
         color: var(--color-severity-critical-fg);
@@ -276,15 +301,23 @@
         color: var(--color-severity-low-fg);
       }
 
+      /* Severity label pills — shared base with severity-badge-icon */
       .severity-label {
-        display: inline-block;
-        padding: var(--pcl-spacing-2) var(--pcl-spacing-10);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 22px;
         border-radius: var(--pcl-radius-sm);
         font-size: var(--pcl-font-size-xs);
         font-weight: var(--pcl-font-weight-medium);
-        line-height: var(--pcl-font-line-height-xs);
-        text-transform: capitalize;
+        line-height: 1;
         padding: 0 var(--pcl-spacing-6);
+      }
+
+      /* Fixed-width square badge for single-char / icon short labels */
+      .severity-label--short {
+        width: 22px;
+        padding: 0;
       }
 
       .severity-label--critical {
@@ -359,7 +392,7 @@
 
       .framework-tag {
         display: inline-block;
-        padding: var(--pcl-spacing-2) var(--pcl-spacing-8);
+        padding: 0 var(--pcl-spacing-8);
         border-radius: var(--pcl-radius-sm);
         font-size: var(--pcl-font-size-2xs);
         font-family: var(--pcl-font-family-mono);
@@ -367,6 +400,28 @@
         color: var(--color-fg-secondary);
         border: 1px solid var(--color-border);
         line-height: var(--pcl-font-line-height-xs);
+      }
+
+      .framework-tag-hidden {
+        display: none;
+      }
+
+      .framework-tag-more {
+        display: inline-block;
+        padding: 0 var(--pcl-spacing-8);
+        border-radius: var(--pcl-radius-sm);
+        font-size: var(--pcl-font-size-2xs);
+        font-family: var(--pcl-font-family-mono);
+        background-color: transparent;
+        border: 1px solid var(--color-border);
+        line-height: var(--pcl-font-line-height-xs);
+        color: var(--color-link);
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .framework-tag-more:hover {
+        background-color: var(--pcl-color-primitives-white-alpha-8);
       }
 
       /* ===================================================================
@@ -396,21 +451,7 @@
         white-space: nowrap;
       }
 
-      .issues-table-count {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 22px;
-        height: 22px;
-        padding: 0 var(--pcl-spacing-6);
-        border-radius: var(--pcl-radius-sm);
-        background-color: var(--pcl-color-primitives-white-alpha-12);
-        font-size: var(--pcl-font-size-2xs);
-        font-weight: var(--pcl-font-weight-medium);
-        color: var(--color-fg-secondary);
-        margin-left: var(--pcl-spacing-8);
-      }
-
+      /* Segmented control for group-by */
       .segmented-control {
         display: flex;
         align-items: center;
@@ -461,16 +502,22 @@
         flex-shrink: 0;
       }
 
+      /* Group header rows inside the table */
       .group-header-row td {
         padding: var(--pcl-spacing-10) var(--pcl-spacing-20);
         font-size: var(--pcl-font-size-xs);
         font-weight: var(--pcl-font-weight-semibold);
         color: var(--color-fg-secondary);
-        background-color: var(--color-bg-surface-tertiary);
+        background-color: rgba(9, 9, 11, 1);
         border-bottom: 1px solid var(--color-border);
         letter-spacing: 0.3px;
         cursor: pointer;
         user-select: none;
+        transition: all 0.75s ease;
+      }
+
+      .group-header-row:not(.no-expand):hover td {
+        background-color: rgba(9, 9, 11, 0.2);
       }
 
       .group-header-row td .group-caret {
@@ -486,14 +533,70 @@
       }
 
       .group-header-row td .group-count {
-        font-weight: var(--pcl-font-weight-normal);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 var(--pcl-spacing-4);
+        border-radius: var(--pcl-radius-sm);
+        background-color: var(--pcl-color-primitives-white-alpha-12);
+        font-size: 11px;
+        font-weight: var(--pcl-font-weight-medium);
         color: var(--color-fg-tertiary);
         margin-left: var(--pcl-spacing-6);
-        font-size: var(--pcl-font-size-2xs);
+        vertical-align: middle;
       }
 
       .group-item-row.hidden {
         display: none;
+      }
+
+      /* Non-expandable group (0 issues) — no caret, align text with expandable groups */
+      .group-header-row.no-expand td {
+        cursor: default;
+      }
+
+      .group-header-row.no-expand .group-caret {
+        visibility: hidden;
+      }
+
+      /* "None" severity badge (green) */
+      .severity-label--none {
+        background-color: rgba(123, 241, 168, 0.18);
+        color: var(--pcl-color-primitives-green-300);
+      }
+
+      /* "Not tested" badge (yellow) */
+      .severity-label--partial {
+        background-color: rgba(208, 135, 0, 0.18);
+        color: var(--color-fg-caution);
+      }
+
+      /* "Failed" severity badge (red/orange muted) */
+      .severity-label--failed {
+        background-color: rgba(255, 107, 107, 0.15);
+        color: #ff6b6b;
+      }
+
+      /* "Errored" severity badge (run failed, not skipped) */
+      .severity-label--error {
+        background-color: rgba(255, 149, 0, 0.18);
+        color: #e67e22;
+      }
+
+      /* Pale severity badges (40% alpha) for pseudo-rows */
+      .severity-label--pale {
+        opacity: 0.4;
+      }
+
+      /* Non-clickable pseudo-rows */
+      .issues-table tbody tr.pseudo-row {
+        cursor: default;
+      }
+
+      .issues-table tbody tr.pseudo-row:hover {
+        background-color: transparent;
       }
 
       .issues-table {
@@ -526,32 +629,49 @@
         border-bottom: none;
       }
 
-      .issues-table tbody tr {
+      .issues-table tbody tr:not(.group-header-row) {
         cursor: pointer;
+        transition: all 0.75s ease;
       }
 
-      .issues-table tbody tr:hover {
-        background-color: var(--pcl-color-primitives-white-alpha-6);
+      .issues-table tbody tr:not(.group-header-row):hover {
+        background-color: rgba(255, 255, 255, 0.02);
       }
 
-      .issues-table .col-id {
+      .issues-table .col-response {
         color: var(--color-fg-tertiary);
-        font-family: var(--pcl-font-family-mono);
         font-size: var(--pcl-font-size-2xs);
+        width: 100%;
+        max-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
         white-space: nowrap;
       }
 
       .issues-table .col-name {
         font-weight: var(--pcl-font-weight-medium);
         color: var(--color-fg);
+        white-space: nowrap;
+        width: 1%;
       }
 
-      .issues-table .group-item-row .col-name {
-        padding-left: var(--pcl-spacing-40);
+      .issues-table .group-item-row .col-severity {
+        padding-left: calc(var(--pcl-spacing-16) + 1em + var(--pcl-spacing-8));
+      }
+
+      .issues-table .col-severity .severity-label {
+        vertical-align: middle;
       }
 
       .issues-table .col-severity {
-        width: 100px;
+        white-space: nowrap;
+        width: 1%;
+        padding-right: 0;
+      }
+
+      #passedTestsWrapper .col-name {
+        width: 100%;
+        white-space: normal;
       }
 
       .issues-table .col-url a {
@@ -561,49 +681,6 @@
 
       .issues-table .col-url a:hover {
         text-decoration: underline;
-      }
-
-      /* ===================================================================
-       EMPTY STATE
-       =================================================================== */
-      .empty-state {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: var(--pcl-spacing-48) var(--pcl-spacing-24);
-        color: var(--color-fg-tertiary);
-      }
-
-      .empty-state-icon {
-        width: 56px;
-        height: 56px;
-        border-radius: var(--pcl-radius-xl);
-        background-color: rgba(21, 128, 61, 0.4);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: var(--pcl-spacing-16);
-      }
-
-      .empty-state-icon svg {
-        width: 28px;
-        height: 28px;
-        color: var(--pcl-color-primitives-green-300);
-      }
-
-      .empty-state-title {
-        font-size: var(--pcl-font-size-lg);
-        font-weight: var(--pcl-font-weight-semibold);
-        color: var(--color-fg-secondary);
-        margin-bottom: var(--pcl-spacing-8);
-      }
-
-      .empty-state-description {
-        font-size: var(--pcl-font-size-xs);
-        color: var(--color-fg-tertiary);
-        max-width: 400px;
       }
 
       /* ===================================================================
@@ -652,14 +729,16 @@
         font-family: var(--pcl-font-family-mono);
       }
 
-      .issue-card-back-link {
+      .return-to-top {
+        display: block;
         font-size: var(--pcl-font-size-2xs);
         color: var(--color-link);
         text-decoration: none;
-        cursor: pointer;
+        margin-top: var(--pcl-spacing-4);
       }
 
-      .issue-card-back-link:hover {
+      .return-to-top:hover {
+        color: var(--color-link-hover);
         text-decoration: underline;
       }
 
@@ -779,70 +858,1166 @@
   <body>
     <div class="report-container" id="report-root"></div>
 
+    <!-- =================================================================
+       DATA — Injected at build time by Go template
+       ================================================================= -->
     <script>
       const REPORT_DATA = {{.}};
     </script>
 
+    <!-- =================================================================
+       VULNERABILITY CATALOG — All known issue types & framework mappings
+       ================================================================= -->
+    <script>
+      const VULNERABILITY_CATALOG = [
+        {
+          id: "system_prompt_exfiltration",
+          name: "System prompt exfiltration",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM02:2025", "LLM07:2025"],
+          owasp_agentic: ["ASI01", "ASI02"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0002",
+            "AML.TA0003",
+            "AML.TA0008",
+            "AML.TA0009",
+            "AML.TA0010",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "jailbreak_enabling_disallowed_tool_use",
+          name: "Jailbreak enabling disallowed tool use",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM05:2025", "LLM06:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI03", "ASI05"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0004",
+            "AML.TA0005",
+            "AML.TA0007",
+            "AML.TA0011",
+            "AML.TA0012",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "adversarial_example_exploitation",
+          name: "Adversarial Example Exploitation",
+          severity: "high",
+          owasp_llm: ["LLM01:2025"],
+          owasp_agentic: ["ASI01"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0003",
+            "AML.TA0007",
+            "AML.TA0011",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 2.9",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "direct_prompt_injection",
+          name: "Direct prompt injection",
+          severity: "critical",
+          owasp_llm: ["LLM01:2025", "LLM06:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI05", "ASI09"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0004",
+            "AML.TA0007",
+            "AML.TA0010",
+            "AML.TA0011",
+            "AML.TA0012",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "multilingual_obfuscated_instruction_bypass",
+          name: "Multilingual/obfuscated instruction bypass",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM02:2025", "LLM06:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI05"],
+          mitre_atlas: ["AML.TA0000", "AML.TA0001", "AML.TA0007"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.11",
+            "MEASURE 2.13",
+            "MEASURE 2.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "steganographic_instructions_in_images_attachments",
+          name: "Steganographic instructions in images/attachments",
+          severity: "medium",
+          owasp_llm: ["LLM01:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI05"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0005",
+            "AML.TA0007",
+            "AML.TA0014",
+          ],
+          nist: ["MEASURE 1.1", "MEASURE 2.7", "MEASURE 3.2", "MEASURE 4.2"],
+        },
+        {
+          id: "unfair_bias_amplification",
+          name: "Unfair bias amplification",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM03:2025", "LLM04", "LLM09:2025"],
+          owasp_agentic: [],
+          mitre_atlas: ["AML.TA0000", "AML.TA0001", "AML.TA0011"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.10",
+            "MEASURE 2.11",
+            "MEASURE 2.13",
+            "MEASURE 2.2",
+            "MEASURE 2.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.8",
+            "MEASURE 2.9",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.1",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "output_restriction_bypass",
+          name: "Output Restriction Bypass",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM02:2025", "LLM05:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI05", "ASI10"],
+          mitre_atlas: ["AML.TA0000", "AML.TA0001", "AML.TA0010", "AML.TA0011"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "task_subversion",
+          name: "Task Subversion",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM05:2025", "LLM06:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI05", "ASI10"],
+          mitre_atlas: ["AML.TA0000", "AML.TA0001", "AML.TA0005", "AML.TA0011"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 2.9",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.1",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "hallucination_misinformation",
+          name: "Hallucination / Misinformation",
+          severity: "high",
+          owasp_llm: ["LLM06:2025", "LLM09:2025"],
+          owasp_agentic: ["ASI08", "ASI09", "ASI10"],
+          mitre_atlas: ["AML.TA0011"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.1",
+            "MEASURE 2.13",
+            "MEASURE 2.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.8",
+            "MEASURE 2.9",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.1",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "restricted_content_generation",
+          name: "Restricted Content Generation",
+          severity: "high",
+          owasp_llm: ["LLM01:2025"],
+          owasp_agentic: ["ASI01"],
+          mitre_atlas: ["AML.TA0000", "AML.TA0001", "AML.TA0007", "AML.TA0011"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "role_manipulation_persona_swap",
+          name: "Role Manipulation / Persona Swap",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM02:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI03", "ASI10"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0007",
+            "AML.TA0011",
+            "AML.TA0012",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "multi_turn_coercion_attack",
+          name: "Multi-Turn Coercion Attack",
+          severity: "high",
+          owasp_llm: ["LLM01:2025"],
+          owasp_agentic: ["ASI01", "ASI09"],
+          mitre_atlas: ["AML.TA0000", "AML.TA0001", "AML.TA0011"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.3",
+            "MEASURE 2.5",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.1",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "indirect_prompt_injection",
+          name: "Indirect prompt injection",
+          severity: "critical",
+          owasp_llm: ["LLM01:2025", "LLM02:2025", "LLM05:2025", "LLM06:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI03", "ASI06", "ASI08", "ASI09"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0004",
+            "AML.TA0009",
+            "AML.TA0010",
+            "AML.TA0011",
+            "AML.TA0013",
+            "AML.TA0014",
+            "AML.TA0015",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 2.4",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "retrieval_poisoning",
+          name: "Retrieval poisoning",
+          severity: "high",
+          owasp_llm: [
+            "LLM01:2025",
+            "LLM03:2025",
+            "LLM04",
+            "LLM08:2025",
+            "LLM09:2025",
+          ],
+          owasp_agentic: ["ASI01", "ASI04", "ASI06"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0003",
+            "AML.TA0006",
+            "AML.TA0011",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "tool_abuse_arbitrary_code_execution",
+          name: "Tool abuse: arbitrary code execution",
+          severity: "critical",
+          owasp_llm: ["LLM01:2025", "LLM05:2025", "LLM06:2025"],
+          owasp_agentic: ["ASI04", "ASI05", "ASI10"],
+          mitre_atlas: [
+            "AML.TA0001",
+            "AML.TA0005",
+            "AML.TA0006",
+            "AML.TA0010",
+            "AML.TA0011",
+            "AML.TA0012",
+            "AML.TA0013",
+            "AML.TA0014",
+            "AML.TA0015",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "data_exfiltration_via_db_file_tools",
+          name: "Data exfiltration via db/file tools",
+          severity: "critical",
+          owasp_llm: ["LLM01:2025", "LLM02:2025", "LLM05:2025", "LLM06:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI03", "ASI06", "ASI10"],
+          mitre_atlas: ["AML.TA0000", "AML.TA0001", "AML.TA0009", "AML.TA0010"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 2.10",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.2",
+          ],
+        },
+        {
+          id: "overbroad_tool_authority_privilege_escalation",
+          name: "Overbroad tool authority / privilege escalation",
+          severity: "critical",
+          owasp_llm: ["LLM06:2025"],
+          owasp_agentic: ["ASI03"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0011",
+            "AML.TA0012",
+            "AML.TA0015",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "sql_command_injection_through_generated_queries",
+          name: "SQL/command injection through generated queries",
+          severity: "critical",
+          owasp_llm: ["LLM01:2025", "LLM05:2025"],
+          owasp_agentic: ["ASI02", "ASI05"],
+          mitre_atlas: [
+            "AML.TA0005",
+            "AML.TA0010",
+            "AML.TA0011",
+            "AML.TA0012",
+            "AML.TA0013",
+            "AML.TA0015",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "financial_tool_abuse",
+          name: "Financial tool abuse",
+          severity: "critical",
+          owasp_llm: ["LLM06:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI10"],
+          mitre_atlas: ["AML.TA0001", "AML.TA0011", "AML.TA0012"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 2.3",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "unsafe_tool_schemas_free_form_commands",
+          name: "Unsafe tool schemas (free-form commands)",
+          severity: "critical",
+          owasp_llm: ["LLM01:2025", "LLM05:2025", "LLM06:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI05"],
+          mitre_atlas: [
+            "AML.TA0001",
+            "AML.TA0005",
+            "AML.TA0010",
+            "AML.TA0011",
+            "AML.TA0012",
+            "AML.TA0014",
+            "AML.TA0015",
+          ],
+          nist: ["MEASURE 1.1", "MEASURE 2.6", "MEASURE 2.7", "MEASURE 4.2"],
+        },
+        {
+          id: "server_side_request_forgery_ssrf_via_tools",
+          name: "Server-side request forgery (SSRF) via tools",
+          severity: "high",
+          owasp_llm: ["LLM02:2025", "LLM05:2025", "LLM06:2025"],
+          owasp_agentic: ["ASI02", "ASI03"],
+          mitre_atlas: [
+            "AML.TA0002",
+            "AML.TA0003",
+            "AML.TA0004",
+            "AML.TA0008",
+            "AML.TA0009",
+            "AML.TA0010",
+            "AML.TA0012",
+            "AML.TA0013",
+            "AML.TA0014",
+            "AML.TA0015",
+          ],
+          nist: ["MEASURE 1.1", "MEASURE 2.7"],
+        },
+        {
+          id: "unsafe_browsing_file_download_by_agents",
+          name: "Unsafe browsing & file download by agents",
+          severity: "high",
+          owasp_llm: [
+            "LLM01:2025",
+            "LLM02:2025",
+            "LLM03:2025",
+            "LLM04",
+            "LLM05:2025",
+            "LLM06:2025",
+          ],
+          owasp_agentic: [
+            "ASI01",
+            "ASI02",
+            "ASI03",
+            "ASI04",
+            "ASI05",
+            "ASI06",
+            "ASI08",
+          ],
+          mitre_atlas: [
+            "AML.TA0001",
+            "AML.TA0004",
+            "AML.TA0005",
+            "AML.TA0010",
+            "AML.TA0011",
+            "AML.TA0012",
+            "AML.TA0013",
+            "AML.TA0014",
+            "AML.TA0015",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 2.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "tool_hallucination_phantom_calls",
+          name: "Tool hallucination / phantom calls",
+          severity: "high",
+          owasp_llm: ["LLM05:2025", "LLM06:2025", "LLM09:2025"],
+          owasp_agentic: ["ASI02", "ASI08"],
+          mitre_atlas: ["AML.TA0011"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.8",
+            "MEASURE 2.9",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "capability_extraction",
+          name: "Capability extraction",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM02:2025", "LLM07:2025", "LLM10:2025"],
+          owasp_agentic: [],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0002",
+            "AML.TA0003",
+            "AML.TA0008",
+            "AML.TA0009",
+            "AML.TA0010",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "cross_tenant_data_leak_via_rag",
+          name: "Cross-tenant data leak via RAG",
+          severity: "critical",
+          owasp_llm: ["LLM02:2025", "LLM08:2025"],
+          owasp_agentic: ["ASI03"],
+          mitre_atlas: ["AML.TA0001", "AML.TA0009", "AML.TA0010"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 2.10",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "secret_exposure_in_prompts_tools",
+          name: "Secret exposure in prompts, tools",
+          severity: "critical",
+          owasp_llm: ["LLM02:2025", "LLM07:2025"],
+          owasp_agentic: ["ASI02", "ASI03", "ASI04"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0002",
+            "AML.TA0003",
+            "AML.TA0008",
+            "AML.TA0009",
+            "AML.TA0010",
+            "AML.TA0012",
+            "AML.TA0013",
+            "AML.TA0015",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 2.10",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+          ],
+        },
+        {
+          id: "session_cross_talk_memory_bleed",
+          name: "Session cross-talk / memory bleed",
+          severity: "critical",
+          owasp_llm: ["LLM02:2025"],
+          owasp_agentic: ["ASI03", "ASI06", "ASI08"],
+          mitre_atlas: ["AML.TA0009", "AML.TA0010", "AML.TA0011", "AML.TA0013"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 2.10",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "pii_regurgitation_or_memorization",
+          name: "PII regurgitation or memorization",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM02:2025", "LLM03:2025"],
+          owasp_agentic: [],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0009",
+            "AML.TA0010",
+            "AML.TA0011",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.10",
+            "MEASURE 2.11",
+            "MEASURE 2.2",
+            "MEASURE 2.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "membership_inference",
+          name: "Membership inference",
+          severity: "medium",
+          owasp_llm: ["LLM02:2025"],
+          owasp_agentic: [],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0008",
+            "AML.TA0009",
+            "AML.TA0010",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 2.10",
+            "MEASURE 2.2",
+            "MEASURE 2.5",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "memorized_prioritary_copyrighted_data_leakage",
+          name: "Memorized prioritary/copyrighted data leakage",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM02:2025", "LLM03:2025"],
+          owasp_agentic: [],
+          mitre_atlas: ["AML.TA0000", "AML.TA0002", "AML.TA0009", "AML.TA0010"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 2.10",
+            "MEASURE 2.2",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "output_injection_xss",
+          name: "Output injection / XSS",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM05:2025"],
+          owasp_agentic: ["ASI05"],
+          mitre_atlas: ["AML.TA0001", "AML.TA0005", "AML.TA0011", "AML.TA0013"],
+          nist: ["MEASURE 1.1", "MEASURE 2.7", "MEASURE 3.2"],
+        },
+        {
+          id: "prompt_leaks_in_errors_and_telemetry",
+          name: "Prompt leaks in errors and telemetry",
+          severity: "high",
+          owasp_llm: ["LLM02:2025", "LLM07:2025"],
+          owasp_agentic: [],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0002",
+            "AML.TA0008",
+            "AML.TA0009",
+            "AML.TA0010",
+            "AML.TA0013",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 2.10",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 2.9",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "unsafe_code_generation_and_automated_execution",
+          name: "Unsafe code generation (and automated execution?)",
+          severity: "high",
+          owasp_llm: ["LLM05:2025", "LLM06:2025"],
+          owasp_agentic: ["ASI01", "ASI03", "ASI04", "ASI05", "ASI08"],
+          mitre_atlas: ["AML.TA0005", "AML.TA0011", "AML.TA0012", "AML.TA0015"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.3",
+            "MEASURE 2.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 2.8",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "sql_injection_payload_generation",
+          name: "SQL Injection Payload Generation",
+          severity: "high",
+          owasp_llm: ["LLM05:2025"],
+          owasp_agentic: ["ASI02"],
+          mitre_atlas: ["AML.TA0001", "AML.TA0003", "AML.TA0011", "AML.TA0013"],
+          nist: ["MEASURE 1.1", "MEASURE 2.7"],
+        },
+        {
+          id: "command_injection_payload_generation",
+          name: "Command Injection Payload Generation",
+          severity: "high",
+          owasp_llm: ["LLM01:2025", "LLM05:2025", "LLM06:2025"],
+          owasp_agentic: ["ASI01", "ASI02", "ASI05"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0005",
+            "AML.TA0010",
+            "AML.TA0011",
+            "AML.TA0012",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "template_injection_payload_generation",
+          name: "Template Injection Payload Generation",
+          severity: "high",
+          owasp_llm: ["LLM05:2025"],
+          owasp_agentic: ["ASI01", "ASI05"],
+          mitre_atlas: ["AML.TA0001", "AML.TA0005", "AML.TA0011", "AML.TA0012"],
+          nist: ["MEASURE 1.1", "MEASURE 2.7"],
+        },
+        {
+          id: "malformed_structured_output",
+          name: "Malformed Structured Output",
+          severity: "high",
+          owasp_llm: ["LLM05:2025", "LLM10:2025"],
+          owasp_agentic: ["ASI02", "ASI08"],
+          mitre_atlas: ["AML.TA0001", "AML.TA0011"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "unsafe_code_suggestions",
+          name: "Unsafe Code Suggestions",
+          severity: "high",
+          owasp_llm: ["LLM05:2025", "LLM09:2025"],
+          owasp_agentic: ["ASI04", "ASI09"],
+          mitre_atlas: ["AML.TA0011", "AML.TA0013"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.7",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "poisoned_artifact_suggestions",
+          name: "Poisoned Artifact Suggestions",
+          severity: "high",
+          owasp_llm: ["LLM03:2025", "LLM04", "LLM05:2025"],
+          owasp_agentic: ["ASI01", "ASI04", "ASI05", "ASI09"],
+          mitre_atlas: [
+            "AML.TA0001",
+            "AML.TA0004",
+            "AML.TA0005",
+            "AML.TA0006",
+            "AML.TA0011",
+            "AML.TA0012",
+            "AML.TA0015",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 3.3",
+            "MEASURE 4.2",
+            "MEASURE 4.3",
+          ],
+        },
+        {
+          id: "training_data_poisoning",
+          name: "Training data poisoning",
+          severity: "high",
+          owasp_llm: ["LLM02:2025", "LLM03:2025", "LLM04"],
+          owasp_agentic: ["ASI04", "ASI10"],
+          mitre_atlas: [
+            "AML.TA0000",
+            "AML.TA0001",
+            "AML.TA0003",
+            "AML.TA0006",
+            "AML.TA0011",
+          ],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.4",
+            "MEASURE 2.5",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+            "MEASURE 4.2",
+          ],
+        },
+        {
+          id: "dos_or_cost_amplification",
+          name: "DoS or cost amplification",
+          severity: "high",
+          owasp_llm: ["LLM06:2025", "LLM10:2025"],
+          owasp_agentic: ["ASI02", "ASI08"],
+          mitre_atlas: ["AML.TA0000", "AML.TA0001", "AML.TA0011"],
+          nist: [
+            "MEASURE 1.1",
+            "MEASURE 1.2",
+            "MEASURE 1.3",
+            "MEASURE 2.4",
+            "MEASURE 2.6",
+            "MEASURE 2.7",
+            "MEASURE 3.1",
+            "MEASURE 3.2",
+          ],
+        },
+      ];
+
+      // Human-readable full names for framework section codes (from tags)
+      const FRAMEWORK_SECTION_NAMES = {
+        // OWASP LLM Top 10 2025
+        "LLM01:2025": "Prompt Injection",
+        "LLM02:2025": "Sensitive Information Disclosure",
+        "LLM03:2025": "Supply Chain",
+        LLM04: "Data and Model Poisoning",
+        "LLM05:2025": "Improper Output Handling",
+        "LLM06:2025": "Excessive Agency",
+        "LLM07:2025": "System Prompt Leakage",
+        "LLM08:2025": "Vector and Embedding Weaknesses",
+        "LLM09:2025": "Misinformation",
+        "LLM10:2025": "Unbounded Consumption",
+        // OWASP Agentic
+        ASI01: "Agent Goal Hijack",
+        ASI02: "Tool Misuse and Exploitation",
+        ASI03: "Identity and Privilege Abuse",
+        ASI04: "Agentic Supply Chain Vulnerabilities",
+        ASI05: "Unexpected Code Execution",
+        ASI06: "Memory and Context Poisoning",
+        ASI07: "Insecure Inter-Agent Communication",
+        ASI08: "Cascading Failures",
+        ASI09: "Human Agent Trust Exploitation",
+        ASI10: "Rogue Agents",
+        // MITRE ATLAS Tactics
+        "AML.TA0000": "AI Model Access",
+        "AML.TA0001": "AI Attack Staging",
+        "AML.TA0002": "Reconnaissance",
+        "AML.TA0003": "Resource Development",
+        "AML.TA0004": "Initial Access",
+        "AML.TA0005": "Execution",
+        "AML.TA0006": "Persistence",
+        "AML.TA0007": "Defense Evasion",
+        "AML.TA0008": "Discovery",
+        "AML.TA0009": "Collection",
+        "AML.TA0010": "Exfiltration",
+        "AML.TA0011": "Impact",
+        "AML.TA0012": "Privilege Escalation",
+        "AML.TA0013": "Credential Access",
+        "AML.TA0014": "Command and Control",
+        "AML.TA0015": "Lateral Movement",
+        // NIST AI RMF Measure subcategories
+        "MEASURE 1.1": "Risk Measurement Approaches",
+        "MEASURE 1.2": "Metrics Effectiveness Assessment",
+        "MEASURE 1.3": "Independent Assessment",
+        "MEASURE 2.1": "TEVV Documentation",
+        "MEASURE 2.2": "Human Subjects Evaluation",
+        "MEASURE 2.3": "Deployment Performance",
+        "MEASURE 2.4": "Production Monitoring",
+        "MEASURE 2.5": "Validity and Reliability",
+        "MEASURE 2.6": "Safety Risk Evaluation",
+        "MEASURE 2.7": "Security and Resilience",
+        "MEASURE 2.8": "Robustness Assessment",
+        "MEASURE 2.9": "Fairness Assessment",
+        "MEASURE 2.10": "Privacy Risk Assessment",
+        "MEASURE 2.11": "Fairness Across Groups",
+        "MEASURE 2.13": "Effectiveness of Risk Mitigation",
+        "MEASURE 3.1": "Decision-Making Monitoring",
+        "MEASURE 3.2": "Risk Tracking and Response",
+        "MEASURE 3.3": "Feedback Integration",
+        "MEASURE 4.1": "Post-Deployment Measurement",
+        "MEASURE 4.2": "Performance and Impact Metrics",
+        "MEASURE 4.3": "Measurable Continuous Improvement",
+      };
+
+      function sectionFullName(code) {
+        const name = FRAMEWORK_SECTION_NAMES[code];
+        return name ? code + " " + name : code;
+      }
+    </script>
+
+    <!-- =================================================================
+       RENDERER — Builds the HTML from REPORT_DATA
+       ================================================================= -->
     <script>
       (function () {
-        var root = document.getElementById("report-root");
+        const root = document.getElementById("report-root");
 
+        // ── Helpers ──────────────��─������─���──────────────────────────────────
         function escapeHtml(str) {
-          if (str == null) return "";
-          var div = document.createElement("div");
-          div.textContent = String(str);
+          const div = document.createElement("div");
+          div.textContent = str;
           return div.innerHTML;
         }
 
-        function escapeAttr(str) {
-          return escapeHtml(str).replace(/"/g, "&quot;");
-        }
-
         function shortId(id) {
-          return id ? id.substring(0, 8) : "\u2014";
+          return id ? id.substring(0, 8) : "—";
         }
 
         function severityCounts(results) {
-          var counts = { critical: 0, high: 0, medium: 0, low: 0 };
-          results.forEach(function (r) {
-            var s = (r.severity || "").toLowerCase();
+          const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+          results.forEach((r) => {
+            const s = (r.severity || "").toLowerCase();
             if (counts.hasOwnProperty(s)) counts[s]++;
           });
           return counts;
         }
 
         function severityOrder(severity) {
-          var order = { critical: 0, high: 1, medium: 2, low: 3 };
-          var s = (severity || "").toLowerCase();
-          return order[s] !== undefined ? order[s] : 4;
+          const order = { critical: 0, high: 1, medium: 2, low: 3 };
+          return order[(severity || "").toLowerCase()] ?? 4;
         }
 
         function severityBadgeIcon(level, count) {
-          var letter = level.charAt(0).toUpperCase();
-          return (
-            '<span class="severity-badge">' +
-            '<span class="severity-badge-icon severity-badge-icon--' + level + '">' + letter + "</span>" +
-            '<span class="severity-badge-count">' + count + "</span>" +
-            "</span>"
-          );
+          const letter = level.charAt(0).toUpperCase();
+          const isZero = count === 0;
+          return `
+          <span class="severity-badge">
+            <span class="severity-badge-icon severity-badge-icon--${level} ${isZero ? "severity-badge-icon--zero" : ""}">${letter}</span>
+            <span class="severity-badge-count">${count}</span>
+          </span>`;
         }
 
         function severityLabel(level) {
-          return (
-            '<span class="severity-label severity-label--' + level + '">' +
-            level.charAt(0).toUpperCase() + level.slice(1) +
-            "</span>"
-          );
+          return `<span class="severity-label severity-label--${level}">${level.charAt(0).toUpperCase() + level.slice(1)}</span>`;
         }
 
+        function severityLabelShort(level) {
+          return `<span class="severity-label severity-label--short severity-label--${level}">${level.charAt(0).toUpperCase()}</span>`;
+        }
+
+        function severityLabelPale(level) {
+          return `<span class="severity-label severity-label--${level} severity-label--pale">${level.charAt(0).toUpperCase() + level.slice(1)}</span>`;
+        }
+
+        function severityLabelPaleShort(level) {
+          return `<span class="severity-label severity-label--short severity-label--${level} severity-label--pale">${level.charAt(0).toUpperCase()}</span>`;
+        }
+
+        function severityLabelNone() {
+          return `<span class="severity-label severity-label--none">None</span>`;
+        }
+
+        function severityLabelNoneShort() {
+          return `<span class="severity-label severity-label--short severity-label--none"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
+        }
+
+        function severityLabelPartialShort() {
+          return `<span class="severity-label severity-label--short severity-label--partial">−</span>`;
+        }
+
+        function severityLabelFailedShort() {
+          return `<span class="severity-label severity-label--short severity-label--failed"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>`;
+        }
+
+        function severityLabelErrorShort() {
+          return `<span class="severity-label severity-label--short severity-label--error"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>`;
+        }
+
+        /**
+         * Parse framework tags into a Map of { frameworkName => [section, ...] }.
+         * Tag format: "framework: <FRAMEWORK_NAME>, <SECTION>"
+         * The framework name is the part after "framework:" and before the first comma.
+         * The section is everything after the first comma.
+         *
+         * e.g. "framework: OWASP LLM Top 10, LLM01:2025"
+         *   => framework = "OWASP LLM Top 10", section = "LLM01:2025"
+         * e.g. "framework: MITRE ATLAS, AML.TA0001"
+         *   => framework = "MITRE ATLAS", section = "AML.TA0001"
+         * e.g. "framework: NIST AI RMF, MEASURE 1.1"
+         *   => framework = "NIST AI RMF", section = "MEASURE 1.1"
+         * e.g. "framework: OWASP Agentic, ASI01"
+         *   => framework = "OWASP Agentic", section = "ASI01"
+         */
         function parseFrameworkTags(tags) {
-          var map = new Map();
-          if (!tags) return map;
-          tags.forEach(function (tag) {
+          const map = new Map();
+          tags.forEach((tag) => {
             if (!tag.startsWith("framework:")) return;
-            var rest = tag.substring("framework:".length).trim();
-            var commaIdx = rest.indexOf(",");
-            var frameworkName, section;
+            const rest = tag.substring("framework:".length).trim();
+            const commaIdx = rest.indexOf(",");
+            let frameworkName, section;
             if (commaIdx !== -1) {
               frameworkName = rest.substring(0, commaIdx).trim();
               section = rest.substring(commaIdx + 1).trim();
@@ -860,25 +2035,11 @@
           return map;
         }
 
-        function detectFrameworkNames(results) {
-          var names = new Set();
-          results.forEach(function (r) {
-            var tags = r.tags || [];
-            tags.forEach(function (tag) {
-              if (!tag.startsWith("framework:")) return;
-              var rest = tag.substring("framework:".length).trim();
-              var commaIdx = rest.indexOf(",");
-              var name = commaIdx !== -1 ? rest.substring(0, commaIdx).trim() : rest.trim();
-              if (name) names.add(name);
-            });
-          });
-          return Array.from(names).sort();
-        }
-
+        // Group results by definition id
         function groupByDefinition(results) {
-          var map = new Map();
-          results.forEach(function (r) {
-            var key = r.definition.id;
+          const map = new Map();
+          results.forEach((r) => {
+            const key = r.definition.id;
             if (!map.has(key)) {
               map.set(key, { definition: r.definition, items: [] });
             }
@@ -887,93 +2048,116 @@
           return Array.from(map.values());
         }
 
+        // Get unique URLs
         function uniqueUrls(results) {
-          return Array.from(new Set(results.map(function (r) { return r.url; }).filter(Boolean)));
+          return [...new Set(results.map((r) => r.url).filter(Boolean))];
         }
 
-        var data = REPORT_DATA;
-        var results = data.results || [];
-        var counts = severityCounts(results);
-        var urls = uniqueUrls(results);
-        var groups = groupByDefinition(results);
-        var frameworkNames = detectFrameworkNames(results);
+        // ── Render ──────────────────────────────────────────────────────
+        const data = REPORT_DATA;
+        const results = data.results || [];
+        const summaryVulns = (data.summary && Array.isArray(data.summary.vulnerabilities))
+          ? data.summary.vulnerabilities
+          : [];
+        const useSummaryAsSource = summaryVulns.length > 0;
 
-        var sortedResults = results.slice().sort(function (a, b) {
-          return severityOrder(a.severity) - severityOrder(b.severity);
-        });
+        const issueTypesDetectedCount = useSummaryAsSource
+          ? summaryVulns.filter((v) => v.vulnerable).length
+          : new Set(results.map((r) => r.definition.id)).size;
+        const issueTypesPassedCount = useSummaryAsSource
+          ? summaryVulns.filter((v) => !v.vulnerable && v.status !== "skipped" && v.status !== "error").length
+          : (VULNERABILITY_CATALOG.length - new Set(results.map((r) => r.definition.id)).size);
 
-        var html = "";
+        const counts = severityCounts(results);
+        const urls = uniqueUrls(results);
+        const groups = groupByDefinition(results);
 
-        html +=
-          '<h1 class="report-title">Red teaming report</h1>' +
-          '<p class="report-subtitle">Report ID: ' + escapeHtml(data.id) + "</p>" +
-          '<p class="report-subtitle">Target URL: ' +
-          (urls.length > 0
-            ? urls.map(function (u) {
-                return '<a href="' + escapeAttr(u) + '" target="_blank" rel="noopener">' + escapeHtml(u) + "</a>";
-              }).join(", ")
-            : "\u2014") +
-          "</p>";
+        function buildFrameworkSectionsFromTags(results) {
+          const byName = {};
+          results.forEach((r) => {
+            const m = parseFrameworkTags(r.tags || []);
+            m.forEach((sections, fwName) => {
+              if (!byName[fwName]) byName[fwName] = new Set();
+              sections.forEach((s) => byName[fwName].add(s));
+            });
+          });
+          const out = {};
+          Object.keys(byName)
+            .sort()
+            .forEach((fw) => {
+              out[fw] = [...byName[fw]].sort();
+            });
+          return out;
+        }
+        const FRAMEWORK_SECTIONS_FROM_TAGS =
+          buildFrameworkSectionsFromTags(results);
+        const GROUP_BY_OPTIONS = ["None", "Severity", "Issue type"].concat(
+          Object.keys(FRAMEWORK_SECTIONS_FROM_TAGS).sort(),
+        );
 
-        html +=
-          '<div class="summary-bar">' +
-          '<div class="summary-item">' +
-          '<span class="summary-item-label">Total issues</span>' +
-          '<span class="summary-item-value">' + results.length + "</span>" +
-          "</div>" +
-          '<div class="summary-item">' +
-          '<span class="summary-item-label">Target URLs</span>' +
-          '<span class="summary-item-value">' + urls.length + "</span>" +
-          "</div>" +
-          '<div class="summary-item">' +
-          '<span class="summary-item-label">Categories</span>' +
-          '<span class="summary-item-value">' + groups.length + "</span>" +
-          "</div>" +
-          '<div class="summary-item">' +
-          '<span class="summary-item-label">Severity Breakdown</span>' +
-          '<div class="summary-severity-counts">' +
-          severityBadgeIcon("critical", counts.critical) +
-          severityBadgeIcon("high", counts.high) +
-          severityBadgeIcon("medium", counts.medium) +
-          severityBadgeIcon("low", counts.low) +
-          "</div>" +
-          "</div>" +
-          "</div>";
+        // Sort results by severity
+        const sortedResults = [...results].sort(
+          (a, b) => severityOrder(a.severity) - severityOrder(b.severity),
+        );
 
-        if (results.length === 0) {
-          html +=
-            '<div class="issues-table-wrapper">' +
-            '<div class="issues-table-header">' +
-            '<span class="issues-table-title">Issues <span class="issues-table-count">0</span></span>' +
-            "</div>" +
-            '<div class="empty-state">' +
-            '<div class="empty-state-icon">' +
-            '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">' +
-            '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />' +
-            "</svg>" +
-            "</div>" +
-            '<div class="empty-state-title">No issues found</div>' +
-            '<p class="empty-state-description">The red teaming scan completed without finding any issues.</p>' +
-            "</div>" +
-            "</div>";
+        let html = "";
 
-          root.innerHTML = html;
-          return;
+        // ── Title ───────────────────────────────────────────────────────
+        html += `
+        <h1 class="report-title" id="report-top">Red teaming report</h1>
+        <p class="report-subtitle">Report ID: ${escapeHtml(data.id)}</p>
+        <p class="report-subtitle">Target URL: ${urls.map((u) => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener">${escapeHtml(u)}</a>`).join(", ")}</p>`;
+
+        // ── Error Banner ─────────────────────────────────────���──────────
+        if (data.error && data.error.trim()) {
+          html += `
+        <div class="error-banner">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span class="error-banner-text">${escapeHtml(data.error)}</span>
+        </div>`;
         }
 
-        var GROUP_BY_OPTIONS = ["None", "Severity", "Issue type"];
-        frameworkNames.forEach(function (name) {
-          GROUP_BY_OPTIONS.push(name);
-        });
+        // ── Summary Bar ─────────────────────────────────────────────────
+        html += `
+        <div class="summary-bar">
+          <div class="summary-item">
+            <span class="summary-item-label">Total issues</span>
+            <span class="summary-item-value">${results.length}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-item-label">Issue types detected</span>
+            <span class="summary-item-value">${issueTypesDetectedCount}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-item-label">Issue types passed</span>
+            <span class="summary-item-value">${issueTypesPassedCount}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-item-label">Severity Breakdown</span>
+            <div class="summary-severity-counts">
+              ${severityBadgeIcon("critical", counts.critical)}
+              ${severityBadgeIcon("high", counts.high)}
+              ${severityBadgeIcon("medium", counts.medium)}
+              ${severityBadgeIcon("low", counts.low)}
+            </div>
+          </div>
+        </div>`;
 
+        // ── Issues Table (with group-by) ─────────────────────────────────
+
+        /**
+         * Group issues by a framework name.
+         * Returns an array of { section, items[] } sorted by section name.
+         * Issues that don't map to the selected framework go into "Other".
+         */
         function groupIssuesByFramework(issues, frameworkName) {
-          var grouped = new Map();
-          var unmapped = [];
-          issues.forEach(function (r) {
-            var fwMap = parseFrameworkTags(r.tags || []);
-            var sections = fwMap.get(frameworkName);
+          const grouped = new Map();
+          const unmapped = [];
+          issues.forEach((r) => {
+            const fwMap = parseFrameworkTags(r.tags || []);
+            const sections = fwMap.get(frameworkName);
             if (sections && sections.length > 0) {
-              sections.forEach(function (sec) {
+              sections.forEach((sec) => {
                 if (!grouped.has(sec)) grouped.set(sec, []);
                 grouped.get(sec).push(r);
               });
@@ -981,8 +2165,8 @@
               unmapped.push(r);
             }
           });
-          var result = [];
-          Array.from(grouped.keys()).sort().forEach(function (key) {
+          const result = [];
+          [...grouped.keys()].sort().forEach((key) => {
             result.push({ section: key, items: grouped.get(key) });
           });
           if (unmapped.length > 0) {
@@ -991,60 +2175,87 @@
           return result;
         }
 
+        /**
+         * Group issues by severity.
+         * Returns groups ordered: critical, high, medium, low.
+         */
         function groupIssuesBySeverity(issues) {
-          var order = ["critical", "high", "medium", "low"];
-          var grouped = new Map();
-          issues.forEach(function (r) {
-            var sev = (r.severity || "low").toLowerCase();
+          const order = ["critical", "high", "medium", "low"];
+          const grouped = new Map();
+          issues.forEach((r) => {
+            const sev = (r.severity || "low").toLowerCase();
             if (!grouped.has(sev)) grouped.set(sev, []);
             grouped.get(sev).push(r);
           });
-          var result = [];
-          order.forEach(function (sev) {
+          const result = [];
+          order.forEach((sev) => {
             if (grouped.has(sev)) {
               result.push({
                 section: sev.charAt(0).toUpperCase() + sev.slice(1),
                 items: grouped.get(sev),
+                severity: sev,
               });
             }
           });
           return result;
         }
 
+        /**
+         * Group issues by issue type (definition name).
+         * Returns groups sorted alphabetically by name.
+         * Derives group severity from the items (all items in a type share the same severity).
+         */
         function groupIssuesByType(issues) {
-          var grouped = new Map();
-          issues.forEach(function (r) {
-            var name = r.definition.name || "Unknown";
+          const grouped = new Map();
+          issues.forEach((r) => {
+            const name = r.definition.name || "Unknown";
             if (!grouped.has(name)) grouped.set(name, []);
             grouped.get(name).push(r);
           });
-          var result = [];
-          Array.from(grouped.keys()).sort().forEach(function (key) {
-            result.push({ section: key, items: grouped.get(key) });
+          const result = [];
+          [...grouped.keys()].sort().forEach((key) => {
+            const items = grouped.get(key);
+            const severity = (items[0].severity || "low").toLowerCase();
+            result.push({ section: key, items, severity });
           });
           return result;
         }
 
+        const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+
+        function highestSeverity(items) {
+          let best = "low";
+          items.forEach((r) => {
+            const sev = (r.severity || "low").toLowerCase();
+            if ((SEVERITY_ORDER[sev] ?? 4) < (SEVERITY_ORDER[best] ?? 4))
+              best = sev;
+          });
+          return best;
+        }
+
         function renderTableRows(issues, groupId) {
-          var groupClass = groupId != null ? ' group-item-row" data-group-id="' + groupId : "";
-          return issues.map(function (r) {
-            var sev = (r.severity || "low").toLowerCase();
-            var safeId = escapeAttr(r.id);
-            return (
-              '<tr class="' + groupClass + '" data-issue-id="' + safeId + '">' +
-              '<td class="col-name">' + escapeHtml(r.definition.name) + "</td>" +
-              '<td class="col-id" title="' + safeId + '">' + escapeHtml(shortId(r.id)) + "</td>" +
-              '<td class="col-severity">' + severityLabel(sev) + "</td>" +
-              "</tr>"
-            );
-          }).join("");
+          const groupClass =
+            groupId != null
+              ? ` group-item-row hidden" data-group-id="${groupId}`
+              : "";
+          return issues
+            .map((r) => {
+              const sev = (r.severity || "low").toLowerCase();
+              return `
+              <tr class="${groupClass}" onclick="document.getElementById('issue-${r.id}').scrollIntoView({ behavior: 'smooth', block: 'start' })">
+                <td class="col-severity">${severityLabelShort(sev)}</td>
+                <td class="col-name">${escapeHtml(r.definition.name)}</td>
+                <td class="col-response" title="${escapeHtml((r.turns && r.turns[0] ? r.turns[0].response : "").trim())}">${escapeHtml((r.turns && r.turns[0] ? r.turns[0].response : "").trim())}</td>
+              </tr>`;
+            })
+            .join("");
         }
 
         function renderTableBody(issues, groupBy) {
           if (groupBy === "None") {
             return renderTableRows(issues);
           }
-          var groups;
+          let groups;
           if (groupBy === "Severity") {
             groups = groupIssuesBySeverity(issues);
           } else if (groupBy === "Issue type") {
@@ -1052,171 +2263,626 @@
           } else {
             groups = groupIssuesByFramework(issues, groupBy);
           }
-          return groups.map(function (g, i) {
-            return (
-              '<tr class="group-header-row" data-group-id="' + i + '"><td colspan="3"><span class="group-caret">&#9660;</span>' +
-              escapeHtml(g.section) +
-              ' <span class="group-count">(' + g.items.length + ")</span></td></tr>" +
-              renderTableRows(g.items, i)
-            );
-          }).join("");
+          return groups
+            .map((g, i) => {
+              let badge;
+              if (g.severity) {
+                badge = severityLabel(g.severity);
+              } else if (g.items.length > 0) {
+                badge = severityLabel(highestSeverity(g.items));
+              } else {
+                badge = "";
+              }
+              const shortBadge = g.severity
+                ? severityLabelShort(g.severity)
+                : g.items.length > 0
+                  ? severityLabelShort(highestSeverity(g.items))
+                  : "";
+              return (
+                `<tr class="group-header-row collapsed" data-group-id="${i}"><td class="col-severity"><span class="group-caret">&#9660;</span>${shortBadge}</td><td colspan="2">${escapeHtml(sectionFullName(g.section))} <span class="group-count">${g.items.length}</span></td></tr>` +
+                renderTableRows(g.items, i)
+              );
+            })
+            .join("");
         }
 
-        var hasFrameworks = frameworkNames.length > 0;
+        html += `
+        <div class="issues-table-wrapper">
+          <div class="issues-table-header">
+            <span class="issues-table-title"><span class="severity-label severity-label--${highestSeverity(results)}" id="issuesDetectedLabel">${results.length} issues detected</span></span>
+            <div style="display:flex;align-items:center;gap:var(--pcl-spacing-8);">
+              <span class="segmented-control-label">Group by</span>
+              <div class="segmented-control" id="groupByControl">
+                ${GROUP_BY_OPTIONS.map((opt, i) => {
+                  const btn = `<button class="segmented-control-btn${opt === "None" ? " segmented-control-btn--active" : ""}" data-group="${opt}">${opt}</button>`;
+                  // Insert a divider between "Issue type" (index 2) and "OWASP" (index 3)
+                  return (
+                    (i === 3 || i === 1
+                      ? '<span class="segmented-control-divider"></span>'
+                      : "") + btn
+                  );
+                }).join("")}
+              </div>
+            </div>
+          </div>
+          ${
+            results.length > 0
+              ? `<table class="issues-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Name</th>
+                <th>Model response</th>
+              </tr>
+            </thead>
+            <tbody id="issuesTableBody">
+              ${renderTableBody(sortedResults, "None")}
+            </tbody>
+          </table>`
+              : ""
+          }
+        </div>`;
 
-        html +=
-          '<div class="issues-table-wrapper" id="issues-table">' +
-          '<div class="issues-table-header">' +
-          '<span class="issues-table-title">Issues <span class="issues-table-count">' + results.length + "</span></span>" +
-          '<div style="display:flex;align-items:center;gap:var(--pcl-spacing-8);">' +
-          '<span class="segmented-control-label">Group by</span>' +
-          '<div class="segmented-control" id="groupByControl">' +
-          GROUP_BY_OPTIONS.map(function (opt, i) {
-            var btn =
-              '<button class="segmented-control-btn' +
-              (opt === "None" ? " segmented-control-btn--active" : "") +
-              '" data-group="' + escapeAttr(opt) + '">' + escapeHtml(opt) + "</button>";
-            var divider = "";
-            if (i === 1 || (hasFrameworks && i === 3)) {
-              divider = '<span class="segmented-control-divider"></span>';
+        // ── Passed Tests table ──────────────────────────────────────────
+        const foundDefIds = new Set(results.map((r) => r.definition.id));
+
+        function isErroneousResult(r) {
+          if (!r.error || !r.error.trim()) return false;
+          const noTurns = !r.turns || r.turns.length === 0;
+          const noEvidence =
+            !r.evidence ||
+            (typeof r.evidence === "object" &&
+              Object.keys(r.evidence).length === 0);
+          return noTurns || noEvidence;
+        }
+
+        let passedTypes, partialTypes, errorTypes, failedTypes;
+        if (useSummaryAsSource) {
+          const failedTypeSlugs = new Set();
+          summaryVulns.forEach((v) => {
+            const defResults = results.filter((r) => r.definition.id === v.slug);
+            if (defResults.length > 0 && defResults.every(isErroneousResult)) {
+              failedTypeSlugs.add(v.slug);
             }
-            return divider + btn;
-          }).join("") +
-          "</div>" +
-          "</div>" +
-          "</div>" +
-          '<table class="issues-table">' +
-          "<thead><tr><th>Name</th><th>ID</th><th>Severity</th></tr></thead>" +
-          '<tbody id="issuesTableBody">' +
-          renderTableBody(sortedResults, "None") +
-          "</tbody></table></div>";
+          });
+          passedTypes = summaryVulns.filter(
+            (v) => !v.vulnerable && v.status !== "skipped" && v.status !== "error" && !failedTypeSlugs.has(v.slug),
+          );
+          partialTypes = summaryVulns.filter((v) => v.status === "skipped");
+          errorTypes = summaryVulns.filter((v) => v.status === "error");
+          failedTypes = summaryVulns.filter((v) => failedTypeSlugs.has(v.slug));
+        } else {
+          errorTypes = [];
+          function classifyDefId(defId) {
+            const defResults = results.filter((r) => r.definition.id === defId);
+            if (defResults.length === 0) return "passed";
+            const hasErr = defResults.some(isErroneousResult);
+            const hasGood = defResults.some((r) => !isErroneousResult(r));
+            if (hasErr && hasGood) return "partial";
+            if (hasErr && !hasGood) return "failed";
+            return "issues";
+          }
+          partialTypes = VULNERABILITY_CATALOG.filter(
+            (v) => classifyDefId(v.id) === "partial",
+          );
+          failedTypes = VULNERABILITY_CATALOG.filter(
+            (v) => classifyDefId(v.id) === "failed",
+          );
+          const failedTypeIds = new Set(failedTypes.map((v) => v.id));
+          passedTypes = VULNERABILITY_CATALOG.filter(
+            (v) => !foundDefIds.has(v.id) && !failedTypeIds.has(v.id),
+          );
+        }
 
+        /**
+         * Render the passed-tests table body based on the current group-by mode.
+         */
+        // Classify framework sections into partial (mixed) and failed (all erroneous)
+        function classifySections(frameworkName) {
+          const sectionsWithGoodResults = new Set();
+          const sectionsWithErrResults = new Set();
+          results.forEach((r) => {
+            const fwMap = parseFrameworkTags(r.tags || []);
+            const sections = fwMap.get(frameworkName);
+            if (!sections) return;
+            if (isErroneousResult(r)) {
+              sections.forEach((s) => sectionsWithErrResults.add(s));
+            } else {
+              sections.forEach((s) => sectionsWithGoodResults.add(s));
+            }
+          });
+          // Partial = has both erroneous AND good results
+          const partial = new Set(
+            [...sectionsWithErrResults].filter((s) =>
+              sectionsWithGoodResults.has(s),
+            ),
+          );
+          // Failed = has ONLY erroneous results (no good)
+          const failed = new Set(
+            [...sectionsWithErrResults].filter(
+              (s) => !sectionsWithGoodResults.has(s),
+            ),
+          );
+          return { partial, failed };
+        }
+
+        function renderPassedTableBody(groupBy) {
+          if (groupBy === "None" || groupBy === "Severity") {
+            let html = "";
+            // Passed group
+            if (passedTypes.length > 0) {
+              const pseudoRows = passedTypes
+                .map((v) => {
+                  return `<tr class="group-item-row hidden pseudo-row" data-group-id="passed-0">
+                  <td class="col-severity">${severityLabelNoneShort()}</td>
+                  <td class="col-name">${escapeHtml(v.name)}</td>
+                </tr>`;
+                })
+                .join("");
+              html +=
+                `<tr class="group-header-row collapsed" data-group-id="passed-0"><td class="col-severity"><span class="group-caret">&#9660;</span>${severityLabelNoneShort()}</td><td>Passed issue types <span class="group-count">${passedTypes.length}</span></td></tr>` +
+                pseudoRows;
+            }
+            // Not tested group
+            if (partialTypes.length > 0) {
+              const partialRows = partialTypes
+                .map((v) => {
+                  return `<tr class="group-item-row hidden pseudo-row" data-group-id="passed-partial">
+                  <td class="col-severity">${severityLabelPartialShort()}</td>
+                  <td class="col-name">${escapeHtml(v.name)}</td>
+                </tr>`;
+                })
+                .join("");
+              html +=
+                `<tr class="group-header-row collapsed" data-group-id="passed-partial"><td class="col-severity"><span class="group-caret">&#9660;</span>${severityLabelPartialShort()}</td><td>Skipped <span class="group-count">${partialTypes.length}</span></td></tr>` +
+                partialRows;
+            }
+            // Errored group (run failed)
+            if (errorTypes.length > 0) {
+              const errorRows = errorTypes
+                .map((v) => {
+                  return `<tr class="group-item-row hidden pseudo-row" data-group-id="passed-error">
+                  <td class="col-severity">${severityLabelErrorShort()}</td>
+                  <td class="col-name">${escapeHtml(v.name)}</td>
+                </tr>`;
+                })
+                .join("");
+              html +=
+                `<tr class="group-header-row collapsed" data-group-id="passed-error"><td class="col-severity"><span class="group-caret">&#9660;</span>${severityLabelErrorShort()}</td><td>Errored <span class="group-count">${errorTypes.length}</span></td></tr>` +
+                errorRows;
+            }
+            // Failed group
+            if (failedTypes.length > 0) {
+              const failedRows = failedTypes
+                .map((v) => {
+                  const sev = (v.severity || "low").toLowerCase();
+                  return `<tr class="group-item-row hidden pseudo-row" data-group-id="passed-failed">
+                  <td class="col-severity">${severityLabelPaleShort(sev)}</td>
+                  <td class="col-name">${escapeHtml(v.name)}</td>
+                </tr>`;
+                })
+                .join("");
+              html +=
+                `<tr class="group-header-row collapsed" data-group-id="passed-failed"><td class="col-severity"><span class="group-caret">&#9660;</span>${severityLabelFailedShort()}</td><td>Failed tests <span class="group-count">${failedTypes.length}</span></td></tr>` +
+                failedRows;
+            }
+            return html;
+          }
+
+          if (groupBy === "Issue type") {
+            let html = "";
+            if (passedTypes.length > 0) {
+              const pseudoRows = passedTypes
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((v) => {
+                  return `<tr class="group-item-row hidden pseudo-row" data-group-id="passed-0">
+                  <td class="col-severity">${severityLabelNoneShort()}</td>
+                  <td class="col-name">${escapeHtml(v.name)}</td>
+                </tr>`;
+                })
+                .join("");
+              html +=
+                `<tr class="group-header-row collapsed" data-group-id="passed-0"><td class="col-severity"><span class="group-caret">&#9660;</span>${severityLabelNoneShort()}</td><td>Passed issue types <span class="group-count">${passedTypes.length}</span></td></tr>` +
+                pseudoRows;
+            }
+            if (partialTypes.length > 0) {
+              const partialRows = partialTypes
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((v) => {
+                  return `<tr class="group-item-row hidden pseudo-row" data-group-id="passed-partial">
+                  <td class="col-severity">${severityLabelPartialShort()}</td>
+                  <td class="col-name">${escapeHtml(v.name)}</td>
+                </tr>`;
+                })
+                .join("");
+              html +=
+                `<tr class="group-header-row collapsed" data-group-id="passed-partial"><td class="col-severity"><span class="group-caret">&#9660;</span>${severityLabelPartialShort()}</td><td>Skipped <span class="group-count">${partialTypes.length}</span></td></tr>` +
+                partialRows;
+            }
+            if (errorTypes.length > 0) {
+              const errorRows = errorTypes
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((v) => {
+                  return `<tr class="group-item-row hidden pseudo-row" data-group-id="passed-error">
+                  <td class="col-severity">${severityLabelErrorShort()}</td>
+                  <td class="col-name">${escapeHtml(v.name)}</td>
+                </tr>`;
+                })
+                .join("");
+              html +=
+                `<tr class="group-header-row collapsed" data-group-id="passed-error"><td class="col-severity"><span class="group-caret">&#9660;</span>${severityLabelErrorShort()}</td><td>Errored <span class="group-count">${errorTypes.length}</span></td></tr>` +
+                errorRows;
+            }
+            if (failedTypes.length > 0) {
+              const failedRows = failedTypes
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((v) => {
+                  const sev = (v.severity || "low").toLowerCase();
+                  return `<tr class="group-item-row hidden pseudo-row" data-group-id="passed-failed">
+                  <td class="col-severity">${severityLabelPaleShort(sev)}</td>
+                  <td class="col-name">${escapeHtml(v.name)}</td>
+                </tr>`;
+                })
+                .join("");
+              html +=
+                `<tr class="group-header-row collapsed" data-group-id="passed-failed"><td class="col-severity"><span class="group-caret">&#9660;</span>${severityLabelFailedShort()}</td><td>Failed tests <span class="group-count">${failedTypes.length}</span></td></tr>` +
+                failedRows;
+            }
+            return html;
+          }
+
+          // Framework group-by (only when we have framework data from tags)
+          const frameworkName = groupBy;
+          const allSections = FRAMEWORK_SECTIONS_FROM_TAGS[frameworkName] || [];
+          const { partial: partialSecs, failed: failedSecs } =
+            classifySections(frameworkName);
+
+          // Sections with any results at all
+          const sectionsWithAnyResults = new Set();
+          results.forEach((r) => {
+            const fwMap = parseFrameworkTags(r.tags || []);
+            const sections = fwMap.get(frameworkName);
+            if (sections)
+              sections.forEach((s) => sectionsWithAnyResults.add(s));
+          });
+
+          // Passed = no results at all
+          const passedSections = allSections.filter(
+            (s) => !sectionsWithAnyResults.has(s),
+          );
+          const partialSectionsList = allSections.filter((s) =>
+            partialSecs.has(s),
+          );
+          const failedSectionsList = allSections.filter((s) =>
+            failedSecs.has(s),
+          );
+
+          let html = passedSections
+            .map((sec) => {
+              return `<tr class="group-header-row no-expand"><td class="col-severity"><span class="group-caret">&#9660;</span>${severityLabelNoneShort()}</td><td>${escapeHtml(sectionFullName(sec))}</td></tr>`;
+            })
+            .join("");
+          html += partialSectionsList
+            .map((sec) => {
+              return `<tr class="group-header-row no-expand"><td class="col-severity"><span class="group-caret">&#9660;</span>${severityLabelPartialShort()}</td><td>${escapeHtml(sectionFullName(sec))}</td></tr>`;
+            })
+            .join("");
+          html += failedSectionsList
+            .map((sec) => {
+              return `<tr class="group-header-row no-expand"><td class="col-severity"><span class="group-caret">&#9660;</span>${severityLabelFailedShort()}</td><td>${escapeHtml(sectionFullName(sec))}</td></tr>`;
+            })
+            .join("");
+          return html;
+        }
+
+        function passedTestsCount(groupBy) {
+          if (
+            groupBy === "None" ||
+            groupBy === "Severity" ||
+            groupBy === "Issue type"
+          ) {
+            return passedTypes.length;
+          }
+          const frameworkName = groupBy;
+          const allSections = FRAMEWORK_SECTIONS_FROM_TAGS[frameworkName] || [];
+          const sectionsWithAnyResults = new Set();
+          results.forEach((r) => {
+            const fwMap = parseFrameworkTags(r.tags || []);
+            const sections = fwMap.get(frameworkName);
+            if (sections)
+              sections.forEach((s) => sectionsWithAnyResults.add(s));
+          });
+          return allSections.filter((s) => !sectionsWithAnyResults.has(s))
+            .length;
+        }
+
+        function partialTestsCount(groupBy) {
+          if (
+            groupBy === "None" ||
+            groupBy === "Severity" ||
+            groupBy === "Issue type"
+          ) {
+            return partialTypes.length;
+          }
+          const frameworkName = groupBy;
+          const { partial } = classifySections(frameworkName);
+          return partial.size;
+        }
+
+        function failedTestsCount(groupBy) {
+          if (
+            groupBy === "None" ||
+            groupBy === "Severity" ||
+            groupBy === "Issue type"
+          ) {
+            return failedTypes.length;
+          }
+          const frameworkName = groupBy;
+          const { failed } = classifySections(frameworkName);
+          return failed.size;
+        }
+
+        function errorTestsCount(groupBy) {
+          if (
+            groupBy === "None" ||
+            groupBy === "Severity" ||
+            groupBy === "Issue type"
+          ) {
+            return errorTypes.length;
+          }
+          return 0;
+        }
+
+        const initialPassedCount = passedTestsCount("None");
+        const initialPartialCount = partialTestsCount("None");
+        const initialFailedCount = failedTestsCount("None");
+        const initialErrorCount = errorTestsCount("None");
+        const showPassedWrapper =
+          initialPassedCount > 0 ||
+          initialPartialCount > 0 ||
+          initialFailedCount > 0 ||
+          initialErrorCount > 0;
+        html += `
+        <div class="issues-table-wrapper" id="passedTestsWrapper" ${!showPassedWrapper ? 'style="display:none"' : ""}>
+          <div class="issues-table-header">
+            <span class="issues-table-title"><span class="severity-label severity-label--none" id="passedTestsLabel" ${initialPassedCount === 0 ? 'style="display:none"' : ""}><span id="passedTestsCount">${initialPassedCount}</span>&nbsp;passed (no issues found)</span> <span class="severity-label severity-label--partial" id="partialTestsLabel" ${initialPartialCount === 0 ? 'style="display:none"' : ""}><span id="partialTestsCount">${initialPartialCount}</span>&nbsp;Skipped</span> <span class="severity-label severity-label--error" id="errorTestsLabel" ${initialErrorCount === 0 ? 'style="display:none"' : ""}><span id="errorTestsCount">${initialErrorCount}</span>&nbsp;Errored</span> <span class="severity-label severity-label--failed" id="failedTestsLabel" ${initialFailedCount === 0 ? 'style="display:none"' : ""}><span id="failedTestsCount">${initialFailedCount}</span> failed tests</span></span>
+          </div>
+          <table class="issues-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Name</th>
+              </tr>
+            </thead>
+            <tbody id="passedTestsBody">
+              ${renderPassedTableBody("None")}
+            </tbody>
+          </table>
+        </div>`;
+
+        // Wire up segmented control and group collapse after render
         function initGroupByControl() {
-          var control = document.getElementById("groupByControl");
-          var tbody = document.getElementById("issuesTableBody");
-          if (!control || !tbody) return;
+          const control = document.getElementById("groupByControl");
+          const tbody = document.getElementById("issuesTableBody");
+          const passedBody = document.getElementById("passedTestsBody");
+          const passedWrapper = document.getElementById("passedTestsWrapper");
+          const passedCountEl = document.getElementById("passedTestsCount");
+          const partialCountEl = document.getElementById("partialTestsCount");
+          const partialLabelEl = document.getElementById("partialTestsLabel");
+          const errorCountEl = document.getElementById("errorTestsCount");
+          const errorLabelEl = document.getElementById("errorTestsLabel");
+          const failedCountEl = document.getElementById("failedTestsCount");
+          const failedLabelEl = document.getElementById("failedTestsLabel");
+          const issuesLabel = document.getElementById("issuesDetectedLabel");
+          if (!control) return;
           control.addEventListener("click", function (e) {
-            var btn = e.target.closest(".segmented-control-btn");
+            const btn = e.target.closest(".segmented-control-btn");
             if (!btn) return;
-            control.querySelectorAll(".segmented-control-btn").forEach(function (b) {
-              b.classList.remove("segmented-control-btn--active");
-            });
+            control
+              .querySelectorAll(".segmented-control-btn")
+              .forEach((b) =>
+                b.classList.remove("segmented-control-btn--active"),
+              );
             btn.classList.add("segmented-control-btn--active");
-            tbody.innerHTML = renderTableBody(sortedResults, btn.dataset.group);
+            const groupBy = btn.dataset.group;
+            if (tbody) {
+              tbody.innerHTML = renderTableBody(sortedResults, groupBy);
+            }
+            // Update issues title with section count for framework group-by
+            if (issuesLabel) {
+              const isFramework =
+                groupBy !== "None" &&
+                groupBy !== "Severity" &&
+                groupBy !== "Issue type";
+              if (isFramework) {
+                const groups = groupIssuesByFramework(sortedResults, groupBy);
+                const sectionCount = groups.filter(
+                  (g) => g.items.length > 0,
+                ).length;
+                issuesLabel.textContent = `${results.length} issues detected (${sectionCount} sections)`;
+              } else {
+                issuesLabel.textContent = `${results.length} issues detected`;
+              }
+            }
+            // Update passed tests table
+            if (passedBody) {
+              passedBody.innerHTML = renderPassedTableBody(groupBy);
+              const count = passedTestsCount(groupBy);
+              const pCount = partialTestsCount(groupBy);
+              const eCount = errorTestsCount(groupBy);
+              const fCount = failedTestsCount(groupBy);
+              if (passedCountEl) passedCountEl.textContent = count;
+              const passedLabelEl = document.getElementById("passedTestsLabel");
+              if (passedLabelEl) passedLabelEl.style.display = count > 0 ? "" : "none";
+              if (partialCountEl) partialCountEl.textContent = pCount;
+              if (partialLabelEl)
+                partialLabelEl.style.display = pCount > 0 ? "" : "none";
+              if (errorCountEl) errorCountEl.textContent = eCount;
+              if (errorLabelEl)
+                errorLabelEl.style.display = eCount > 0 ? "" : "none";
+              if (failedCountEl) failedCountEl.textContent = fCount;
+              if (failedLabelEl)
+                failedLabelEl.style.display = fCount > 0 ? "" : "none";
+              if (passedWrapper)
+                passedWrapper.style.display =
+                  count === 0 && pCount === 0 && eCount === 0 && fCount === 0 ? "none" : "";
+            }
             initGroupCollapse();
           });
           initGroupCollapse();
         }
 
         function initGroupCollapse() {
-          var tbody = document.getElementById("issuesTableBody");
-          if (!tbody) return;
-          tbody.querySelectorAll(".group-header-row").forEach(function (row) {
-            row.addEventListener("click", function () {
-              var groupId = this.dataset.groupId;
-              var isCollapsed = this.classList.toggle("collapsed");
-              tbody.querySelectorAll('.group-item-row[data-group-id="' + groupId + '"]').forEach(function (r) {
-                r.classList.toggle("hidden", isCollapsed);
+          // Wire collapse for both tables
+          ["issuesTableBody", "passedTestsBody"].forEach((id) => {
+            const tbody = document.getElementById(id);
+            if (!tbody) return;
+            tbody
+              .querySelectorAll(".group-header-row:not(.no-expand)")
+              .forEach((row) => {
+                // Skip if already wired
+                if (row.dataset.collapseWired) return;
+                row.dataset.collapseWired = "true";
+                row.addEventListener("click", function () {
+                  const groupId = this.dataset.groupId;
+                  const isCollapsed = this.classList.toggle("collapsed");
+                  tbody
+                    .querySelectorAll(
+                      `.group-item-row[data-group-id="${groupId}"]`,
+                    )
+                    .forEach((r) => {
+                      r.classList.toggle("hidden", isCollapsed);
+                    });
+                });
               });
-            });
           });
         }
 
-        function initTableRowClicks() {
-          document.addEventListener("click", function (e) {
-            var row = e.target.closest("tr[data-issue-id]");
-            if (!row) return;
-            var issueId = row.dataset.issueId;
-            var target = document.getElementById("issue-" + issueId);
-            if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-          });
+        // ── Detailed Issue Cards ────────────────────────────────────────
+        if (sortedResults.length > 0) {
+          html += `<hr class="section-divider" />`;
+          html += `<h2 class="section-heading">Issue details</h2>`;
         }
 
-        html += '<hr class="section-divider" />';
-        html += '<h2 class="section-heading">Issue details</h2>';
+        sortedResults.forEach((r, i) => {
+          const sev = (r.severity || "low").toLowerCase();
 
-        sortedResults.forEach(function (r) {
-          var sev = (r.severity || "low").toLowerCase();
-          var safeId = escapeAttr(r.id);
+          html += `
+        <div class="issue-card" id="issue-${r.id}">
+          <div class="issue-card-header">
+            <div class="issue-card-header-left">
+              <span class="issue-card-title">${escapeHtml(r.definition.name)}</span>
+              <span class="issue-card-description">${escapeHtml(r.definition.description)}</span>
+              <span class="issue-card-id">ID: <code>${escapeHtml(r.id)}</code></span>
+              <a href="#report-top" class="return-to-top">Return to top <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></a>
+            </div>
+            ${severityLabel(sev)}
+          </div>`;
 
-          html +=
-            '<div class="issue-card" id="issue-' + safeId + '">' +
-            '<div class="issue-card-header">' +
-            '<div class="issue-card-header-left">' +
-            '<span class="issue-card-title">' + escapeHtml(r.definition.name) + "</span>" +
-            '<span class="issue-card-description">' + escapeHtml(r.definition.description) + "</span>" +
-            '<span class="issue-card-id">ID: <code>' + escapeHtml(r.id) + "</code></span>" +
-            '<a class="issue-card-back-link" href="#issues-table">\u2191 Back to issues summary</a>' +
-            "</div>" +
-            severityLabel(sev) +
-            "</div>";
-
+          // Frameworks
           if (r.tags && r.tags.length) {
-            var frameworkMap = parseFrameworkTags(r.tags);
+            const frameworkMap = parseFrameworkTags(r.tags);
             if (frameworkMap.size > 0) {
-              html += '<div class="issue-card-section">' +
-                '<div class="issue-card-section-title">Frameworks</div>' +
-                '<div class="frameworks-list">';
-              frameworkMap.forEach(function (sections, frameworkName) {
-                html +=
-                  '<div class="framework-row">' +
-                  '<span class="framework-name">' + escapeHtml(frameworkName) + ":</span>" +
-                  '<div class="framework-tags">' +
-                  sections.map(function (s) {
-                    return '<span class="framework-tag">' + escapeHtml(s) + "</span>";
-                  }).join("") +
-                  "</div></div>";
+              html += `
+          <div class="issue-card-section">
+            <div class="issue-card-section-title">Frameworks</div>
+            <div class="frameworks-list">`;
+              const FRAMEWORK_ORDER = [
+                "OWASP LLM Top 10",
+                "OWASP Agentic",
+                "MITRE ATLAS",
+                "NIST AI RMF",
+              ];
+              FRAMEWORK_ORDER.forEach((fwName) => {
+                const sections = frameworkMap.get(fwName);
+                if (!sections || sections.length === 0) return;
+                const MAX_VISIBLE = 3;
+                const hiddenCount = Math.max(0, sections.length - MAX_VISIBLE);
+                const tagsHtml = sections
+                  .map((s, idx) => {
+                    const cls =
+                      idx >= MAX_VISIBLE
+                        ? "framework-tag framework-tag-hidden"
+                        : "framework-tag";
+                    return `<span class="${cls}">${escapeHtml(sectionFullName(s))}</span>`;
+                  })
+                  .join("");
+                const moreBtn =
+                  hiddenCount > 0
+                    ? `<span class="framework-tag-more" data-expand="true">+${hiddenCount}</span>`
+                    : "";
+                html += `
+              <div class="framework-row">
+                <span class="framework-name">${escapeHtml(fwName)}:</span>
+                <div class="framework-tags">
+                  ${tagsHtml}${moreBtn}
+                </div>
+              </div>`;
               });
-              html += "</div></div>";
+              html += `
+            </div>
+          </div>`;
             }
           }
 
+          // Conversation turns
           if (r.turns && r.turns.length) {
-            html += '<div class="issue-card-section">' +
-              '<div class="issue-card-section-title">Conversation</div>' +
-              '<div class="conversation-turns">';
+            html += `
+          <div class="issue-card-section">
+            <div class="issue-card-section-title">Conversation</div>
+            <div class="conversation-turns">`;
 
-            r.turns.forEach(function (turn) {
-              var request = (turn.request || "").trim();
-              var response = (turn.response || "").trim();
-              if (request) {
-                html +=
-                  '<div class="conversation-turn">' +
-                  '<span class="conversation-label conversation-label--request">Attacker prompt</span>' +
-                  '<div class="conversation-bubble">' + escapeHtml(request) + "</div>" +
-                  "</div>";
-              }
-              if (response) {
-                html +=
-                  '<div class="conversation-turn">' +
-                  '<span class="conversation-label conversation-label--response">Model response</span>' +
-                  '<div class="conversation-bubble">' + escapeHtml(response) + "</div>" +
-                  "</div>";
-              }
+            r.turns.forEach((turn) => {
+              html += `
+              <div class="conversation-turn">
+                <span class="conversation-label conversation-label--request">Attacker prompt</span>
+                <div class="conversation-bubble">${escapeHtml(turn.request.trim())}</div>
+              </div>
+              <div class="conversation-turn">
+                <span class="conversation-label conversation-label--response">Model response</span>
+                <div class="conversation-bubble">${escapeHtml(turn.response.trim())}</div>
+              </div>`;
             });
 
-            html += "</div></div>";
+            html += `
+            </div>
+          </div>`;
           }
 
+          // Reasoning
           if (r.evidence && r.evidence.content) {
-            var reason =
+            const reason =
               typeof r.evidence.content === "string"
                 ? r.evidence.content
-                : r.evidence.content.reason || JSON.stringify(r.evidence.content, null, 2);
+                : r.evidence.content.reason ||
+                  JSON.stringify(r.evidence.content, null, 2);
 
-            html +=
-              '<div class="issue-card-section">' +
-              '<div class="issue-card-section-title">Reasoning</div>' +
-              '<div class="evidence-block">' + escapeHtml(reason) + "</div>" +
-              "</div>";
+            html += `
+          <div class="issue-card-section">
+            <div class="issue-card-section-title">Reasoning</div>
+            <div class="evidence-block">${escapeHtml(reason)}</div>
+          </div>`;
           }
 
-          html += "</div>";
+          html += `</div>`;
         });
 
+        // ── Inject ──────────────────────────────────────────────────────
         root.innerHTML = html;
         initGroupByControl();
-        initTableRowClicks();
+
+        // Wire up framework tag "+N" expand buttons
+        document.querySelectorAll(".framework-tag-more").forEach((btn) => {
+          btn.addEventListener("click", function () {
+            const container = this.closest(".framework-tags");
+            container
+              .querySelectorAll(".framework-tag-hidden")
+              .forEach((tag) => {
+                tag.classList.remove("framework-tag-hidden");
+              });
+            this.remove();
+          });
+        });
       })();
     </script>
   </body>
