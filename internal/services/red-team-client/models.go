@@ -72,6 +72,7 @@ type AIScan struct {
 	Lows      *int           `json:"lows"`
 	Options   AIScanOptions  `json:"options"`
 	Feedback  AIScanFeedback `json:"feedback"`
+	Summary   *AIScanSummary `json:"summary,omitempty"`
 }
 
 // AIScanFeedback represents the feedback for an AI scan.
@@ -79,6 +80,22 @@ type AIScanFeedback struct {
 	Status  *AIScanFeedbackStatus `json:"status,omitempty"`
 	Warning []AIScanFeedbackIssue `json:"warning,omitempty"`
 	Error   []AIScanFeedbackIssue `json:"error,omitempty"`
+}
+
+// AIScanSummary represents the scan summary containing per-vulnerability scan results.
+type AIScanSummary struct {
+	Vulnerabilities []AIScanSummaryVulnerability `json:"vulnerabilities"`
+}
+
+// AIScanSummaryVulnerability represents a single vulnerability's scan outcome.
+type AIScanSummaryVulnerability struct {
+	EngineTag   string `json:"engine_tag"` //nolint:tagliatelle // matches API JSON
+	Slug        string `json:"slug"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Severity    string `json:"severity"`
+	Status      string `json:"status"`
+	Vulnerable  bool   `json:"vulnerable"`
 }
 
 // AIScanFeedbackIssue represents an error or a warning for an AI scan feedback.
@@ -145,6 +162,7 @@ type GetAIScanResponse struct {
 type GetAIVulnerabilitiesResponseData struct {
 	ID      string            `json:"id"`
 	Results []AIVulnerability `json:"results"`
+	Summary *AIScanSummary    `json:"summary,omitempty"`
 }
 
 type GetAIVulnerabilitiesResponse struct {
