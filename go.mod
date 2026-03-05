@@ -1,6 +1,6 @@
 module github.com/snyk/cli-extension-ai-bom
 
-go 1.24.4
+go 1.24.13
 
 require (
 	github.com/go-playground/validator/v10 v10.14.1
@@ -9,7 +9,6 @@ require (
 	github.com/oapi-codegen/runtime v1.1.2
 	github.com/rs/zerolog v1.34.0
 	github.com/snyk/cli-extension-secrets v0.0.0-20260126084440-33e481bd7ae2
-	github.com/snyk/code-client-go v1.24.5
 	github.com/snyk/error-catalog-golang-public v0.0.0-20260108110943-21ad0c940c14
 	github.com/snyk/go-application-framework v0.0.0-20260112170304-1a9b38fae0bc
 	github.com/spf13/pflag v1.0.10
@@ -79,6 +78,7 @@ require (
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
+	github.com/snyk/code-client-go v1.24.5 // indirect
 	github.com/snyk/go-httpauth v0.0.0-20231117135515-eb445fea7530 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.14.0 // indirect
