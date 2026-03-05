@@ -1,5 +1,10 @@
 package utils
 
+import (
+	"github.com/snyk/go-application-framework/pkg/configuration"
+	"github.com/snyk/go-application-framework/pkg/networking/middleware"
+)
+
 const (
 	// shared flags.
 	FlagExperimental = "experimental"
@@ -19,4 +24,10 @@ const (
 	// redteam scanning-agent flags.
 	FlagScanningAgentName = "name"
 	FlagScanningAgentID   = "id"
+
+	networkRetryAttempts = 3
 )
+
+func EnableNetworkRetries(config configuration.Configuration) {
+	config.Set(middleware.ConfigurationKeyRetryAttempts, networkRetryAttempts)
+}

@@ -19,6 +19,7 @@ import (
 
 	"github.com/snyk/go-application-framework/pkg/configuration"
 	"github.com/snyk/go-application-framework/pkg/networking"
+	"github.com/snyk/go-application-framework/pkg/networking/middleware"
 
 	redteam_errors "github.com/snyk/cli-extension-ai-bom/internal/errors/redteam"
 	redteamclient "github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client"
@@ -56,6 +57,11 @@ func writeCreateScanResponse(w http.ResponseWriter, scanID string) {
 
 func setupTestClient(t *testing.T, serverURL string) *redteamclient.ClientImpl {
 	t.Helper()
+	return setupTestClientWithConfig(t, serverURL, nil)
+}
+
+func setupTestClientWithConfig(t *testing.T, serverURL string, configOverrides func(configuration.Configuration)) *redteamclient.ClientImpl {
+	t.Helper()
 	logger := loggermock.NewNoOpLogger()
 	ictx := frameworkmock.NewMockInvocationContext(t)
 
@@ -72,6 +78,10 @@ func setupTestClient(t *testing.T, serverURL string) *redteamclient.ClientImpl {
 	mockConfig := ictx.GetConfiguration()
 	mockConfig.Set(configuration.API_URL, "https://api.snyk.io")
 	mockConfig.Set(configuration.AUTHENTICATION_ADDITIONAL_URLS, []string{"http://127.0.0.1", "http://localhost"})
+
+	if configOverrides != nil {
+		configOverrides(mockConfig)
+	}
 
 	networkAccess := networking.NewNetworkAccess(mockConfig)
 	networkAccess.AddErrorHandler(func(err error, _ context.Context) error {
@@ -360,4 +370,141 @@ func TestRedTeamClient_DeleteScanningAgent_Error(t *testing.T) {
 
 	err := client.DeleteScanningAgent(t.Context(), orgID, testScanningAgentID)
 	assert.NotNil(t, err)
+}
+
+func disableResponseMiddleware(config configuration.Configuration) {
+	config.Set(configuration.API_URL, "https://unused.example.com")
+	config.Set(configuration.AUTHENTICATION_ADDITIONAL_URLS, []string{})
+}
+
+func enableRetries(config configuration.Configuration) {
+	config.Set(middleware.ConfigurationKeyRetryAttempts, 3)
+	config.Set("internal_network_request_retry_after_seconds", 1)
+}
+
+func TestRedTeamClient_CreateScan_RetriesOn503(t *testing.T) {
+	var requestCount int
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isCreateAIScanReq(r) {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+		requestCount++
+		if requestCount < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		writeCreateScanResponse(w, uuid.New().String())
+	}))
+	defer server.Close()
+
+	client := setupTestClientWithConfig(t, server.URL, enableRetries)
+
+	result, err := client.CreateScan(t.Context(), orgID, &defaultConfig)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, result)
+	assert.Equal(t, 3, requestCount, "expected 2 retries after initial 503")
+}
+
+func TestRedTeamClient_CreateScan_503ExhaustsRetries(t *testing.T) {
+	var requestCount int
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount++
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	client := setupTestClientWithConfig(t, server.URL, enableRetries)
+
+	result, err := client.CreateScan(t.Context(), orgID, &defaultConfig)
+	assert.NotNil(t, err)
+	assert.Empty(t, result)
+	assert.Equal(t, 3, requestCount, "expected 3 total attempts")
+}
+
+func TestRedTeamClient_CreateScan_NoRetryWithoutConfig(t *testing.T) {
+	var requestCount int
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount++
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	client := setupTestClient(t, server.URL)
+
+	result, err := client.CreateScan(t.Context(), orgID, &defaultConfig)
+	assert.NotNil(t, err)
+	assert.Empty(t, result)
+	assert.Equal(t, 1, requestCount, "expected no retries without config")
+}
+
+func TestRedTeamClient_ErrorFromHTTPStatusCode(t *testing.T) {
+	tests := []struct {
+		name           string
+		statusCode     int
+		expectedSubstr string
+	}{
+		{
+			name:           "503 returns service unavailable message",
+			statusCode:     http.StatusServiceUnavailable,
+			expectedSubstr: "Service is temporarily unavailable. Please try again later.",
+		},
+		{
+			name:           "unknown status code includes status in message",
+			statusCode:     http.StatusTeapot,
+			expectedSubstr: "Server responded with an unexpected error (status 418)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+			}))
+			defer server.Close()
+
+			client := setupTestClientWithConfig(t, server.URL, disableResponseMiddleware)
+
+			_, err := client.CreateScan(t.Context(), orgID, &defaultConfig)
+			require.NotNil(t, err)
+			assert.Contains(t, err.Error(), tt.expectedSubstr)
+		})
+	}
+}
+
+func TestRedTeamClient_ErrorFromHTTPClientError(t *testing.T) {
+	tests := []struct {
+		name           string
+		statusCode     int
+		expectedSubstr string
+	}{
+		{
+			name:           "500 returns service unavailable message",
+			statusCode:     http.StatusInternalServerError,
+			expectedSubstr: "Service is temporarily unavailable",
+		},
+		{
+			name:           "503 returns service unavailable message",
+			statusCode:     http.StatusServiceUnavailable,
+			expectedSubstr: "Service is temporarily unavailable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+			}))
+			defer server.Close()
+
+			client := setupTestClient(t, server.URL)
+
+			_, err := client.CreateScan(t.Context(), orgID, &defaultConfig)
+			require.NotNil(t, err)
+			assert.Contains(t, err.Error(), tt.expectedSubstr)
+		})
+	}
 }

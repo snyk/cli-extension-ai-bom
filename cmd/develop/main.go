@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
+	"github.com/rs/zerolog"
 	"github.com/snyk/go-application-framework/pkg/devtools"
 	"github.com/snyk/go-application-framework/pkg/workflow"
 
@@ -22,6 +24,14 @@ func initAll(e workflow.Engine) error {
 }
 
 func main() {
+	zerolog.SetGlobalLevel(zerolog.Disabled)
+	for _, arg := range os.Args[1:] {
+		if arg == "--debug" || arg == "-d" {
+			zerolog.SetGlobalLevel(zerolog.DebugLevel)
+			break
+		}
+	}
+
 	cmd, err := devtools.Cmd(initAll)
 	if err != nil {
 		log.Fatal(err)
