@@ -372,6 +372,11 @@ func TestRedTeamClient_DeleteScanningAgent_Error(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func disableResponseMiddleware(config configuration.Configuration) {
+	config.Set(configuration.API_URL, "https://unused.example.com")
+	config.Set(configuration.AUTHENTICATION_ADDITIONAL_URLS, []string{})
+}
+
 func enableRetries(config configuration.Configuration) {
 	config.Set(middleware.ConfigurationKeyRetryAttempts, 3)
 	config.Set("internal_network_request_retry_after_seconds", 1)
@@ -434,4 +439,72 @@ func TestRedTeamClient_CreateScan_NoRetryWithoutConfig(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Empty(t, result)
 	assert.Equal(t, 1, requestCount, "expected no retries without config")
+}
+
+func TestRedTeamClient_ErrorFromHTTPStatusCode(t *testing.T) {
+	tests := []struct {
+		name           string
+		statusCode     int
+		expectedSubstr string
+	}{
+		{
+			name:           "503 returns service unavailable message",
+			statusCode:     http.StatusServiceUnavailable,
+			expectedSubstr: "Service is temporarily unavailable. Please try again later.",
+		},
+		{
+			name:           "unknown status code includes status in message",
+			statusCode:     http.StatusTeapot,
+			expectedSubstr: "Server responded with an unexpected error (status 418)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+			}))
+			defer server.Close()
+
+			client := setupTestClientWithConfig(t, server.URL, disableResponseMiddleware)
+
+			_, err := client.CreateScan(t.Context(), orgID, &defaultConfig)
+			require.NotNil(t, err)
+			assert.Contains(t, err.Error(), tt.expectedSubstr)
+		})
+	}
+}
+
+func TestRedTeamClient_ErrorFromHTTPClientError(t *testing.T) {
+	tests := []struct {
+		name           string
+		statusCode     int
+		expectedSubstr string
+	}{
+		{
+			name:           "500 returns service unavailable message",
+			statusCode:     http.StatusInternalServerError,
+			expectedSubstr: "Service is temporarily unavailable",
+		},
+		{
+			name:           "503 returns service unavailable message",
+			statusCode:     http.StatusServiceUnavailable,
+			expectedSubstr: "Service is temporarily unavailable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+			}))
+			defer server.Close()
+
+			client := setupTestClient(t, server.URL)
+
+			_, err := client.CreateScan(t.Context(), orgID, &defaultConfig)
+			require.NotNil(t, err)
+			assert.Contains(t, err.Error(), tt.expectedSubstr)
+		})
+	}
 }

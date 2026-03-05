@@ -233,8 +233,12 @@ func (c *ClientImpl) redTeamErrorFromHTTPStatusCode(endPoint string, statusCode 
 		return redteam_errors.NewUnauthorizedError(errMsg)
 	case http.StatusNotFound:
 		return redteam_errors.NewNotFoundError(errMsg)
+	case http.StatusServiceUnavailable:
+		return redteam_errors.NewServerError("Service is temporarily unavailable. Please try again later.")
 	default:
-		return redteam_errors.NewServerError(errMsg)
+		msg := fmt.Sprintf("Server responded with an unexpected error (status %d). "+
+			"Please try again later or contact support.", statusCode)
+		return redteam_errors.NewServerError(msg)
 	}
 }
 
@@ -267,8 +271,8 @@ func (c *ClientImpl) redTeamErrorFromHTTPClientError(endPoint string, err error)
 			return redteam_errors.NewBadRequestError(errorMsg)
 		case http.StatusNotFound:
 			return redteam_errors.NewNotFoundError(errorMsg)
-		case http.StatusInternalServerError:
-			return redteam_errors.NewServerError("Server responded with a 500. Please try again later or contact support.")
+		case http.StatusInternalServerError, http.StatusServiceUnavailable:
+			return redteam_errors.NewServerError("Service is temporarily unavailable. Please try again later or contact support.")
 		}
 	}
 
