@@ -36,6 +36,7 @@ func RegisterWorkflows(e workflow.Engine) error {
 	flagset.Bool(utils.FlagHTML, false, "Output the AI BOM in HTML format instead of JSON")
 	flagset.Bool(utils.FlagUpload, false, "Upload the AI BOM")
 	flagset.String(utils.FlagRepoName, "", "Repository name to use for the AI BOM")
+	flagset.Bool(utils.FlagTest, false, "Test the AI BOM using the CLI policy test endpoint")
 
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
 	if _, err := e.Register(WorkflowID, configuration, AiBomWorkflow); err != nil {
@@ -93,6 +94,7 @@ func RunAiBomWorkflow(
 	path := config.GetString(configuration.INPUT_DIRECTORY)
 	upload := config.GetBool(utils.FlagUpload)
 	repoName := config.GetString(utils.FlagRepoName)
+	test := config.GetBool(utils.FlagTest)
 
 	// As this is an experimental feature, we only want to continue if the experimental flag is set
 	if !experimental {
@@ -129,19 +131,38 @@ func RunAiBomWorkflow(
 	}
 
 	var aiBomDoc string
+	var aiBomID string
 	var createAIBomErr *errors.AiBomError
 
+	// All methods now return both document and ID
 	if upload {
-		aiBomDoc, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
+		aiBomDoc, aiBomID, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
 	} else {
-		aiBomDoc, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgID, uploadRevisionID)
+		aiBomDoc, aiBomID, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgID, uploadRevisionID)
 	}
 
 	if createAIBomErr != nil {
 		logger.Debug().Err(createAIBomErr.SnykError).Msg("error while generating AI-BOM")
 		return nil, createAIBomErr.SnykError
 	}
+
+	// If test flag is set, call the test endpoint
+	if test {
+		logger.Debug().Str("aiBomID", aiBomID).Msg("Testing AI-BOM with CLI policy test")
+		testResult, testErr := aiBomClient.TestAIBOM(ctx, orgID, aiBomID)
+		if testErr != nil {
+			logger.Debug().Err(testErr.SnykError).Msg("error while testing AI-BOM")
+			return nil, testErr.SnykError
+		}
+
+		logger.Debug().Msg("Successfully tested AI-BOM")
+		// Return the test result instead of the AI-BOM document
+		workflowData := newWorkflowData("application/json", []byte(testResult))
+		return []workflow.Data{workflowData}, nil
+	}
+
 	logger.Debug().Msg("Successfully generated AI BOM document.")
+
 	workflowData := newWorkflowData("application/json", []byte(aiBomDoc))
 
 	if config.GetBool(utils.FlagHTML) {

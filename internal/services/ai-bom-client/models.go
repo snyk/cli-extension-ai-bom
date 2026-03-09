@@ -367,6 +367,29 @@ type CreateAiBomApplicationVndAPIPlusJSONRequestBody = CreateAiBomRequestBody
 // CreateAndUploadAiBomApplicationVndAPIPlusJSONRequestBody defines body for CreateAndUploadAiBom for application/vnd.api+json ContentType.
 type CreateAndUploadAiBomApplicationVndAPIPlusJSONRequestBody = CreateAndUploadAiBomRequestBody
 
+// CliPolicyTestRequestBody defines model for CliPolicyTestRequestBody.
+type CliPolicyTestRequestBody struct {
+	AiBomID string `json:"ai_bom_id"`
+}
+
+// CliPolicyTestResponseBody defines model for CliPolicyTestResponseBody.
+type CliPolicyTestResponseBody struct {
+	Data    CliPolicyTestResponseData `json:"data"`
+	Jsonapi JSONAPI                   `json:"jsonapi"`
+}
+
+// CliPolicyTestResponseData defines model for CliPolicyTestResponseData.
+type CliPolicyTestResponseData struct {
+	ID         string                          `json:"id"`
+	Type       string                          `json:"type"`
+	Attributes CliPolicyTestResponseAttributes `json:"attributes"`
+}
+
+// CliPolicyTestResponseAttributes defines model for CliPolicyTestResponseAttributes.
+type CliPolicyTestResponseAttributes struct {
+	Issues []map[string]interface{} `json:"issues"`
+}
+
 // AsFileBundleStoreData returns the union data inside the CreateAiBomRequestData as a FileBundleStoreData
 func (t CreateAiBomRequestData) AsFileBundleStoreData() (FileBundleStoreData, error) {
 	var body FileBundleStoreData

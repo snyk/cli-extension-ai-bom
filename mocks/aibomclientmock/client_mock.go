@@ -57,12 +57,13 @@ func (mr *MockAiBomClientMockRecorder) CheckAPIAvailability(ctx, orgID any) *gom
 }
 
 // CreateAndUploadAIBOM mocks base method.
-func (m *MockAiBomClient) CreateAndUploadAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID, repoName string) (string, *errors.AiBomError) {
+func (m *MockAiBomClient) CreateAndUploadAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID, repoName string) (string, string, *errors.AiBomError) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateAndUploadAIBOM", ctx, orgID, uploadRevisionID, repoName)
 	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(*errors.AiBomError)
-	return ret0, ret1
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(*errors.AiBomError)
+	return ret0, ret1, ret2
 }
 
 // CreateAndUploadAIBOM indicates an expected call of CreateAndUploadAIBOM.
@@ -72,16 +73,32 @@ func (mr *MockAiBomClientMockRecorder) CreateAndUploadAIBOM(ctx, orgID, uploadRe
 }
 
 // GenerateAIBOM mocks base method.
-func (m *MockAiBomClient) GenerateAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID) (string, *errors.AiBomError) {
+func (m *MockAiBomClient) GenerateAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID) (string, string, *errors.AiBomError) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GenerateAIBOM", ctx, orgID, uploadRevisionID)
 	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(*errors.AiBomError)
-	return ret0, ret1
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(*errors.AiBomError)
+	return ret0, ret1, ret2
 }
 
 // GenerateAIBOM indicates an expected call of GenerateAIBOM.
 func (mr *MockAiBomClientMockRecorder) GenerateAIBOM(ctx, orgID, uploadRevisionID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateAIBOM", reflect.TypeOf((*MockAiBomClient)(nil).GenerateAIBOM), ctx, orgID, uploadRevisionID)
+}
+
+// TestAIBOM mocks base method.
+func (m *MockAiBomClient) TestAIBOM(ctx context.Context, orgID uuid.UUID, aiBomID string) (string, *errors.AiBomError) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TestAIBOM", ctx, orgID, aiBomID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(*errors.AiBomError)
+	return ret0, ret1
+}
+
+// TestAIBOM indicates an expected call of TestAIBOM.
+func (mr *MockAiBomClientMockRecorder) TestAIBOM(ctx, orgID, aiBomID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TestAIBOM", reflect.TypeOf((*MockAiBomClient)(nil).TestAIBOM), ctx, orgID, aiBomID)
 }
