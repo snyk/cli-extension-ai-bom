@@ -86,6 +86,41 @@ func returnRawJSON(jsonOutput string) []workflow.Data {
 	return []workflow.Data{workflowData}
 }
 
+// runTestFlow runs the CLI policy test and returns workflow data (raw JSON or pretty output).
+func runTestFlow(
+	invocationCtx workflow.InvocationContext,
+	logger *zerolog.Logger,
+	client aiBomClient.AiBomClient,
+	orgID uuid.UUID,
+	aiBomID string,
+	jsonOutput bool,
+) ([]workflow.Data, error) {
+	ctx := context.Background()
+	logger.Debug().Str("aiBomID", aiBomID).Msg("Testing AI-BOM with CLI policy test")
+	testResult, testErr := client.TestAIBOM(ctx, orgID, aiBomID)
+	if testErr != nil {
+		logger.Debug().Err(testErr.SnykError).Msg("error while testing AI-BOM")
+		return nil, testErr.SnykError
+	}
+	logger.Debug().Msg("Successfully tested AI-BOM")
+	if jsonOutput {
+		logger.Debug().Msg("json output flag is set, skipping pretty output")
+		return returnRawJSON(testResult), nil
+	}
+	parsed, parseErr := ParseTestResult(testResult)
+	if parseErr != nil {
+		logger.Debug().Err(parseErr).Msg("failed to parse test result, returning raw JSON")
+		return returnRawJSON(testResult), nil
+	}
+	var prettyBuf bytes.Buffer
+	if err := RenderPrettyResult(invocationCtx, &prettyBuf, parsed); err != nil {
+		logger.Debug().Err(err).Msg("failed to render test result, returning raw JSON")
+		return returnRawJSON(testResult), nil
+	}
+	workflowData := newWorkflowData("text/plain", prettyBuf.Bytes())
+	return []workflow.Data{workflowData}, nil
+}
+
 func RunAiBomWorkflow(
 	invocationCtx workflow.InvocationContext,
 	orgID uuid.UUID,
@@ -160,33 +195,7 @@ func RunAiBomWorkflow(
 
 	// If test flag is set, call the test endpoint
 	if test {
-		logger.Debug().Str("aiBomID", aiBomID).Msg("Testing AI-BOM with CLI policy test")
-		testResult, testErr := aiBomClient.TestAIBOM(ctx, orgID, aiBomID)
-		if testErr != nil {
-			logger.Debug().Err(testErr.SnykError).Msg("error while testing AI-BOM")
-			return nil, testErr.SnykError
-		}
-
-		logger.Debug().Msg("Successfully tested AI-BOM")
-
-		if jsonOutput {
-			logger.Debug().Msg("json output flag is set, skipping pretty output")
-			return returnRawJSON(testResult), nil
-		}
-
-		// Parse and display test result in a human-readable format
-		parsed, parseErr := ParseTestResult(testResult)
-		if parseErr != nil {
-			logger.Debug().Err(parseErr).Msg("failed to parse test result, returning raw JSON")
-			return returnRawJSON(testResult), nil
-		}
-		var prettyBuf bytes.Buffer
-		if err := RenderPrettyResult(invocationCtx, &prettyBuf, parsed); err != nil {
-			logger.Debug().Err(err).Msg("failed to render test result, returning raw JSON")
-			return returnRawJSON(testResult), nil
-		}
-		workflowData := newWorkflowData("text/plain", prettyBuf.Bytes())
-		return []workflow.Data{workflowData}, nil
+		return runTestFlow(invocationCtx, logger, aiBomClient, orgID, aiBomID, jsonOutput)
 	}
 
 	logger.Debug().Msg("Successfully generated AI BOM document.")

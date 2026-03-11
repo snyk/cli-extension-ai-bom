@@ -77,7 +77,10 @@ func TestAiBomWorkflow_Upload_HAPPY(t *testing.T) {
 	checkAPIAvailablilityCall := aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), frameworkmock.MockOrgID).Times(1).Return(nil)
 
 	aiBomClient.EXPECT().
-		CreateAndUploadAIBOM(gomock.Any(), frameworkmock.MockOrgID, uploadRevisionID, "repo-name").Times(1).Return(exampleAIBOM, "test-aibom-id", nil).After(checkAPIAvailablilityCall)
+		CreateAndUploadAIBOM(gomock.Any(), frameworkmock.MockOrgID, uploadRevisionID, "repo-name").
+		Times(1).
+		Return(exampleAIBOM, "test-aibom-id", nil).
+		After(checkAPIAvailablilityCall)
 
 	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
 	assert.Nil(t, err)

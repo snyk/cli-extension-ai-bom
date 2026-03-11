@@ -536,9 +536,9 @@ func TestGenerateAIBOM_GetAIBOMAuthErrors(t *testing.T) {
 
 			result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
 
-		assert.Equal(t, "", result)
-		assert.Equal(t, "", aiBomID)
-		assert.Equal(t, tt.expectedErr, err.SnykError.ErrorCode)
+			assert.Equal(t, "", result)
+			assert.Equal(t, "", aiBomID)
+			assert.Equal(t, tt.expectedErr, err.SnykError.ErrorCode)
 			assert.Contains(t, err.SnykError.Detail, tt.expectedDetail)
 		})
 	}

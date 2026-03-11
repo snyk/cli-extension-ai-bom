@@ -24,15 +24,13 @@ type AiBomClient interface {
 	CheckAPIAvailability(ctx context.Context, orgID uuid.UUID) *errors.AiBomError
 	GenerateAIBOM(
 		ctx context.Context,
-		orgID,
-		uploadRevisionID uuid.UUID,
-	) (aiBomDoc string, aiBomID string, err *errors.AiBomError)
+		orgID, uploadRevisionID uuid.UUID,
+	) (aiBomDoc, aiBomID string, err *errors.AiBomError)
 	CreateAndUploadAIBOM(
 		ctx context.Context,
-		orgID,
-		uploadRevisionID uuid.UUID,
+		orgID, uploadRevisionID uuid.UUID,
 		repoName string,
-	) (aiBomDoc string, aiBomID string, err *errors.AiBomError)
+	) (aiBomDoc, aiBomID string, err *errors.AiBomError)
 	TestAIBOM(
 		ctx context.Context,
 		orgID uuid.UUID,
@@ -82,7 +80,7 @@ func (c *AIBOMClientImpl) CheckAPIAvailability(ctx context.Context, orgID uuid.U
 	return err
 }
 
-func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID) (string, string, *errors.AiBomError) {
+func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID) (aiBomDoc, aiBomID string, err *errors.AiBomError) {
 	jobID, err := c.createAIBOM(ctx, orgID, uploadRevisionID)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while creating the aibom")
@@ -102,7 +100,7 @@ func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, uploadRevisi
 		}
 	}()
 
-	aiBomID, err := c.pollForAIBOMReady(ctx, orgID, jobID)
+	aiBomID, err = c.pollForAIBOMReady(ctx, orgID, jobID)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while polling for the aibom")
 		return "", "", err
@@ -117,7 +115,11 @@ func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, uploadRevisi
 	return aiBom, aiBomID, nil
 }
 
-func (c *AIBOMClientImpl) CreateAndUploadAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID, repoName string) (string, string, *errors.AiBomError) {
+func (c *AIBOMClientImpl) CreateAndUploadAIBOM(
+	ctx context.Context,
+	orgID, uploadRevisionID uuid.UUID,
+	repoName string,
+) (aiBomDoc, aiBomID string, err *errors.AiBomError) {
 	progressBar := c.userInterface.NewProgressBar()
 	progressBar.SetTitle("Creating")
 
@@ -138,7 +140,7 @@ func (c *AIBOMClientImpl) CreateAndUploadAIBOM(ctx context.Context, orgID, uploa
 		}
 	}()
 
-	aiBomID, err := c.pollForAIBOMReady(ctx, orgID, jobID)
+	aiBomID, err = c.pollForAIBOMReady(ctx, orgID, jobID)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while polling for the aibom")
 		return "", "", err

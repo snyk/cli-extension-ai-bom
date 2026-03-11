@@ -118,10 +118,7 @@ func RenderPrettyResult(invocationCtx workflow.InvocationContext, w io.Writer, r
 	title := sectionStyle.Render("AI BOM policy test")
 	_, _ = fmt.Fprintf(w, "\n%s\n\n", title)
 
-	issuesBlock, err := renderIssues(config.GetString(configuration.API_URL), res.Issues)
-	if err != nil {
-		return err
-	}
+	issuesBlock := renderIssues(config.GetString(configuration.API_URL), res.Issues)
 	_, _ = fmt.Fprintln(w, issuesBlock)
 
 	summaryBlock := renderSummary(res)
@@ -129,17 +126,17 @@ func RenderPrettyResult(invocationCtx workflow.InvocationContext, w io.Writer, r
 	return nil
 }
 
-func makePolicyURL(baseUrl, policyID string) string {
-	if !strings.Contains(baseUrl, "api.") {
+func makePolicyURL(baseURL, policyID string) string {
+	if !strings.Contains(baseURL, "api.") {
 		return policyID
 	}
-	baseUrl = strings.Replace(baseUrl, "api.", "evo.", 1)
-	return fmt.Sprintf("%s/policies/%s", baseUrl, policyID)
+	baseURL = strings.Replace(baseURL, "api.", "evo.", 1)
+	return fmt.Sprintf("%s/policies/%s", baseURL, policyID)
 }
 
-func renderIssues(baseUrl string, issues []PolicyTestIssue) (string, error) {
+func renderIssues(baseURL string, issues []PolicyTestIssue) string {
 	if len(issues) == 0 {
-		return sectionStyle.Render("Open issues:") + "\n  No issues found.", nil
+		return sectionStyle.Render("Open issues:") + "\n  No issues found."
 	}
 	var b strings.Builder
 	b.WriteString(sectionStyle.Render("Open issues:"))
@@ -150,13 +147,13 @@ func renderIssues(baseUrl string, issues []PolicyTestIssue) (string, error) {
 		descStr := sectionStyle.Render(iss.Description)
 		b.WriteString(fmt.Sprintf("\n%s %s\n", sevStr, descStr))
 		if iss.PolicyID != "" {
-			b.WriteString(fmt.Sprintf("  Policy: %s\n", makePolicyURL(baseUrl, iss.PolicyID)))
+			b.WriteString(fmt.Sprintf("  Policy: %s\n", makePolicyURL(baseURL, iss.PolicyID)))
 		}
 		if iss.RemediationAdvice != "" {
 			b.WriteString(fmt.Sprintf("  Remediation: %s\n", iss.RemediationAdvice))
 		}
 	}
-	return b.String(), nil
+	return b.String()
 }
 
 func renderSummary(res *TestResultPresentation) string {
@@ -189,5 +186,8 @@ func renderSummary(res *TestResultPresentation) string {
 
 // RenderJSONResult writes the test result as JSON to w (for machine-readable output).
 func RenderJSONResult(w io.Writer, res *TestResultPresentation) error {
-	return json.NewEncoder(w).Encode(res)
+	if err := json.NewEncoder(w).Encode(res); err != nil {
+		return fmt.Errorf("encode json: %w", err)
+	}
+	return nil
 }
