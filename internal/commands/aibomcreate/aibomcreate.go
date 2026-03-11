@@ -1,6 +1,7 @@
 package aibomcreate
 
 import (
+	"bytes"
 	"context"
 	stdErrors "errors"
 	"fmt"
@@ -28,7 +29,10 @@ import (
 	"github.com/spf13/pflag"
 )
 
-var WorkflowID = workflow.NewWorkflowIdentifier("aibom")
+var (
+	WorkflowID     = workflow.NewWorkflowIdentifier("aibom")
+	WorkflowIDTest = workflow.NewWorkflowIdentifier("aibom.test")
+)
 
 func RegisterWorkflows(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom", pflag.ExitOnError)
@@ -40,6 +44,9 @@ func RegisterWorkflows(e workflow.Engine) error {
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
 	if _, err := e.Register(WorkflowID, configuration, AiBomWorkflow); err != nil {
 		return fmt.Errorf("error while registering AI-BOM workflow: %w", err)
+	}
+	if _, err := e.Register(WorkflowIDTest, configuration, AiBomWorkflow); err != nil {
+		return fmt.Errorf("error while registering AI-BOM test workflow: %w", err)
 	}
 	return nil
 }
@@ -73,17 +80,61 @@ func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) 
 		BaseURL: baseAPIURL,
 	})
 
-	return RunAiBomWorkflow(invocationCtx, orgIDUUID, aiBomClient, fileUploadClient)
+	cmdStr := workflow.GetCommandFromWorkflowIdentifier(invocationCtx.GetWorkflowIdentifier())
+	runTest := cmdStr == "aibom test"
+
+	return RunAiBomWorkflow(invocationCtx, orgIDUUID, aiBomClient, fileUploadClient, runTest)
 }
 
 //go:embed aibom.html
 var htmlTemplate string
+
+func returnRawJSON(jsonOutput string) []workflow.Data {
+	workflowData := newWorkflowData("application/json", []byte(jsonOutput))
+	return []workflow.Data{workflowData}
+}
+
+// runTestFlow runs the CLI policy test and returns workflow data (raw JSON or pretty output).
+func runTestFlow(
+	invocationCtx workflow.InvocationContext,
+	logger *zerolog.Logger,
+	client aiBomClient.AiBomClient,
+	orgID uuid.UUID,
+	aiBomID string,
+	jsonOutput bool,
+) ([]workflow.Data, error) {
+	ctx := context.Background()
+	logger.Debug().Str("aiBomID", aiBomID).Msg("Testing AI-BOM with CLI policy test")
+	testResult, testErr := client.TestAIBOM(ctx, orgID, aiBomID)
+	if testErr != nil {
+		logger.Debug().Err(testErr.SnykError).Msg("error while testing AI-BOM")
+		return nil, testErr.SnykError
+	}
+	logger.Debug().Msg("Successfully tested AI-BOM")
+	if jsonOutput {
+		logger.Debug().Msg("json output flag is set, skipping pretty output")
+		return returnRawJSON(testResult), nil
+	}
+	parsed, parseErr := ParseTestResult(testResult)
+	if parseErr != nil {
+		logger.Debug().Err(parseErr).Msg("failed to parse test result, returning raw JSON")
+		return returnRawJSON(testResult), nil
+	}
+	var prettyBuf bytes.Buffer
+	if err := RenderPrettyResult(invocationCtx, &prettyBuf, parsed); err != nil {
+		logger.Debug().Err(err).Msg("failed to render test result, returning raw JSON")
+		return returnRawJSON(testResult), nil
+	}
+	workflowData := newWorkflowData("text/plain", prettyBuf.Bytes())
+	return []workflow.Data{workflowData}, nil
+}
 
 func RunAiBomWorkflow(
 	invocationCtx workflow.InvocationContext,
 	orgID uuid.UUID,
 	aiBomClient aiBomClient.AiBomClient,
 	fileUploadClient fileupload.Client,
+	runTest bool,
 ) ([]workflow.Data, error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
@@ -93,6 +144,7 @@ func RunAiBomWorkflow(
 	path := config.GetString(configuration.INPUT_DIRECTORY)
 	upload := config.GetBool(utils.FlagUpload)
 	repoName := config.GetString(utils.FlagRepoName)
+	jsonOutput := config.GetString(utils.FlagJSONFileOutput) != ""
 
 	// As this is an experimental feature, we only want to continue if the experimental flag is set
 	if !experimental {
@@ -106,6 +158,11 @@ func RunAiBomWorkflow(
 	if upload && repoName == "" {
 		logger.Debug().Msg("upload flag is set but repo name is not set")
 		return nil, errors.NewInvalidArgumentError("repo name is required when monitor flag is set").SnykError
+	}
+
+	if runTest && upload {
+		logger.Debug().Msg("test and upload flow is currently not supported")
+		return nil, errors.NewInvalidArgumentError("test and upload flow is currently not supported").SnykError
 	}
 
 	logger.Debug().Msg("checking api availability")
@@ -129,19 +186,28 @@ func RunAiBomWorkflow(
 	}
 
 	var aiBomDoc string
+	var aiBomID string
 	var createAIBomErr *errors.AiBomError
 
+	// All methods now return both document and ID
 	if upload {
-		aiBomDoc, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
+		aiBomDoc, aiBomID, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
 	} else {
-		aiBomDoc, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgID, uploadRevisionID)
+		aiBomDoc, aiBomID, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgID, uploadRevisionID)
 	}
 
 	if createAIBomErr != nil {
 		logger.Debug().Err(createAIBomErr.SnykError).Msg("error while generating AI-BOM")
 		return nil, createAIBomErr.SnykError
 	}
+
+	// If test subcommand was used, call the test endpoint
+	if runTest {
+		return runTestFlow(invocationCtx, logger, aiBomClient, orgID, aiBomID, jsonOutput)
+	}
+
 	logger.Debug().Msg("Successfully generated AI BOM document.")
+
 	workflowData := newWorkflowData("application/json", []byte(aiBomDoc))
 
 	if config.GetBool(utils.FlagHTML) {

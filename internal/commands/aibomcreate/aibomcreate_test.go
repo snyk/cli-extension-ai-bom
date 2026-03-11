@@ -47,10 +47,10 @@ func TestAiBomWorkflow_HAPPY(t *testing.T) {
 	}, nil)
 
 	aiBomClient.EXPECT().
-		GenerateAIBOM(gomock.Any(), gomock.Any(), uploadRevisionID).Times(1).Return(exampleAIBOM, nil)
+		GenerateAIBOM(gomock.Any(), gomock.Any(), uploadRevisionID).Times(1).Return(exampleAIBOM, "test-aibom-id", nil)
 	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 
-	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
+	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient, false)
 	assert.Nil(t, err)
 	assert.Len(t, workflowData, 1)
 	aiBom := workflowData[0].GetPayload()
@@ -77,9 +77,12 @@ func TestAiBomWorkflow_Upload_HAPPY(t *testing.T) {
 	checkAPIAvailablilityCall := aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), frameworkmock.MockOrgID).Times(1).Return(nil)
 
 	aiBomClient.EXPECT().
-		CreateAndUploadAIBOM(gomock.Any(), frameworkmock.MockOrgID, uploadRevisionID, "repo-name").Times(1).Return(exampleAIBOM, nil).After(checkAPIAvailablilityCall)
+		CreateAndUploadAIBOM(gomock.Any(), frameworkmock.MockOrgID, uploadRevisionID, "repo-name").
+		Times(1).
+		Return(exampleAIBOM, "test-aibom-id", nil).
+		After(checkAPIAvailablilityCall)
 
-	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
+	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient, false)
 	assert.Nil(t, err)
 	assert.Len(t, workflowData, 1)
 	aiBom := workflowData[0].GetPayload()
@@ -103,9 +106,9 @@ func TestAiBomWorkflow_HTML(t *testing.T) {
 
 	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 	aiBomClient.EXPECT().
-		GenerateAIBOM(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(exampleAIBOM, nil)
+		GenerateAIBOM(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(exampleAIBOM, "test-aibom-id", nil)
 
-	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
+	workflowData, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient, false)
 	assert.Nil(t, err)
 	assert.Len(t, workflowData, 1)
 	aiBom := workflowData[0].GetPayload()
@@ -125,7 +128,7 @@ func TestAiBomWorkflow_APIUnavailable(t *testing.T) {
 
 	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(unavailableError)
 
-	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
+	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient, false)
 	assert.Equal(t, unavailableError.SnykError, err)
 }
 
@@ -144,7 +147,7 @@ func TestAiBomWorkflow_UPLOAD_BUNDLE_FAIL(t *testing.T) {
 
 	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 
-	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
+	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient, false)
 	assert.Equal(t, fmt.Errorf("failed to create upload revision: %w", uploadErr), err)
 }
 
@@ -162,7 +165,7 @@ func TestAiBomWorkflow_NO_SUPPORTED_FILES(t *testing.T) {
 
 	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 
-	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
+	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient, false)
 	assert.Equal(t, errors.NewNoSupportedFilesError().SnykError.Error(), err.Error())
 }
 
@@ -181,9 +184,9 @@ func TestAiBomWorkflow_AIBOM_GENERATION_FAIL(t *testing.T) {
 
 	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 	aiBomClient.EXPECT().
-		GenerateAIBOM(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return("", aiBomErr)
+		GenerateAIBOM(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return("", "", aiBomErr)
 
-	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
+	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient, false)
 	assert.Equal(t, aiBomErr.SnykError, err)
 }
 
@@ -193,7 +196,7 @@ func TestAiBomWorkflow_NO_EXPERIMENTAL(t *testing.T) {
 	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
 	fileUploadClient := fileuploadmock.NewMockClient(ctrl)
 
-	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
+	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient, false)
 	assert.EqualError(t, err, "Command is experimental")
 }
 
@@ -214,6 +217,6 @@ func TestAiBomWorkflow_UNAUTHORIZED(t *testing.T) {
 	ictx.GetConfiguration().Set(configuration.ORGANIZATION, "5ffb5f8b-8cd3-4cfc-bce6-d23d19d4fa11")
 	aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), gomock.Any()).Times(1).
 		Return(errors.NewUnauthorizedError(""))
-	_, err = aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient)
+	_, err = aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient, false)
 	assert.EqualError(t, err, "Authentication error")
 }

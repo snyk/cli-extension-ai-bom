@@ -116,10 +116,11 @@ func TestGenerateAIBOM_Happy(t *testing.T) {
 		server.URL, // Use the test server URL
 	)
 
-	result, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
 
 	assert.Nil(t, err)
 	assert.Contains(t, result, "test-ai-bom-content")
+	assert.NotEmpty(t, aiBomID)
 }
 
 // CreateAIBOM tests.
@@ -166,9 +167,10 @@ func TestGenerateAIBOM_CreateAIBOMAuthErrors(t *testing.T) {
 				server.URL,
 			)
 
-			result, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+			result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
 
 			assert.Equal(t, "", result)
+			assert.Equal(t, "", aiBomID)
 			assert.Equal(t, tc.expectedErrorCode, err.SnykError.ErrorCode)
 			assert.Contains(t, err.SnykError.Detail, "unexpected status code "+tc.expectedStatusText+" for CreateAIBOM")
 		})
@@ -197,9 +199,10 @@ func TestGenerateAIBOM_CreateAIBOMHTTPError(t *testing.T) {
 		server.URL,
 	)
 
-	result, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
 
 	assert.Equal(t, "", result)
+	assert.Equal(t, "", aiBomID)
 	assert.Equal(t, internal_errors.NewInternalError("").SnykError.ErrorCode, err.SnykError.ErrorCode)
 	assert.Contains(t, err.SnykError.Detail, "CreateAIBOM request HTTP error")
 }
@@ -248,9 +251,10 @@ func TestGenerateAIBOM_JobErrored(t *testing.T) {
 		server.URL,
 	)
 
-	result, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
 
 	assert.Equal(t, "", result)
+	assert.Equal(t, "", aiBomID)
 	assert.Equal(t, internal_errors.NewInternalError("").SnykError.ErrorCode, err.SnykError.ErrorCode)
 	assert.Contains(t, err.SnykError.Detail, "Failed to execute job")
 }
@@ -295,9 +299,10 @@ func TestGenerateAIBOM_PollForAIBOMHTTPError(t *testing.T) {
 		server.URL,
 	)
 
-	result, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
 
 	assert.Equal(t, "", result)
+	assert.Equal(t, "", aiBomID)
 	assert.Equal(t, internal_errors.NewInternalError("").SnykError.ErrorCode, err.SnykError.ErrorCode)
 	assert.Contains(t, err.SnykError.Detail, "GetAIBOMJob request HTTP error")
 }
@@ -367,9 +372,10 @@ func TestGenerateAIBOM_PollForAIBOMAuthAndNotFoundErrors(t *testing.T) {
 				server.URL,
 			)
 
-			result, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+			result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
 
 			assert.Equal(t, "", result)
+			assert.Equal(t, "", aiBomID)
 			if assert.NotNil(t, err) {
 				assert.Equal(t, tt.expectedErr, err.SnykError.ErrorCode)
 				assert.Contains(t, err.SnykError.Detail, tt.expectedDetail)
@@ -436,9 +442,10 @@ func TestGenerateAIBOM_GetAIBOMHTTPError(t *testing.T) {
 		server.URL,
 	)
 
-	result, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
 
 	assert.Equal(t, "", result)
+	assert.Equal(t, "", aiBomID)
 	assert.Equal(t, internal_errors.NewInternalError("").SnykError.ErrorCode, err.SnykError.ErrorCode)
 	assert.Contains(t, err.SnykError.Detail, "GetAIBOM request HTTP error")
 }
@@ -527,9 +534,10 @@ func TestGenerateAIBOM_GetAIBOMAuthErrors(t *testing.T) {
 				server.URL,
 			)
 
-			result, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+			result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
 
 			assert.Equal(t, "", result)
+			assert.Equal(t, "", aiBomID)
 			assert.Equal(t, tt.expectedErr, err.SnykError.ErrorCode)
 			assert.Contains(t, err.SnykError.Detail, tt.expectedDetail)
 		})

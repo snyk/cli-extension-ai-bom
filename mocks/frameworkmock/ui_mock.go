@@ -102,6 +102,22 @@ func (mr *MockUserInterfaceMockRecorder) OutputError(err any, opts ...any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OutputError", reflect.TypeOf((*MockUserInterface)(nil).OutputError), varargs...)
 }
 
+// SelectOptions mocks base method.
+func (m *MockUserInterface) SelectOptions(prompt string, options []string) (int, string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectOptions", prompt, options)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectOptions indicates an expected call of SelectOptions.
+func (mr *MockUserInterfaceMockRecorder) SelectOptions(prompt, options any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectOptions", reflect.TypeOf((*MockUserInterface)(nil).SelectOptions), prompt, options)
+}
+
 // MockProgressBar is a mock of ProgressBar interface.
 type MockProgressBar struct {
 	ctrl     *gomock.Controller

@@ -24,14 +24,17 @@ type AiBomClient interface {
 	CheckAPIAvailability(ctx context.Context, orgID uuid.UUID) *errors.AiBomError
 	GenerateAIBOM(
 		ctx context.Context,
-		orgID,
-		uploadRevisionID uuid.UUID,
-	) (string, *errors.AiBomError)
+		orgID, uploadRevisionID uuid.UUID,
+	) (aiBomDoc, aiBomID string, err *errors.AiBomError)
 	CreateAndUploadAIBOM(
 		ctx context.Context,
-		orgID,
-		uploadRevisionID uuid.UUID,
+		orgID, uploadRevisionID uuid.UUID,
 		repoName string,
+	) (aiBomDoc, aiBomID string, err *errors.AiBomError)
+	TestAIBOM(
+		ctx context.Context,
+		orgID uuid.UUID,
+		aiBomID string,
 	) (string, *errors.AiBomError)
 }
 
@@ -77,11 +80,11 @@ func (c *AIBOMClientImpl) CheckAPIAvailability(ctx context.Context, orgID uuid.U
 	return err
 }
 
-func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID) (string, *errors.AiBomError) {
+func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID) (aiBomDoc, aiBomID string, err *errors.AiBomError) {
 	jobID, err := c.createAIBOM(ctx, orgID, uploadRevisionID)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while creating the aibom")
-		return "", err
+		return "", "", err
 	}
 
 	progressBar := c.userInterface.NewProgressBar()
@@ -97,29 +100,33 @@ func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, uploadRevisi
 		}
 	}()
 
-	aiBomID, err := c.pollForAIBOMReady(ctx, orgID, jobID)
+	aiBomID, err = c.pollForAIBOMReady(ctx, orgID, jobID)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while polling for the aibom")
-		return "", err
+		return "", "", err
 	}
 
 	aiBom, err := c.getAIBOM(ctx, orgID, aiBomID)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while getting the aibom")
-		return "", err
+		return "", "", err
 	}
 
-	return aiBom, nil
+	return aiBom, aiBomID, nil
 }
 
-func (c *AIBOMClientImpl) CreateAndUploadAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID, repoName string) (string, *errors.AiBomError) {
+func (c *AIBOMClientImpl) CreateAndUploadAIBOM(
+	ctx context.Context,
+	orgID, uploadRevisionID uuid.UUID,
+	repoName string,
+) (aiBomDoc, aiBomID string, err *errors.AiBomError) {
 	progressBar := c.userInterface.NewProgressBar()
 	progressBar.SetTitle("Creating")
 
 	jobID, err := c.uploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while uploading the aibom")
-		return "", err
+		return "", "", err
 	}
 
 	progressErr := progressBar.UpdateProgress(ui.InfiniteProgress)
@@ -133,19 +140,19 @@ func (c *AIBOMClientImpl) CreateAndUploadAIBOM(ctx context.Context, orgID, uploa
 		}
 	}()
 
-	aiBomID, err := c.pollForAIBOMReady(ctx, orgID, jobID)
+	aiBomID, err = c.pollForAIBOMReady(ctx, orgID, jobID)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while polling for the aibom")
-		return "", err
+		return "", "", err
 	}
 
 	aiBom, err := c.getAIBOM(ctx, orgID, aiBomID)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while getting the aibom")
-		return "", err
+		return "", "", err
 	}
 
-	return aiBom, nil
+	return aiBom, aiBomID, nil
 }
 
 func (c *AIBOMClientImpl) aiBomErrorFromHTTPClientError(endPoint string, err error) *errors.AiBomError {
@@ -441,6 +448,68 @@ func (c *AIBOMClientImpl) uploadAIBOM(
 	c.logger.Debug().Str("aiBomJobId", aibomJobID).Msg("created ai bom")
 
 	return aibomJobID, nil
+}
+
+func (c *AIBOMClientImpl) TestAIBOM(
+	ctx context.Context,
+	orgID uuid.UUID,
+	aiBomID string,
+) (string, *errors.AiBomError) {
+	c.logger.Debug().Str("aiBomID", aiBomID).Msg("testing aibom")
+
+	body := CliPolicyTestRequestBody{
+		AiBomID: aiBomID,
+	}
+
+	reqBytes, err := json.Marshal(body)
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while marshaling test request body")
+		return "", errors.NewInternalError(fmt.Sprintf("Error marshaling test request body: %s", err.Error()))
+	}
+
+	url := fmt.Sprintf("%s/hidden/orgs/%s/ai_boms/cli_policy_test?version=%s", c.baseURL, orgID, APIVersion)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBytes))
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while building TestAIBOM request")
+		return "", errors.NewInternalError(fmt.Sprintf("Error building TestAIBOM request: %s", err.Error()))
+	}
+
+	c.setCommonHeaders(url, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", c.aiBomErrorFromHTTPClientError("TestAIBOM", err)
+	}
+
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while reading TestAIBOM response body")
+		return "", errors.NewInternalError(fmt.Sprintf("Failed to read TestAIBOM response body: %s", err.Error()))
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", c.aiBomErrorFromHTTPStatusCode("TestAIBOM", resp.StatusCode, bodyBytes)
+	}
+
+	testRespBody := CliPolicyTestResponseBody{}
+	err = json.Unmarshal(bodyBytes, &testRespBody)
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while unmarshaling CliPolicyTestResponseBody")
+		return "", errors.NewInternalError(fmt.Sprintf("Failed to unmarshal CliPolicyTestResponseBody: %s", err.Error()))
+	}
+
+	// Return the full response body as JSON string
+	resultBytes, err := json.Marshal(testRespBody)
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while marshaling test result")
+		return "", errors.NewInternalError(fmt.Sprintf("Failed to marshal test result: %s", err.Error()))
+	}
+
+	c.logger.Debug().Str("testResult", string(resultBytes)).Msg("got AI-BOM test result")
+
+	return string(resultBytes), nil
 }
 
 func (c *AIBOMClientImpl) setCommonHeaders(url string, req *http.Request) {
