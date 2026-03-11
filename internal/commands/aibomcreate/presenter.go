@@ -14,12 +14,13 @@ import (
 
 // PolicyTestIssue represents a single CLI policy test issue for display.
 type PolicyTestIssue struct {
-	ID          string `json:"id"`
-	Description string `json:"description"`
-	Severity    string `json:"severity"`
-	PolicyID    string `json:"policy_id"`
-	State       string `json:"state"`
-	Source      string `json:"source"`
+	ID                string `json:"id"`
+	Description       string `json:"description"`
+	Severity          string `json:"severity"`
+	PolicyID          string `json:"policy_id"`
+	State             string `json:"state"`
+	Source            string `json:"source"`
+	RemediationAdvice string `json:"remediation_advice"`
 }
 
 // TestResultPresentation is the parsed test result used for pretty and JSON output.
@@ -150,6 +151,9 @@ func renderIssues(baseUrl string, issues []PolicyTestIssue) (string, error) {
 		b.WriteString(fmt.Sprintf("\n%s %s\n", sevStr, descStr))
 		if iss.PolicyID != "" {
 			b.WriteString(fmt.Sprintf("  Policy: %s\n", makePolicyURL(baseUrl, iss.PolicyID)))
+		}
+		if iss.RemediationAdvice != "" {
+			b.WriteString(fmt.Sprintf("  Remediation: %s\n", iss.RemediationAdvice))
 		}
 	}
 	return b.String(), nil
