@@ -1,6 +1,7 @@
 package aibomcreate
 
 import (
+	"bytes"
 	"context"
 	stdErrors "errors"
 	"fmt"
@@ -80,6 +81,11 @@ func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) 
 //go:embed aibom.html
 var htmlTemplate string
 
+func returnRawJSON(jsonOutput string) []workflow.Data {
+	workflowData := newWorkflowData("application/json", []byte(jsonOutput))
+	return []workflow.Data{workflowData}
+}
+
 func RunAiBomWorkflow(
 	invocationCtx workflow.InvocationContext,
 	orgID uuid.UUID,
@@ -95,6 +101,7 @@ func RunAiBomWorkflow(
 	upload := config.GetBool(utils.FlagUpload)
 	repoName := config.GetString(utils.FlagRepoName)
 	test := config.GetBool(utils.FlagTest)
+	jsonOutput := config.GetString(utils.FlagJSONFileOutput) != ""
 
 	// As this is an experimental feature, we only want to continue if the experimental flag is set
 	if !experimental {
@@ -108,6 +115,11 @@ func RunAiBomWorkflow(
 	if upload && repoName == "" {
 		logger.Debug().Msg("upload flag is set but repo name is not set")
 		return nil, errors.NewInvalidArgumentError("repo name is required when monitor flag is set").SnykError
+	}
+
+	if test && upload {
+		logger.Debug().Msg("test and upload flow is currently not supported")
+		return nil, errors.NewInvalidArgumentError("test and upload flow is currently not supported").SnykError
 	}
 
 	logger.Debug().Msg("checking api availability")
@@ -156,8 +168,24 @@ func RunAiBomWorkflow(
 		}
 
 		logger.Debug().Msg("Successfully tested AI-BOM")
-		// Return the test result instead of the AI-BOM document
-		workflowData := newWorkflowData("application/json", []byte(testResult))
+
+		if jsonOutput {
+			logger.Debug().Msg("json output flag is set, skipping pretty output")
+			return returnRawJSON(testResult), nil
+		}
+
+		// Parse and display test result in a human-readable format
+		parsed, parseErr := ParseTestResult(testResult)
+		if parseErr != nil {
+			logger.Debug().Err(parseErr).Msg("failed to parse test result, returning raw JSON")
+			return returnRawJSON(testResult), nil
+		}
+		var prettyBuf bytes.Buffer
+		if err := RenderPrettyResult(invocationCtx, &prettyBuf, parsed); err != nil {
+			logger.Debug().Err(err).Msg("failed to render test result, returning raw JSON")
+			return returnRawJSON(testResult), nil
+		}
+		workflowData := newWorkflowData("text/plain", prettyBuf.Bytes())
 		return []workflow.Data{workflowData}, nil
 	}
 

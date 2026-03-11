@@ -20,4 +20,7 @@ const (
 	// redteam scanning-agent flags.
 	FlagScanningAgentName = "name"
 	FlagScanningAgentID   = "id"
+
+	// global flags.
+	FlagJSONFileOutput = "json-file-output"
 )

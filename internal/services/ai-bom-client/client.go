@@ -472,7 +472,7 @@ func (c *AIBOMClientImpl) TestAIBOM(
 		return "", errors.NewInternalError(fmt.Sprintf("Error building TestAIBOM request: %s", err.Error()))
 	}
 
-	c.setTestHeaders(url, req)
+	c.setCommonHeaders(url, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -516,12 +516,4 @@ func (c *AIBOMClientImpl) setCommonHeaders(url string, req *http.Request) {
 	req.Header.Set("snyk-request-id", requestID)
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("Content-Type", "application/vnd.api+json")
-}
-
-func (c *AIBOMClientImpl) setTestHeaders(url string, req *http.Request) {
-	requestID := uuid.New().String()
-	c.logger.Debug().Msgf("making ai-bom test api request to url: %s, requestId: %s", url, requestID)
-	req.Header.Set("snyk-request-id", requestID)
-	req.Header.Set("User-Agent", c.userAgent)
-	req.Header.Set("Content-Type", "application/json")
 }
