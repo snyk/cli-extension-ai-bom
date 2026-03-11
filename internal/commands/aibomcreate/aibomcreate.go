@@ -29,7 +29,10 @@ import (
 	"github.com/spf13/pflag"
 )
 
-var WorkflowID = workflow.NewWorkflowIdentifier("aibom")
+var (
+	WorkflowID     = workflow.NewWorkflowIdentifier("aibom")
+	WorkflowIDTest = workflow.NewWorkflowIdentifier("aibom.test")
+)
 
 func RegisterWorkflows(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom", pflag.ExitOnError)
@@ -37,11 +40,13 @@ func RegisterWorkflows(e workflow.Engine) error {
 	flagset.Bool(utils.FlagHTML, false, "Output the AI BOM in HTML format instead of JSON")
 	flagset.Bool(utils.FlagUpload, false, "Upload the AI BOM")
 	flagset.String(utils.FlagRepoName, "", "Repository name to use for the AI BOM")
-	flagset.Bool(utils.FlagTest, false, "Test the AI BOM using the CLI policy test endpoint")
 
 	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
 	if _, err := e.Register(WorkflowID, configuration, AiBomWorkflow); err != nil {
 		return fmt.Errorf("error while registering AI-BOM workflow: %w", err)
+	}
+	if _, err := e.Register(WorkflowIDTest, configuration, AiBomWorkflow); err != nil {
+		return fmt.Errorf("error while registering AI-BOM test workflow: %w", err)
 	}
 	return nil
 }
@@ -75,7 +80,10 @@ func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) 
 		BaseURL: baseAPIURL,
 	})
 
-	return RunAiBomWorkflow(invocationCtx, orgIDUUID, aiBomClient, fileUploadClient)
+	cmdStr := workflow.GetCommandFromWorkflowIdentifier(invocationCtx.GetWorkflowIdentifier())
+	runTest := cmdStr == "aibom test"
+
+	return RunAiBomWorkflow(invocationCtx, orgIDUUID, aiBomClient, fileUploadClient, runTest)
 }
 
 //go:embed aibom.html
@@ -126,6 +134,7 @@ func RunAiBomWorkflow(
 	orgID uuid.UUID,
 	aiBomClient aiBomClient.AiBomClient,
 	fileUploadClient fileupload.Client,
+	runTest bool,
 ) ([]workflow.Data, error) {
 	logger := invocationCtx.GetEnhancedLogger()
 	config := invocationCtx.GetConfiguration()
@@ -135,7 +144,6 @@ func RunAiBomWorkflow(
 	path := config.GetString(configuration.INPUT_DIRECTORY)
 	upload := config.GetBool(utils.FlagUpload)
 	repoName := config.GetString(utils.FlagRepoName)
-	test := config.GetBool(utils.FlagTest)
 	jsonOutput := config.GetString(utils.FlagJSONFileOutput) != ""
 
 	// As this is an experimental feature, we only want to continue if the experimental flag is set
@@ -152,7 +160,7 @@ func RunAiBomWorkflow(
 		return nil, errors.NewInvalidArgumentError("repo name is required when monitor flag is set").SnykError
 	}
 
-	if test && upload {
+	if runTest && upload {
 		logger.Debug().Msg("test and upload flow is currently not supported")
 		return nil, errors.NewInvalidArgumentError("test and upload flow is currently not supported").SnykError
 	}
@@ -193,8 +201,8 @@ func RunAiBomWorkflow(
 		return nil, createAIBomErr.SnykError
 	}
 
-	// If test flag is set, call the test endpoint
-	if test {
+	// If test subcommand was used, call the test endpoint
+	if runTest {
 		return runTestFlow(invocationCtx, logger, aiBomClient, orgID, aiBomID, jsonOutput)
 	}
 
