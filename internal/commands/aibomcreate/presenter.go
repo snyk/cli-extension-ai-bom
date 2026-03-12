@@ -1,34 +1,15 @@
 package aibomcreate
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/snyk/go-application-framework/pkg/configuration"
+	"github.com/snyk/go-application-framework/pkg/local_workflows/json_schemas"
 	"github.com/snyk/go-application-framework/pkg/workflow"
-	"golang.org/x/exp/slices"
 )
-
-// PolicyTestIssue represents a single CLI policy test issue for display.
-type PolicyTestIssue struct {
-	ID                string `json:"id"`
-	Description       string `json:"description"`
-	Severity          string `json:"severity"`
-	PolicyID          string `json:"policy_id"`
-	State             string `json:"state"`
-	Source            string `json:"source"`
-	RemediationAdvice string `json:"remediation_advice"`
-}
-
-// TestResultPresentation is the parsed test result used for pretty and JSON output.
-type TestResultPresentation struct {
-	OK      bool              `json:"ok"`
-	Issues  []PolicyTestIssue `json:"issues"`
-	Summary string            `json:"summary"`
-}
 
 // rawTestResponse mirrors the API response for parsing (snake_case).
 type rawTestResponse struct {
@@ -39,22 +20,6 @@ type rawTestResponse struct {
 			Issues []PolicyTestIssue `json:"issues"`
 		} `json:"attributes"`
 	} `json:"data"`
-}
-
-// severityLevel for ordering (higher = more severe).
-func severityLevel(s string) int {
-	switch strings.ToLower(s) {
-	case "critical":
-		return 4
-	case "high":
-		return 3
-	case "medium":
-		return 2
-	case "low":
-		return 1
-	default:
-		return 0
-	}
 }
 
 var (
@@ -83,45 +48,19 @@ func styleForSeverity(severity string) lipgloss.Style {
 	}
 }
 
-// ParseTestResult unmarshals the API JSON string into TestResultPresentation.
-func ParseTestResult(jsonStr string) (*TestResultPresentation, error) {
-	var raw rawTestResponse
-	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
-		return nil, fmt.Errorf("parse test result: %w", err)
-	}
-	issues := raw.Data.Attributes.Issues
-	slices.SortFunc(issues, func(a, b PolicyTestIssue) int {
-		sa, sb := severityLevel(a.Severity), severityLevel(b.Severity)
-		if sa != sb {
-			return sb - sa // higher severity first
-		}
-		if a.ID != b.ID {
-			return strings.Compare(a.ID, b.ID)
-		}
-		return strings.Compare(a.Description, b.Description)
-	})
-	total := len(issues)
-	summary := fmt.Sprintf("Found %d issue(s)", total)
-	if total == 0 {
-		summary = "No issues found"
-	}
-	return &TestResultPresentation{
-		OK:      total == 0,
-		Issues:  issues,
-		Summary: summary,
-	}, nil
-}
-
 // RenderPrettyResult writes a human-readable test result to w.
-func RenderPrettyResult(invocationCtx workflow.InvocationContext, w io.Writer, res *TestResultPresentation) error {
+func RenderPrettyResult(invocationCtx workflow.InvocationContext, w io.Writer, res *TestResult) error {
 	config := invocationCtx.GetConfiguration()
 	title := sectionStyle.Render("AI BOM policy test")
 	_, _ = fmt.Fprintf(w, "\n%s\n\n", title)
 
-	issuesBlock := renderIssues(config.GetString(configuration.API_URL), res.Issues)
+	openIssues := filterIssuesByState(res.Issues, "open")
+	ignoredIssues := filterIssuesByState(res.Issues, "ignored")
+
+	issuesBlock := renderIssues(config.GetString(configuration.API_URL), openIssues, ignoredIssues)
 	_, _ = fmt.Fprintln(w, issuesBlock)
 
-	summaryBlock := renderSummary(res)
+	summaryBlock := renderSummary(openIssues, ignoredIssues)
 	_, _ = fmt.Fprintln(w, boxStyle.Render(summaryBlock))
 	return nil
 }
@@ -134,12 +73,16 @@ func makePolicyURL(baseURL, policyID string) string {
 	return fmt.Sprintf("%s/policies/%s", baseURL, policyID)
 }
 
-func renderIssues(baseURL string, issues []PolicyTestIssue) string {
+func renderIssues(baseURL string, openIssues, ignoredIssues []PolicyTestIssue) string {
+	return renderIssuesForState(baseURL, "Open", openIssues) + "\n" + renderIssuesForState(baseURL, "Ignored", ignoredIssues)
+}
+
+func renderIssuesForState(baseURL, label string, issues []PolicyTestIssue) string {
 	if len(issues) == 0 {
-		return sectionStyle.Render("Open issues:") + "\n  No issues found."
+		return sectionStyle.Render(label+" issues:") + "\n  No issues found."
 	}
 	var b strings.Builder
-	b.WriteString(sectionStyle.Render("Open issues:"))
+	b.WriteString(sectionStyle.Render(label + " issues:"))
 	b.WriteString("\n")
 	for _, iss := range issues {
 		style := styleForSeverity(iss.Severity)
@@ -156,21 +99,32 @@ func renderIssues(baseURL string, issues []PolicyTestIssue) string {
 	return b.String()
 }
 
-func renderSummary(res *TestResultPresentation) string {
-	total := len(res.Issues)
-	bySev := make(map[string]int)
-	for _, iss := range res.Issues {
-		bySev[strings.ToLower(iss.Severity)]++
-	}
-	parts := []string{fmt.Sprintf("  Test summary\n  Open issues: %d", total)}
-	order := []string{"critical", "high", "medium", "low"}
-	for _, sev := range order {
-		if n := bySev[sev]; n > 0 {
-			style := styleForSeverity(sev)
-			parts = append(parts, style.Render(fmt.Sprintf("%d %s", n, strings.ToUpper(sev))))
+func renderSummary(openIssues, ignoredIssues []PolicyTestIssue) string {
+	lines := append([]string{},
+		"  Test summary",
+		renderSummaryForState("Open", openIssues),
+		renderSummaryForState("Ignored", ignoredIssues),
+	)
+	return strings.TrimRight(strings.Join(lines, "\n"), "\n")
+}
+
+func filterIssuesByState(issues []PolicyTestIssue, state string) []PolicyTestIssue {
+	var out []PolicyTestIssue
+	for _, iss := range issues {
+		if strings.EqualFold(iss.State, state) {
+			out = append(out, iss)
 		}
 	}
-	// single line like "Open issues: 2 [2 HIGH]"
+	return out
+}
+
+func renderSummaryForState(label string, issues []PolicyTestIssue) string {
+	total := len(issues)
+	bySev := make(map[string]int)
+	for _, iss := range issues {
+		bySev[strings.ToLower(iss.Severity)]++
+	}
+	order := json_schemas.DEFAULT_SEVERITIES
 	if total > 0 {
 		var counts []string
 		for _, sev := range order {
@@ -179,15 +133,7 @@ func renderSummary(res *TestResultPresentation) string {
 				counts = append(counts, style.Render(fmt.Sprintf("%d %s", n, strings.ToUpper(sev))))
 			}
 		}
-		return fmt.Sprintf("  Test summary\n  Open issues: %d [%s]", total, strings.Join(counts, " "))
+		return fmt.Sprintf("  %s issues: %d [%s]", label, total, strings.Join(counts, " "))
 	}
-	return fmt.Sprintf("  Test summary\n  Open issues: %d", total)
-}
-
-// RenderJSONResult writes the test result as JSON to w (for machine-readable output).
-func RenderJSONResult(w io.Writer, res *TestResultPresentation) error {
-	if err := json.NewEncoder(w).Encode(res); err != nil {
-		return fmt.Errorf("encode json: %w", err)
-	}
-	return nil
+	return fmt.Sprintf("  %s issues: %d", label, total)
 }

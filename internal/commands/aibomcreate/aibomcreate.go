@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/snyk/go-application-framework/pkg/apiclients/fileupload"
 	"github.com/snyk/go-application-framework/pkg/configuration"
+	"github.com/snyk/go-application-framework/pkg/local_workflows/content_type"
 	frameworkUtils "github.com/snyk/go-application-framework/pkg/utils"
 	"github.com/snyk/go-application-framework/pkg/workflow"
 
@@ -89,9 +90,9 @@ func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) 
 //go:embed aibom.html
 var htmlTemplate string
 
-func returnRawJSON(jsonOutput string) []workflow.Data {
-	workflowData := newWorkflowData("application/json", []byte(jsonOutput))
-	return []workflow.Data{workflowData}
+//nolint:ireturn // workflow.Data is an interface from external library; cannot change return type
+func rawJSONData(jsonOutput string) workflow.Data {
+	return newWorkflowData("application/json", []byte(jsonOutput))
 }
 
 // runTestFlow runs the CLI policy test and returns workflow data (raw JSON or pretty output).
@@ -111,22 +112,28 @@ func runTestFlow(
 		return nil, testErr.SnykError
 	}
 	logger.Debug().Msg("Successfully tested AI-BOM")
-	if jsonOutput {
-		logger.Debug().Msg("json output flag is set, skipping pretty output")
-		return returnRawJSON(testResult), nil
-	}
 	parsed, parseErr := ParseTestResult(testResult)
 	if parseErr != nil {
 		logger.Debug().Err(parseErr).Msg("failed to parse test result, returning raw JSON")
-		return returnRawJSON(testResult), nil
+		return nil, errors.NewInternalError("error while parsing AI-BOM test result").SnykError
+	}
+	summaryData := workflow.NewData(
+		workflow.NewTypeIdentifier(WorkflowIDTest, "test-summary"),
+		content_type.TEST_SUMMARY,
+		parsed.Summary,
+	)
+	dataToReturn := []workflow.Data{summaryData}
+	if jsonOutput {
+		logger.Debug().Msg("json output flag is set, skipping pretty output")
+		return append(dataToReturn, rawJSONData(testResult)), nil
 	}
 	var prettyBuf bytes.Buffer
 	if err := RenderPrettyResult(invocationCtx, &prettyBuf, parsed); err != nil {
 		logger.Debug().Err(err).Msg("failed to render test result, returning raw JSON")
-		return returnRawJSON(testResult), nil
+		return append(dataToReturn, rawJSONData(testResult)), nil
 	}
 	workflowData := newWorkflowData("text/plain", prettyBuf.Bytes())
-	return []workflow.Data{workflowData}, nil
+	return append(dataToReturn, workflowData), nil
 }
 
 func RunAiBomWorkflow(
