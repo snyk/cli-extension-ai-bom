@@ -37,6 +37,7 @@ var (
 
 func RegisterWorkflows(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom", pflag.ExitOnError)
+	flagset.Bool(utils.FlagExperimental, false, "Deprecated: no longer required")
 	flagset.Bool(utils.FlagHTML, false, "Output the AI BOM in HTML format instead of JSON")
 	flagset.Bool(utils.FlagUpload, false, "Upload the AI BOM")
 	flagset.String(utils.FlagRepoName, "", "Repository name to use for the AI BOM")
