@@ -37,7 +37,6 @@ var exampleAIBOM = `{
 func TestAiBomWorkflow_HAPPY(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ctrl := gomock.NewController(t)
-	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
 	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
 	uploadRevisionID := uuid.New()
 	fileUploadClient := fileuploadmock.NewMockClient(ctrl)
@@ -63,7 +62,6 @@ func TestAiBomWorkflow_Upload_HAPPY(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ctrl := gomock.NewController(t)
 	cfg := ictx.GetConfiguration()
-	cfg.Set(utils.FlagExperimental, true)
 	cfg.Set(utils.FlagUpload, true)
 	cfg.Set(utils.FlagRepoName, "repo-name")
 	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
@@ -94,7 +92,6 @@ func TestAiBomWorkflow_Upload_HAPPY(t *testing.T) {
 func TestAiBomWorkflow_HTML(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ctrl := gomock.NewController(t)
-	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
 	ictx.GetConfiguration().Set(utils.FlagHTML, true)
 	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
 	uploadRevisionID := uuid.New()
@@ -121,7 +118,6 @@ func TestAiBomWorkflow_HTML(t *testing.T) {
 func TestAiBomWorkflow_APIUnavailable(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ctrl := gomock.NewController(t)
-	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
 	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
 	unavailableError := errors.NewInternalError("unavailable")
 	fileUploadClient := fileuploadmock.NewMockClient(ctrl)
@@ -134,7 +130,6 @@ func TestAiBomWorkflow_APIUnavailable(t *testing.T) {
 
 func TestAiBomWorkflow_UPLOAD_BUNDLE_FAIL(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
 	ctrl := gomock.NewController(t)
 	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
 	uploadRevisionID := uuid.New()
@@ -153,7 +148,6 @@ func TestAiBomWorkflow_UPLOAD_BUNDLE_FAIL(t *testing.T) {
 
 func TestAiBomWorkflow_NO_SUPPORTED_FILES(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
 	ctrl := gomock.NewController(t)
 	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
 	uploadRevisionID := uuid.New()
@@ -171,7 +165,6 @@ func TestAiBomWorkflow_NO_SUPPORTED_FILES(t *testing.T) {
 
 func TestAiBomWorkflow_AIBOM_GENERATION_FAIL(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
-	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
 	ctrl := gomock.NewController(t)
 	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
 	aiBomErr := errors.NewInternalError("Test error")
@@ -190,23 +183,11 @@ func TestAiBomWorkflow_AIBOM_GENERATION_FAIL(t *testing.T) {
 	assert.Equal(t, aiBomErr.SnykError, err)
 }
 
-func TestAiBomWorkflow_NO_EXPERIMENTAL(t *testing.T) {
-	ictx := frameworkmock.NewMockInvocationContext(t)
-	ctrl := gomock.NewController(t)
-	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
-	fileUploadClient := fileuploadmock.NewMockClient(ctrl)
-
-	_, err := aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient, false)
-	assert.EqualError(t, err, "Command is experimental")
-}
-
 func TestAiBomWorkflow_UNAUTHORIZED(t *testing.T) {
 	ictx := frameworkmock.NewMockInvocationContext(t)
 	ctrl := gomock.NewController(t)
 	aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
 	fileUploadClient := fileuploadmock.NewMockClient(ctrl)
-
-	ictx.GetConfiguration().Set(utils.FlagExperimental, true)
 
 	// Unauthorized either won't have an orgId
 	ictx.GetConfiguration().Set(configuration.ORGANIZATION, "")

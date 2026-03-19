@@ -37,7 +37,6 @@ var (
 
 func RegisterWorkflows(e workflow.Engine) error {
 	flagset := pflag.NewFlagSet("snyk-cli-extension-ai-bom", pflag.ExitOnError)
-	flagset.Bool(utils.FlagExperimental, false, "This is an experiment feature that will contain breaking changes in future revisions")
 	flagset.Bool(utils.FlagHTML, false, "Output the AI BOM in HTML format instead of JSON")
 	flagset.Bool(utils.FlagUpload, false, "Upload the AI BOM")
 	flagset.String(utils.FlagRepoName, "", "Repository name to use for the AI BOM")
@@ -147,17 +146,10 @@ func RunAiBomWorkflow(
 	config := invocationCtx.GetConfiguration()
 
 	config.Set(configuration.RAW_CMD_ARGS, os.Args[1:])
-	experimental := config.GetBool(utils.FlagExperimental)
 	path := config.GetString(configuration.INPUT_DIRECTORY)
 	upload := config.GetBool(utils.FlagUpload)
 	repoName := config.GetString(utils.FlagRepoName)
 	jsonOutput := config.GetString(utils.FlagJSONFileOutput) != ""
-
-	// As this is an experimental feature, we only want to continue if the experimental flag is set
-	if !experimental {
-		logger.Debug().Msg("Required experimental flag is not present")
-		return nil, errors.NewCommandIsExperimentalError().SnykError
-	}
 
 	ctx := context.Background()
 	logger.Debug().Msgf("running command with orgId: %s", orgID)
