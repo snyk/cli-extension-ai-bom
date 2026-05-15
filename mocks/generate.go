@@ -7,4 +7,3 @@ package mocks
 // Local library mocks
 //go:generate mockgen -package fileuploadmock -destination fileuploadmock/client_mock.go github.com/snyk/go-application-framework/pkg/apiclients/fileupload Client
 //go:generate mockgen -package aibomclientmock -destination aibomclientmock/client_mock.go github.com/snyk/cli-extension-ai-bom/internal/services/ai-bom-client AiBomClient
-//go:generate mockgen -package redteamclientmock -destination redteamclientmock/client_mock.go github.com/snyk/cli-extension-ai-bom/internal/services/red-team-client RedTeamClient
