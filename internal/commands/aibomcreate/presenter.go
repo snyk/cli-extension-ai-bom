@@ -54,8 +54,8 @@ func RenderPrettyResult(invocationCtx workflow.InvocationContext, w io.Writer, r
 	title := sectionStyle.Render("AI BOM policy test")
 	_, _ = fmt.Fprintf(w, "\n%s\n\n", title)
 
-	openIssues := filterIssuesByState(res.Issues, "open")
-	ignoredIssues := filterIssuesByState(res.Issues, "ignored")
+	openIssues := filterIssuesByState(res.Issues, IssueStateOpen)
+	ignoredIssues := filterIssuesByState(res.Issues, IssueStateIgnored)
 
 	issuesBlock := renderIssues(config.GetString(configuration.API_URL), openIssues, ignoredIssues)
 	_, _ = fmt.Fprintln(w, issuesBlock)
@@ -88,12 +88,12 @@ func renderIssuesForState(baseURL, label string, issues []PolicyTestIssue) strin
 		style := styleForSeverity(iss.Severity)
 		sevStr := style.Render(fmt.Sprintf("× [%s]", strings.ToUpper(iss.Severity)))
 		descStr := sectionStyle.Render(iss.Description)
-		b.WriteString(fmt.Sprintf("\n%s %s\n", sevStr, descStr))
+		_, _ = fmt.Fprintf(&b, "\n%s %s\n", sevStr, descStr)
 		if iss.PolicyID != "" {
-			b.WriteString(fmt.Sprintf("  Policy: %s\n", makePolicyURL(baseURL, iss.PolicyID)))
+			_, _ = fmt.Fprintf(&b, "  Policy: %s\n", makePolicyURL(baseURL, iss.PolicyID))
 		}
 		if iss.RemediationAdvice != "" {
-			b.WriteString(fmt.Sprintf("  Remediation: %s\n", iss.RemediationAdvice))
+			_, _ = fmt.Fprintf(&b, "  Remediation: %s\n", iss.RemediationAdvice)
 		}
 	}
 	return b.String()

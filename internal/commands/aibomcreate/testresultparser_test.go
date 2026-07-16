@@ -35,7 +35,7 @@ func TestParseTestResult_SingleOpenIssue(t *testing.T) {
 	assert.Equal(t, "Missing license", res.Issues[0].Description)
 	assert.Equal(t, "high", res.Issues[0].Severity)
 	assert.Equal(t, "pol-123", res.Issues[0].PolicyID)
-	assert.Equal(t, "open", res.Issues[0].State)
+	assert.Equal(t, aibomcreate.IssueStateOpen, res.Issues[0].State)
 	assert.Equal(t, "Add a LICENSE file", res.Issues[0].RemediationAdvice)
 
 	var summary struct {
