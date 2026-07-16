@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -25,11 +26,13 @@ type AiBomClient interface {
 	GenerateAIBOM(
 		ctx context.Context,
 		orgID, uploadRevisionID uuid.UUID,
+		enriched bool,
 	) (aiBomDoc, aiBomID string, err *errors.AiBomError)
 	CreateAndUploadAIBOM(
 		ctx context.Context,
 		orgID, uploadRevisionID uuid.UUID,
 		repoName string,
+		enriched bool,
 	) (aiBomDoc, aiBomID string, err *errors.AiBomError)
 	TestAIBOM(
 		ctx context.Context,
@@ -76,12 +79,16 @@ func NewAiBomClient(
 var APIVersion = "2024-10-15"
 
 func (c *AIBOMClientImpl) CheckAPIAvailability(ctx context.Context, orgID uuid.UUID) *errors.AiBomError {
-	_, err := c.createAIBOM(ctx, orgID, DryRunUploadRevisionID)
+	_, err := c.createAIBOM(ctx, orgID, DryRunUploadRevisionID, false)
 	return err
 }
 
-func (c *AIBOMClientImpl) GenerateAIBOM(ctx context.Context, orgID, uploadRevisionID uuid.UUID) (aiBomDoc, aiBomID string, err *errors.AiBomError) {
-	jobID, err := c.createAIBOM(ctx, orgID, uploadRevisionID)
+func (c *AIBOMClientImpl) GenerateAIBOM(
+	ctx context.Context,
+	orgID, uploadRevisionID uuid.UUID,
+	enriched bool,
+) (aiBomDoc, aiBomID string, err *errors.AiBomError) {
+	jobID, err := c.createAIBOM(ctx, orgID, uploadRevisionID, enriched)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while creating the aibom")
 		return "", "", err
@@ -119,11 +126,12 @@ func (c *AIBOMClientImpl) CreateAndUploadAIBOM(
 	ctx context.Context,
 	orgID, uploadRevisionID uuid.UUID,
 	repoName string,
+	enriched bool,
 ) (aiBomDoc, aiBomID string, err *errors.AiBomError) {
 	progressBar := c.userInterface.NewProgressBar()
 	progressBar.SetTitle("Creating")
 
-	jobID, err := c.uploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
+	jobID, err := c.uploadAIBOM(ctx, orgID, uploadRevisionID, repoName, enriched)
 	if err != nil {
 		c.logger.Debug().Err(err.SnykError).Msg("error while uploading the aibom")
 		return "", "", err
@@ -180,10 +188,21 @@ func (c *AIBOMClientImpl) aiBomErrorFromHTTPStatusCode(endPoint string, statusCo
 	}
 }
 
+func (c *AIBOMClientImpl) buildCreateAIBOMURL(orgID uuid.UUID, path string, enriched bool) string {
+	endpointURL := fmt.Sprintf("%s/rest/orgs/%s/%s", c.baseURL, orgID, path)
+	query := url.Values{}
+	query.Set("version", APIVersion)
+	if enriched {
+		query.Set("enriched", "true")
+	}
+	return endpointURL + "?" + query.Encode()
+}
+
 func (c *AIBOMClientImpl) createAIBOM(
 	ctx context.Context,
 	orgID,
 	uploadRevisionID uuid.UUID,
+	enriched bool,
 ) (string, *errors.AiBomError) {
 	c.logger.Debug().Str("uploadRevisionID", uploadRevisionID.String()).Msg("creating aibom")
 
@@ -205,14 +224,14 @@ func (c *AIBOMClientImpl) createAIBOM(
 		c.logger.Debug().Err(err).Msg("error while marshaling request body")
 		return "", errors.NewInternalError(fmt.Sprintf("Error marshaling request body: %s", err.Error()))
 	}
-	url := fmt.Sprintf("%s/rest/orgs/%s/ai_boms?version=%s", c.baseURL, orgID, APIVersion)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBytes))
+	requestURL := c.buildCreateAIBOMURL(orgID, "ai_boms", enriched)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewBuffer(reqBytes))
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building CreateAIBOM request")
 		return "", errors.NewInternalError(fmt.Sprintf("Error building CreateAIBOM request: %s", err.Error()))
 	}
 
-	c.setCommonHeaders(url, req)
+	c.setCommonHeaders(requestURL, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -388,6 +407,7 @@ func (c *AIBOMClientImpl) uploadAIBOM(
 	orgID,
 	uploadRevisionID uuid.UUID,
 	repoName string,
+	enriched bool,
 ) (string, *errors.AiBomError) {
 	c.logger.Debug().Str("uploadRevisionID", uploadRevisionID.String()).Msg("uploading aibom")
 
@@ -411,14 +431,14 @@ func (c *AIBOMClientImpl) uploadAIBOM(
 		c.logger.Debug().Err(err).Msg("error while marshaling request body")
 		return "", errors.NewInternalError(fmt.Sprintf("Error marshaling request body: %s", err.Error()))
 	}
-	url := fmt.Sprintf("%s/rest/orgs/%s/ai_boms/upload?version=%s", c.baseURL, orgID, APIVersion)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBytes))
+	requestURL := c.buildCreateAIBOMURL(orgID, "ai_boms/upload", enriched)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewBuffer(reqBytes))
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building CreateAndUploadAIBOM request")
 		return "", errors.NewInternalError(fmt.Sprintf("Error building CreateAndUploadAIBOM request: %s", err.Error()))
 	}
 
-	c.setCommonHeaders(url, req)
+	c.setCommonHeaders(requestURL, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
