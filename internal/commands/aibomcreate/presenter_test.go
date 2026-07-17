@@ -43,7 +43,7 @@ func TestRenderPrettyResult_OpenIssueWithPolicyAndRemediation(t *testing.T) {
 				Description:       "Missing license file",
 				Severity:          "high",
 				PolicyID:          "pol-abc-123",
-				State:             "open",
+				State:             aibomcreate.IssueStateOpen,
 				RemediationAdvice: "Add a LICENSE file to the repo.",
 			},
 		},

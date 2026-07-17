@@ -1,7 +1,7 @@
 GO_BIN?=$(shell pwd)/.bin/go
 PYTHON_PATH?=$(shell pwd)/.bin/python
 
-GOCI_LINT_V?=v1.64.7
+GOCI_LINT_V?=v2.12.2
 PRE_COMMIT_V?=v3.8
 
 

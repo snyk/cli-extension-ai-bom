@@ -42,11 +42,11 @@ func RegisterWorkflows(e workflow.Engine) error {
 	flagset.Bool(utils.FlagUpload, false, "Upload the AI BOM")
 	flagset.String(utils.FlagRepoName, "", "Repository name to use for the AI BOM")
 
-	configuration := workflow.ConfigurationOptionsFromFlagset(flagset)
-	if _, err := e.Register(WorkflowID, configuration, AiBomWorkflow); err != nil {
+	workflowConfiguration := workflow.ConfigurationOptionsFromFlagset(flagset)
+	if _, err := e.Register(WorkflowID, workflowConfiguration, AiBomWorkflow); err != nil {
 		return fmt.Errorf("error while registering AI-BOM workflow: %w", err)
 	}
-	if _, err := e.Register(WorkflowIDTest, configuration, AiBomWorkflow); err != nil {
+	if _, err := e.Register(WorkflowIDTest, workflowConfiguration, AiBomWorkflow); err != nil {
 		return fmt.Errorf("error while registering AI-BOM test workflow: %w", err)
 	}
 	return nil
@@ -59,7 +59,7 @@ func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) 
 	ui := invocationCtx.GetUserInterface()
 	config := invocationCtx.GetConfiguration()
 	baseAPIURL := config.GetString(configuration.API_URL)
-	aiBomClient := aiBomClient.NewAiBomClient(logger, invocationCtx.GetNetworkAccess().GetHttpClient(), ui, userAgent, baseAPIURL)
+	client := aiBomClient.NewAiBomClient(logger, invocationCtx.GetNetworkAccess().GetHttpClient(), ui, userAgent, baseAPIURL)
 
 	orgID := config.GetString(configuration.ORGANIZATION)
 	if orgID == "" {
@@ -84,7 +84,7 @@ func AiBomWorkflow(invocationCtx workflow.InvocationContext, _ []workflow.Data) 
 	cmdStr := workflow.GetCommandFromWorkflowIdentifier(invocationCtx.GetWorkflowIdentifier())
 	runTest := cmdStr == "aibom test"
 
-	return RunAiBomWorkflow(invocationCtx, orgIDUUID, aiBomClient, fileUploadClient, runTest)
+	return RunAiBomWorkflow(invocationCtx, orgIDUUID, client, fileUploadClient, runTest)
 }
 
 //go:embed aibom.html
@@ -139,7 +139,7 @@ func runTestFlow(
 func RunAiBomWorkflow(
 	invocationCtx workflow.InvocationContext,
 	orgID uuid.UUID,
-	aiBomClient aiBomClient.AiBomClient,
+	client aiBomClient.AiBomClient,
 	fileUploadClient fileupload.Client,
 	runTest bool,
 ) ([]workflow.Data, error) {
@@ -166,7 +166,7 @@ func RunAiBomWorkflow(
 	}
 
 	logger.Debug().Msg("checking api availability")
-	aiBomErr := aiBomClient.CheckAPIAvailability(ctx, orgID)
+	aiBomErr := client.CheckAPIAvailability(ctx, orgID)
 
 	if aiBomErr != nil {
 		logger.Debug().Msg("api availability check failed")
@@ -191,9 +191,9 @@ func RunAiBomWorkflow(
 
 	// All methods now return both document and ID
 	if upload {
-		aiBomDoc, aiBomID, createAIBomErr = aiBomClient.CreateAndUploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
+		aiBomDoc, aiBomID, createAIBomErr = client.CreateAndUploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
 	} else {
-		aiBomDoc, aiBomID, createAIBomErr = aiBomClient.GenerateAIBOM(ctx, orgID, uploadRevisionID)
+		aiBomDoc, aiBomID, createAIBomErr = client.GenerateAIBOM(ctx, orgID, uploadRevisionID)
 	}
 
 	if createAIBomErr != nil {
@@ -203,7 +203,7 @@ func RunAiBomWorkflow(
 
 	// If test subcommand was used, call the test endpoint
 	if runTest {
-		return runTestFlow(invocationCtx, logger, aiBomClient, orgID, aiBomID, jsonOutput)
+		return runTestFlow(invocationCtx, logger, client, orgID, aiBomID, jsonOutput)
 	}
 
 	logger.Debug().Msg("Successfully generated AI BOM document.")

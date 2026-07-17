@@ -10,6 +10,11 @@ import (
 	"github.com/snyk/go-application-framework/pkg/local_workflows/json_schemas"
 )
 
+const (
+	IssueStateOpen    = "open"
+	IssueStateIgnored = "ignored"
+)
+
 // PolicyTestIssue represents a single CLI policy test issue for display.
 type PolicyTestIssue struct {
 	ID                string `json:"id"`
@@ -44,7 +49,7 @@ func buildTestSummary(issues []PolicyTestIssue) ([]byte, error) {
 	summary := json_schemas.TestSummary{}
 	for severity, issues := range bySeverity {
 		openCount := lo.CountBy(issues, func(issue PolicyTestIssue) bool {
-			return issue.State == "open"
+			return issue.State == IssueStateOpen
 		})
 		summary.Results = append(summary.Results, json_schemas.TestSummaryResult{
 			Severity: severity,
@@ -79,7 +84,7 @@ func ParseTestResult(jsonStr string) (*TestResult, error) {
 	})
 	// filter out closed issues
 	issues = lo.Filter(issues, func(issue PolicyTestIssue, _ int) bool {
-		return issue.State == "open" || issue.State == "ignored"
+		return issue.State == IssueStateOpen || issue.State == IssueStateIgnored
 	})
 	summaryPayload, err := buildTestSummary(issues)
 	if err != nil {
