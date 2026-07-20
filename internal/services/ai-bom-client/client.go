@@ -268,13 +268,13 @@ func (c *AIBOMClientImpl) pollForAIBOMReady(
 	orgID uuid.UUID,
 	jobID string,
 ) (string, *errors.AiBomError) {
-	url := fmt.Sprintf("%s/rest/orgs/%s/ai_bom_jobs/%s?version=%s", c.baseURL, orgID, jobID, APIVersion)
+	requestURL := fmt.Sprintf("%s/rest/orgs/%s/ai_bom_jobs/%s?version=%s", c.baseURL, orgID, jobID, APIVersion)
 	numberOfPolls := 0
 
 	for numberOfPolls <= maxPollAttempts {
 		numberOfPolls++
 
-		jobResp, err := c.fetchJobStatus(ctx, url)
+		jobResp, err := c.fetchJobStatus(ctx, requestURL)
 		if err != nil {
 			return "", err
 		}
@@ -294,14 +294,14 @@ func (c *AIBOMClientImpl) pollForAIBOMReady(
 
 func (c *AIBOMClientImpl) fetchJobStatus(
 	ctx context.Context,
-	url string,
+	requestURL string,
 ) (*GetAiBomResponseJobBody, *errors.AiBomError) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, http.NoBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building GetAIBOMJob request")
 		return nil, errors.NewInternalError(fmt.Sprintf("Error building GetAIBOMJob request: %s", err.Error()))
 	}
-	c.setCommonHeaders(url, req)
+	c.setCommonHeaders(requestURL, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -359,13 +359,13 @@ func (c *AIBOMClientImpl) getAIBOM(
 	orgID uuid.UUID,
 	aiBomID string,
 ) (string, *errors.AiBomError) {
-	url := fmt.Sprintf("%s/rest/orgs/%s/ai_boms/%s?version=%s", c.baseURL, orgID.String(), aiBomID, APIVersion)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	requestURL := fmt.Sprintf("%s/rest/orgs/%s/ai_boms/%s?version=%s", c.baseURL, orgID.String(), aiBomID, APIVersion)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, http.NoBody)
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building GetAIBOM request")
 		return "", errors.NewInternalError(fmt.Sprintf("Error building GetAIBOM request: %s", err.Error()))
 	}
-	c.setCommonHeaders(url, req)
+	c.setCommonHeaders(requestURL, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -487,14 +487,14 @@ func (c *AIBOMClientImpl) TestAIBOM(
 		return "", errors.NewInternalError(fmt.Sprintf("Error marshaling test request body: %s", err.Error()))
 	}
 
-	url := fmt.Sprintf("%s/hidden/orgs/%s/ai_boms/cli_policy_test?version=%s", c.baseURL, orgID, APIVersion)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBytes))
+	requestURL := fmt.Sprintf("%s/hidden/orgs/%s/ai_boms/cli_policy_test?version=%s", c.baseURL, orgID, APIVersion)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewBuffer(reqBytes))
 	if err != nil {
 		c.logger.Debug().Err(err).Msg("error while building TestAIBOM request")
 		return "", errors.NewInternalError(fmt.Sprintf("Error building TestAIBOM request: %s", err.Error()))
 	}
 
-	c.setCommonHeaders(url, req)
+	c.setCommonHeaders(requestURL, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -532,9 +532,9 @@ func (c *AIBOMClientImpl) TestAIBOM(
 	return string(resultBytes), nil
 }
 
-func (c *AIBOMClientImpl) setCommonHeaders(url string, req *http.Request) {
+func (c *AIBOMClientImpl) setCommonHeaders(requestURL string, req *http.Request) {
 	requestID := uuid.New().String()
-	c.logger.Debug().Msgf("making ai-bom api request to url: %s, requestId: %s", url, requestID)
+	c.logger.Debug().Msgf("making ai-bom api request to url: %s, requestId: %s", requestURL, requestID)
 	req.Header.Set("snyk-request-id", requestID)
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("Content-Type", "application/vnd.api+json")
