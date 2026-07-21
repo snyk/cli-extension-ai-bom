@@ -40,6 +40,7 @@ func RegisterWorkflows(e workflow.Engine) error {
 	flagset.Bool(utils.FlagExperimental, false, "Deprecated: no longer required")
 	flagset.Bool(utils.FlagHTML, false, "Output the AI BOM in HTML format instead of JSON")
 	flagset.Bool(utils.FlagUpload, false, "Upload the AI BOM")
+	flagset.Bool(utils.FlagEnriched, false, "Run additional slower enrichment on the AI-BOM")
 	flagset.String(utils.FlagRepoName, "", "Repository name to use for the AI BOM")
 
 	workflowConfiguration := workflow.ConfigurationOptionsFromFlagset(flagset)
@@ -149,6 +150,7 @@ func RunAiBomWorkflow(
 	config.Set(configuration.RAW_CMD_ARGS, os.Args[1:])
 	path := config.GetString(configuration.INPUT_DIRECTORY)
 	upload := config.GetBool(utils.FlagUpload)
+	enriched := config.GetBool(utils.FlagEnriched)
 	repoName := config.GetString(utils.FlagRepoName)
 	jsonOutput := config.GetString(utils.FlagJSONFileOutput) != ""
 
@@ -191,9 +193,9 @@ func RunAiBomWorkflow(
 
 	// All methods now return both document and ID
 	if upload {
-		aiBomDoc, aiBomID, createAIBomErr = client.CreateAndUploadAIBOM(ctx, orgID, uploadRevisionID, repoName)
+		aiBomDoc, aiBomID, createAIBomErr = client.CreateAndUploadAIBOM(ctx, orgID, uploadRevisionID, repoName, enriched)
 	} else {
-		aiBomDoc, aiBomID, createAIBomErr = client.GenerateAIBOM(ctx, orgID, uploadRevisionID)
+		aiBomDoc, aiBomID, createAIBomErr = client.GenerateAIBOM(ctx, orgID, uploadRevisionID, enriched)
 	}
 
 	if createAIBomErr != nil {

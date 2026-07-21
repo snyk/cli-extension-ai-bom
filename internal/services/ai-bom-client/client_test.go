@@ -116,11 +116,77 @@ func TestGenerateAIBOM_Happy(t *testing.T) {
 		server.URL, // Use the test server URL
 	)
 
-	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID, false)
 
 	assert.Nil(t, err)
 	assert.Contains(t, result, "test-ai-bom-content")
 	assert.NotEmpty(t, aiBomID)
+}
+
+func TestGenerateAIBOM_EnrichedQueryParam(t *testing.T) {
+	var enrichedParam string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case isCreateAIBOMReq(r):
+			enrichedParam = r.URL.Query().Get("enriched")
+			jobID := uuid.New().String()
+			response := aibomclient.CreateAiBomResponseBody{
+				Data: aibomclient.JobData{
+					ID: uuid.MustParse(jobID),
+				},
+			}
+			w.WriteHeader(http.StatusAccepted)
+			json.NewEncoder(w).Encode(response)
+
+		case isGetJobReq(r):
+			aiBomID := uuid.New().String()
+			response := aibomclient.GetAiBomResponseJobBody{
+				Data: aibomclient.JobData{
+					Attributes: aibomclient.JobAttributes{
+						Status: aibomclient.JobStateFinished,
+					},
+					Relationships: &aibomclient.JobDataRelationships{
+						AiBom: aibomclient.RelationshipObjectToOne{
+							Data: aibomclient.RelationshipObjectToOneData{
+								ID: uuid.MustParse(aiBomID),
+							},
+						},
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(response)
+
+		case isGetAIBOMReq(r):
+			response := aibomclient.GetAiBomResponseBody{
+				Data: aibomclient.GetAiBomResponseData{
+					Attributes: map[string]interface{}{
+						"content": "test-ai-bom-content",
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(response)
+
+		default:
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	logger := loggermock.NewNoOpLogger()
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	client := aibomclient.NewAiBomClient(
+		logger,
+		ictx.GetNetworkAccess().GetHttpClient(),
+		ictx.GetUserInterface(),
+		userAgent,
+		server.URL,
+	)
+
+	_, _, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID, true)
+
+	assert.Nil(t, err)
+	assert.Equal(t, "true", enrichedParam)
 }
 
 // CreateAIBOM tests.
@@ -167,7 +233,7 @@ func TestGenerateAIBOM_CreateAIBOMAuthErrors(t *testing.T) {
 				server.URL,
 			)
 
-			result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+			result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID, false)
 
 			assert.Equal(t, "", result)
 			assert.Equal(t, "", aiBomID)
@@ -199,7 +265,7 @@ func TestGenerateAIBOM_CreateAIBOMHTTPError(t *testing.T) {
 		server.URL,
 	)
 
-	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID, false)
 
 	assert.Equal(t, "", result)
 	assert.Equal(t, "", aiBomID)
@@ -251,7 +317,7 @@ func TestGenerateAIBOM_JobErrored(t *testing.T) {
 		server.URL,
 	)
 
-	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID, false)
 
 	assert.Equal(t, "", result)
 	assert.Equal(t, "", aiBomID)
@@ -299,7 +365,7 @@ func TestGenerateAIBOM_PollForAIBOMHTTPError(t *testing.T) {
 		server.URL,
 	)
 
-	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID, false)
 
 	assert.Equal(t, "", result)
 	assert.Equal(t, "", aiBomID)
@@ -372,7 +438,7 @@ func TestGenerateAIBOM_PollForAIBOMAuthAndNotFoundErrors(t *testing.T) {
 				server.URL,
 			)
 
-			result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+			result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID, false)
 
 			assert.Equal(t, "", result)
 			assert.Equal(t, "", aiBomID)
@@ -442,7 +508,7 @@ func TestGenerateAIBOM_GetAIBOMHTTPError(t *testing.T) {
 		server.URL,
 	)
 
-	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+	result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID, false)
 
 	assert.Equal(t, "", result)
 	assert.Equal(t, "", aiBomID)
@@ -534,7 +600,7 @@ func TestGenerateAIBOM_GetAIBOMAuthErrors(t *testing.T) {
 				server.URL,
 			)
 
-			result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID)
+			result, aiBomID, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID, false)
 
 			assert.Equal(t, "", result)
 			assert.Equal(t, "", aiBomID)
