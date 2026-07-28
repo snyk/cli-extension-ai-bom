@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/snyk/go-application-framework/pkg/apiclients/fileupload"
 	"github.com/snyk/go-application-framework/pkg/configuration"
+	"github.com/snyk/go-application-framework/pkg/local_workflows/config_utils"
 	"github.com/snyk/go-application-framework/pkg/local_workflows/content_type"
 	frameworkUtils "github.com/snyk/go-application-framework/pkg/utils"
 	"github.com/snyk/go-application-framework/pkg/workflow"
@@ -50,6 +51,9 @@ func RegisterWorkflows(e workflow.Engine) error {
 	if _, err := e.Register(WorkflowIDTest, workflowConfiguration, AiBomWorkflow); err != nil {
 		return fmt.Errorf("error while registering AI-BOM test workflow: %w", err)
 	}
+
+	config_utils.AddFeatureFlagToConfig(e, configuration.FF_FILE_FILTER_METACHARACTER_FIX, configuration.SNYK_FILE_FILTER_METACHARACTER_FIX)
+
 	return nil
 }
 
@@ -177,7 +181,7 @@ func RunAiBomWorkflow(
 
 	logger.Debug().Msg("AI BOM workflow start")
 
-	uploadRevisionID, err := filterAndUploadFiles(ctx, fileUploadClient, logger, path)
+	uploadRevisionID, err := filterAndUploadFiles(ctx, fileUploadClient, logger, path, config.GetBool(configuration.FF_FILE_FILTER_METACHARACTER_FIX))
 	if err != nil {
 		if stdErrors.Is(err, fileupload.ErrNoFilesProvided) {
 			return nil, errors.NewNoSupportedFilesError().SnykError
@@ -225,8 +229,8 @@ func RunAiBomWorkflow(
 	return []workflow.Data{workflowData}, nil
 }
 
-func filterAndUploadFiles(ctx context.Context, client fileupload.Client, logger *zerolog.Logger, inputPath string) (uuid.UUID, error) {
-	filter := frameworkUtils.NewFileFilter(inputPath, logger, frameworkUtils.WithThreadNumber(runtime.NumCPU()))
+func filterAndUploadFiles(ctx context.Context, client fileupload.Client, logger *zerolog.Logger, inputPath string, enableMetacharacterFix bool) (uuid.UUID, error) {
+	filter := frameworkUtils.NewFileFilter(inputPath, logger, frameworkUtils.WithThreadNumber(runtime.NumCPU()), frameworkUtils.WithIgnoreRuleMetacharacterFix(enableMetacharacterFix))
 
 	rules, err := filter.GetRules([]string{".gitignore", ".dcignore", ".snyk"})
 	if err != nil {
@@ -244,6 +248,7 @@ func filterAndUploadFiles(ctx context.Context, client fileupload.Client, logger 
 			filefilter.TextFileOnlyFilter(logger),
 		),
 		filefilter.WithLogger(logger),
+		filefilter.WithIgnoreRuleMetacharacterFix(enableMetacharacterFix),
 	)
 	pathsChan := textFilesFilter.Filter(ctx, []string{inputPath})
 
