@@ -177,7 +177,7 @@ func RunAiBomWorkflow(
 
 	logger.Debug().Msg("AI BOM workflow start")
 
-	uploadRevisionID, err := filterAndUploadFiles(ctx, fileUploadClient, logger, path)
+	uploadRevisionID, err := filterAndUploadFiles(ctx, invocationCtx, fileUploadClient, logger, path)
 	if err != nil {
 		if stdErrors.Is(err, fileupload.ErrNoFilesProvided) {
 			return nil, errors.NewNoSupportedFilesError().SnykError
@@ -225,10 +225,17 @@ func RunAiBomWorkflow(
 	return []workflow.Data{workflowData}, nil
 }
 
-func filterAndUploadFiles(ctx context.Context, client fileupload.Client, logger *zerolog.Logger, inputPath string) (uuid.UUID, error) {
-	filter := frameworkUtils.NewFileFilter(inputPath, logger, frameworkUtils.WithThreadNumber(runtime.NumCPU()))
+func filterAndUploadFiles(
+	ctx context.Context,
+	invocationCtx workflow.InvocationContext,
+	client fileupload.Client,
+	logger *zerolog.Logger,
+	inputPath string,
+) (uuid.UUID, error) {
+	filter := invocationCtx.GetFileFilter(inputPath, frameworkUtils.WithThreadNumber(runtime.NumCPU()))
 
-	rules, err := filter.GetRules([]string{".gitignore", ".dcignore", ".snyk"})
+	// The filefilter pipeline discovers .gitignore itself.
+	rules, err := filter.GetRules([]string{".dcignore", ".snyk"})
 	if err != nil {
 		return uuid.UUID{}, fmt.Errorf("failed to get file filter rules: %w", err)
 	}
@@ -244,6 +251,7 @@ func filterAndUploadFiles(ctx context.Context, client fileupload.Client, logger 
 			filefilter.TextFileOnlyFilter(logger),
 		),
 		filefilter.WithLogger(logger),
+		filefilter.WithInvocationContext(invocationCtx),
 	)
 	pathsChan := textFilesFilter.Filter(ctx, []string{inputPath})
 

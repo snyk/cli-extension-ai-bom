@@ -1,17 +1,25 @@
 package aibomcreate_test
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	git "github.com/go-git/go-git/v5"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/snyk/go-application-framework/pkg/apiclients/fileupload"
 	"github.com/snyk/go-application-framework/pkg/configuration"
+	frameworkUtils "github.com/snyk/go-application-framework/pkg/utils"
 
 	"github.com/snyk/cli-extension-ai-bom/internal/commands/aibomcreate"
 	"github.com/snyk/cli-extension-ai-bom/internal/utils"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
@@ -250,4 +258,157 @@ func TestAiBomWorkflow_UNAUTHORIZED(t *testing.T) {
 		Return(errors.NewUnauthorizedError(""))
 	_, err = aibomcreate.RunAiBomWorkflow(ictx, frameworkmock.MockOrgID, aiBomClient, fileUploadClient, false)
 	assert.EqualError(t, err, "Authentication error")
+}
+
+func TestFilterRuleCompositionDoesNotDuplicateGitignoreRules(t *testing.T) {
+	const (
+		gitignoreFilename = ".gitignore"
+		ignoredFilename   = "ignored.txt"
+	)
+
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, gitignoreFilename),
+		[]byte(ignoredFilename+"\n"),
+		0o600,
+	))
+
+	logger := zerolog.Nop()
+	pipelineRules, err := frameworkUtils.NewFileFilter(root, &logger).GetRules([]string{gitignoreFilename})
+	require.NoError(t, err)
+
+	legacyAdditionalRules, err := frameworkUtils.NewFileFilter(root, &logger).
+		GetRules([]string{gitignoreFilename, ".dcignore", ".snyk"})
+	require.NoError(t, err)
+
+	currentAdditionalRules, err := frameworkUtils.NewFileFilter(root, &logger).
+		GetRules([]string{".dcignore", ".snyk"})
+	require.NoError(t, err)
+
+	legacyRuleCounts := make(map[string]int, len(legacyAdditionalRules)+len(pipelineRules))
+	for _, rule := range append(legacyAdditionalRules, pipelineRules...) {
+		legacyRuleCounts[rule]++
+	}
+
+	currentRuleCounts := make(map[string]int, len(currentAdditionalRules)+len(pipelineRules))
+	for _, rule := range append(currentAdditionalRules, pipelineRules...) {
+		currentRuleCounts[rule]++
+	}
+
+	var gitignoreRuleCount int
+	for _, rule := range pipelineRules {
+		if !strings.Contains(rule, ignoredFilename) {
+			continue
+		}
+
+		gitignoreRuleCount++
+		assert.Equal(t, 2, legacyRuleCounts[rule])
+		assert.Equal(t, 1, currentRuleCounts[rule])
+	}
+	require.Positive(t, gitignoreRuleCount)
+}
+
+func TestAiBomWorkflow_RespectsTrackedFilesFeatureFlag(t *testing.T) {
+	const (
+		gitignoreFilename        = ".gitignore"
+		includedFilename         = "included.txt"
+		trackedIgnoredFilename   = "tracked.ignored"
+		untrackedIgnoredFilename = "untracked.ignored"
+		dcIgnoredFilename        = "dcignored.txt"
+		snykIgnoredFilename      = "snykignored.txt"
+	)
+
+	root := filepath.Join(t.TempDir(), "repo (team)")
+	require.NoError(t, os.MkdirAll(root, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(root, trackedIgnoredFilename), []byte("tracked"), 0o600))
+
+	repository, err := git.PlainInit(root, false)
+	require.NoError(t, err)
+	worktree, err := repository.Worktree()
+	require.NoError(t, err)
+	_, err = worktree.Add(trackedIgnoredFilename)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, gitignoreFilename),
+		[]byte("*.ignored\n"),
+		0o600,
+	))
+	require.NoError(t, os.WriteFile(filepath.Join(root, untrackedIgnoredFilename), []byte("untracked"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, includedFilename), []byte("included"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".dcignore"), []byte(dcIgnoredFilename+"\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, dcIgnoredFilename), []byte("dc ignored"), 0o600))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, ".snyk"),
+		[]byte("exclude:\n  code:\n    - "+snykIgnoredFilename+"\n"),
+		0o600,
+	))
+	require.NoError(t, os.WriteFile(filepath.Join(root, snykIgnoredFilename), []byte("snyk ignored"), 0o600))
+
+	tests := []struct {
+		name                string
+		respectTrackedFiles bool
+		wantTrackedFile     bool
+	}{
+		{
+			name:                "preserves tracked files ignored only by gitignore when enabled",
+			respectTrackedFiles: true,
+			wantTrackedFile:     true,
+		},
+		{
+			name:                "keeps legacy gitignore behavior when disabled",
+			respectTrackedFiles: false,
+			wantTrackedFile:     false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ictx := frameworkmock.NewMockInvocationContext(t)
+			config := ictx.GetConfiguration()
+			config.Set(configuration.INPUT_DIRECTORY, root)
+			config.Set(frameworkUtils.FF_FILE_FILTER_METACHARACTER_FIX, true)
+			config.Set(frameworkUtils.FF_GITIGNORE_RESPECT_TRACKED_FILES, test.respectTrackedFiles)
+
+			ctrl := gomock.NewController(t)
+			aiBomClient := aibomclientmock.NewMockAiBomClient(ctrl)
+			fileUploadClient := fileuploadmock.NewMockClient(ctrl)
+			uploadRevisionID := uuid.New()
+
+			var uploadedPaths []string
+			fileUploadClient.EXPECT().
+				CreateRevisionFromChan(gomock.Any(), gomock.Any(), root).
+				DoAndReturn(func(_ context.Context, paths <-chan string, _ string) (fileupload.UploadResult, error) {
+					for path := range paths {
+						uploadedPaths = append(uploadedPaths, path)
+					}
+					return fileupload.UploadResult{RevisionID: uploadRevisionID}, nil
+				})
+
+			aiBomClient.EXPECT().CheckAPIAvailability(gomock.Any(), frameworkmock.MockOrgID).Return(nil)
+			aiBomClient.EXPECT().
+				GenerateAIBOM(gomock.Any(), frameworkmock.MockOrgID, uploadRevisionID, false).
+				Return(exampleAIBOM, testAIBOMID, nil)
+
+			_, runErr := aibomcreate.RunAiBomWorkflow(
+				ictx,
+				frameworkmock.MockOrgID,
+				aiBomClient,
+				fileUploadClient,
+				false,
+			)
+			require.NoError(t, runErr)
+
+			trackedIgnoredPath := filepath.Join(root, trackedIgnoredFilename)
+			if test.wantTrackedFile {
+				assert.Contains(t, uploadedPaths, trackedIgnoredPath)
+			} else {
+				assert.NotContains(t, uploadedPaths, trackedIgnoredPath)
+			}
+			assert.NotContains(t, uploadedPaths, filepath.Join(root, untrackedIgnoredFilename))
+			assert.NotContains(t, uploadedPaths, filepath.Join(root, dcIgnoredFilename))
+			assert.NotContains(t, uploadedPaths, filepath.Join(root, snykIgnoredFilename))
+			assert.Contains(t, uploadedPaths, filepath.Join(root, includedFilename))
+		})
+	}
 }

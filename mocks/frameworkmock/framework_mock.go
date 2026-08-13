@@ -14,6 +14,7 @@ import (
 	"github.com/snyk/go-application-framework/pkg/mocks"
 	"github.com/snyk/go-application-framework/pkg/networking"
 	"github.com/snyk/go-application-framework/pkg/runtimeinfo"
+	frameworkUtils "github.com/snyk/go-application-framework/pkg/utils"
 )
 
 var MockOrgID = uuid.MustParse("c8dbe227-1968-5654-a467-58d73f8f0311")
@@ -48,6 +49,12 @@ func NewMockInvocationContext(
 	ictx.EXPECT().GetNetworkAccess().Return(networking.NewNetworkAccess(mockConfig)).AnyTimes()
 	ictx.EXPECT().GetLogger().Return(log.New(io.Discard, "", 0)).AnyTimes()
 	ictx.EXPECT().GetEnhancedLogger().Return(&enhancedLogger).AnyTimes()
+	ictx.EXPECT().GetFileFilter(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(path string, options ...frameworkUtils.FileFilterOption) *frameworkUtils.FileFilter {
+			options = append([]frameworkUtils.FileFilterOption{frameworkUtils.WithConfig(mockConfig)}, options...)
+			return frameworkUtils.NewFileFilter(path, &enhancedLogger, options...)
+		},
+	).AnyTimes()
 	ictx.EXPECT().GetRuntimeInfo().Return(mockRuntimeInfo).AnyTimes()
 	ictx.EXPECT().GetUserInterface().Return(ui).AnyTimes()
 	return ictx
