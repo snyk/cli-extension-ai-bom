@@ -149,3 +149,93 @@ func TestParseTestResult_MissingData(t *testing.T) {
 	assert.Empty(t, res.Issues)
 	assert.NotNil(t, res.Summary)
 }
+
+func TestApplySeverityThreshold_FiltersIssuesAndSummary(t *testing.T) {
+	jsonStr := `{
+		"data":{
+			"id":"run-1",
+			"type":"test",
+			"attributes":{
+				"issues":[
+					{"id":"1","description":"Critical","severity":"critical","state":"open"},
+					{"id":"2","description":"High","severity":"high","state":"open"},
+					{"id":"3","description":"Medium","severity":"medium","state":"open"},
+					{"id":"4","description":"Low","severity":"low","state":"ignored"}
+				]
+			}
+		}
+	}`
+	parsed, err := aibomcreate.ParseTestResult(jsonStr)
+	require.NoError(t, err)
+
+	filtered, err := aibomcreate.ApplySeverityThreshold(parsed, "high")
+	require.NoError(t, err)
+	require.Len(t, filtered.Issues, 2)
+	assert.Equal(t, "critical", filtered.Issues[0].Severity)
+	assert.Equal(t, "high", filtered.Issues[1].Severity)
+
+	var summary struct {
+		Results []struct {
+			Severity string `json:"severity"`
+			Total    int    `json:"total"`
+			Open     int    `json:"open"`
+			Ignored  int    `json:"ignored"`
+		} `json:"results"`
+	}
+	err = json.Unmarshal(filtered.Summary, &summary)
+	require.NoError(t, err)
+	require.Len(t, summary.Results, 2)
+	bySev := make(map[string]int)
+	for _, r := range summary.Results {
+		bySev[r.Severity] = r.Total
+	}
+	assert.Equal(t, 1, bySev["critical"])
+	assert.Equal(t, 1, bySev["high"])
+}
+
+func TestApplySeverityThreshold_EmptyThresholdReturnsAllIssues(t *testing.T) {
+	parsed := &aibomcreate.TestResult{
+		Issues: []aibomcreate.PolicyTestIssue{
+			{ID: "1", Severity: "low", State: aibomcreate.IssueStateOpen},
+		},
+		Summary: []byte(`{"results":[{"severity":"low","total":1,"open":1,"ignored":0}]}`),
+	}
+
+	filtered, err := aibomcreate.ApplySeverityThreshold(parsed, "")
+	require.NoError(t, err)
+	assert.Equal(t, parsed, filtered)
+}
+
+func TestFilterTestResultJSON_FiltersIssues(t *testing.T) {
+	jsonStr := `{
+		"data":{
+			"id":"run-1",
+			"type":"test",
+			"attributes":{
+				"issues":[
+					{"id":"1","description":"High","severity":"high","state":"open"},
+					{"id":"2","description":"Low","severity":"low","state":"closed"}
+				]
+			}
+		}
+	}`
+
+	filteredJSON, err := aibomcreate.FilterTestResultJSON(jsonStr, "high")
+	require.NoError(t, err)
+
+	var raw struct {
+		Data struct {
+			Attributes struct {
+				Issues []struct {
+					ID       string `json:"id"`
+					Severity string `json:"severity"`
+				} `json:"issues"`
+			} `json:"attributes"`
+		} `json:"data"`
+	}
+	err = json.Unmarshal([]byte(filteredJSON), &raw)
+	require.NoError(t, err)
+	require.Len(t, raw.Data.Attributes.Issues, 1)
+	assert.Equal(t, "1", raw.Data.Attributes.Issues[0].ID)
+	assert.Equal(t, "high", raw.Data.Attributes.Issues[0].Severity)
+}
