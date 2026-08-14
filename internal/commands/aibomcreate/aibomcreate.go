@@ -113,42 +113,32 @@ func runTestFlow(
 		return nil, testErr.SnykError
 	}
 	logger.Debug().Msg("Successfully tested AI-BOM")
+	config := invocationCtx.GetConfiguration()
+	severityThreshold := strings.ToLower(config.GetString(configuration.FLAG_SEVERITY_THRESHOLD))
+	testResult, filterErr := FilterTestResult(testResult, severityThreshold)
+	if filterErr != nil {
+		logger.Debug().Err(filterErr).Msg("failed to filter test result by severity threshold")
+		return nil, errors.NewInternalError("error while filtering AI-BOM test result").SnykError
+	}
 	parsed, parseErr := ParseTestResult(testResult)
 	if parseErr != nil {
 		logger.Debug().Err(parseErr).Msg("failed to parse test result, returning raw JSON")
 		return nil, errors.NewInternalError("error while parsing AI-BOM test result").SnykError
 	}
-	config := invocationCtx.GetConfiguration()
-	severityThreshold := strings.ToLower(config.GetString(configuration.FLAG_SEVERITY_THRESHOLD))
-	filtered, filterErr := ApplySeverityThreshold(parsed, severityThreshold)
-	if filterErr != nil {
-		logger.Debug().Err(filterErr).Msg("failed to apply severity threshold to test result")
-		return nil, errors.NewInternalError("error while filtering AI-BOM test result").SnykError
-	}
 	summaryData := workflow.NewData(
 		workflow.NewTypeIdentifier(WorkflowIDTest, "test-summary"),
 		content_type.TEST_SUMMARY,
-		filtered.Summary,
+		parsed.Summary,
 	)
 	dataToReturn := []workflow.Data{summaryData}
 	if jsonOutput {
 		logger.Debug().Msg("json output flag is set, skipping pretty output")
-		filteredJSON, jsonFilterErr := FilterTestResultJSON(testResult, severityThreshold)
-		if jsonFilterErr != nil {
-			logger.Debug().Err(jsonFilterErr).Msg("failed to filter test result JSON by severity threshold")
-			return nil, errors.NewInternalError("error while filtering AI-BOM test result").SnykError
-		}
-		return append(dataToReturn, rawJSONData(filteredJSON)), nil
+		return append(dataToReturn, rawJSONData(testResult)), nil
 	}
 	var prettyBuf bytes.Buffer
-	if err := RenderPrettyResult(invocationCtx, &prettyBuf, filtered); err != nil {
+	if err := RenderPrettyResult(invocationCtx, &prettyBuf, parsed); err != nil {
 		logger.Debug().Err(err).Msg("failed to render test result, returning raw JSON")
-		filteredJSON, jsonFilterErr := FilterTestResultJSON(testResult, severityThreshold)
-		if jsonFilterErr != nil {
-			logger.Debug().Err(jsonFilterErr).Msg("failed to filter test result JSON by severity threshold")
-			return nil, errors.NewInternalError("error while filtering AI-BOM test result").SnykError
-		}
-		return append(dataToReturn, rawJSONData(filteredJSON)), nil
+		return append(dataToReturn, rawJSONData(testResult)), nil
 	}
 	workflowData := newWorkflowData("text/plain", prettyBuf.Bytes())
 	return append(dataToReturn, workflowData), nil

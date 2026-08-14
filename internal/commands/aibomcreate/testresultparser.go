@@ -121,33 +121,15 @@ func ParseTestResult(jsonStr string) (*TestResult, error) {
 	}, nil
 }
 
-// ApplySeverityThreshold filters issues and rebuilds the test summary.
-func ApplySeverityThreshold(result *TestResult, threshold string) (*TestResult, error) {
-	if threshold == "" {
-		return result, nil
-	}
-
-	filteredIssues := filterIssuesBySeverityThreshold(result.Issues, threshold)
-	summaryPayload, err := buildTestSummary(filteredIssues)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build filtered test summary: %w", err)
-	}
-
-	return &TestResult{
-		Issues:  filteredIssues,
-		Summary: summaryPayload,
-	}, nil
-}
-
-// FilterTestResultJSON filters issues in the raw API response JSON by severity threshold.
-func FilterTestResultJSON(jsonStr, threshold string) (string, error) {
+// FilterTestResult filters issues in the raw API response JSON by severity threshold.
+func FilterTestResult(jsonStr, threshold string) (string, error) {
 	if threshold == "" {
 		return jsonStr, nil
 	}
 
 	var raw rawTestResponse
 	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
-		return "", fmt.Errorf("filter test result JSON: %w", err)
+		return "", fmt.Errorf("filter test result: %w", err)
 	}
 
 	raw.Data.Attributes.Issues = filterIssuesBySeverityThreshold(raw.Data.Attributes.Issues, threshold)
