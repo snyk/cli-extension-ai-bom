@@ -41,12 +41,36 @@ func severityLevel(s string) int {
 	return idx
 }
 
+func meetsSeverityThreshold(severity, threshold string) bool {
+	thresholdLevel := severityLevel(threshold)
+	if thresholdLevel < 0 {
+		return true
+	}
+	issueLevel := severityLevel(severity)
+	if issueLevel < 0 {
+		return false
+	}
+	return issueLevel >= thresholdLevel
+}
+
+func filterIssuesBySeverityThreshold(issues []PolicyTestIssue, threshold string) []PolicyTestIssue {
+	if threshold == "" {
+		return issues
+	}
+	threshold = strings.ToLower(threshold)
+	return lo.Filter(issues, func(issue PolicyTestIssue, _ int) bool {
+		return meetsSeverityThreshold(issue.Severity, threshold)
+	})
+}
+
 func buildTestSummary(issues []PolicyTestIssue) ([]byte, error) {
 	bySeverity := lo.GroupBy(issues, func(issue PolicyTestIssue) string {
 		return issue.Severity
 	})
 
-	summary := json_schemas.TestSummary{}
+	summary := json_schemas.TestSummary{
+		SeverityOrderAsc: json_schemas.DEFAULT_SEVERITIES,
+	}
 	for severity, issues := range bySeverity {
 		openCount := lo.CountBy(issues, func(issue PolicyTestIssue) bool {
 			return issue.State == IssueStateOpen
@@ -95,4 +119,23 @@ func ParseTestResult(jsonStr string) (*TestResult, error) {
 		Issues:  issues,
 		Summary: summaryPayload,
 	}, nil
+}
+
+// FilterTestResult filters issues in the raw API response JSON by severity threshold.
+func FilterTestResult(jsonStr, threshold string) (string, error) {
+	if threshold == "" {
+		return jsonStr, nil
+	}
+
+	var raw rawTestResponse
+	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
+		return "", fmt.Errorf("filter test result: %w", err)
+	}
+
+	raw.Data.Attributes.Issues = filterIssuesBySeverityThreshold(raw.Data.Attributes.Issues, threshold)
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return "", fmt.Errorf("marshal filtered test result: %w", err)
+	}
+	return string(data), nil
 }

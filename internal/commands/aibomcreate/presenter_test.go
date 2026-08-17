@@ -41,13 +41,13 @@ func TestRenderPrettyResult_OpenIssueWithPolicyAndRemediation(t *testing.T) {
 			{
 				ID:                "issue-1",
 				Description:       "Missing license file",
-				Severity:          "high",
+				Severity:          severityHigh,
 				PolicyID:          "pol-abc-123",
 				State:             aibomcreate.IssueStateOpen,
 				RemediationAdvice: "Add a LICENSE file to the repo.",
 			},
 		},
-		Summary: []byte(`{"results":[{"severity":"high","total":1,"open":1,"ignored":0}]}`),
+		Summary: []byte(`{"results":[{"severity":"` + severityHigh + `","total":1,"open":1,"ignored":0}]}`),
 	}
 	var buf bytes.Buffer
 	err := aibomcreate.RenderPrettyResult(ictx, &buf, res)

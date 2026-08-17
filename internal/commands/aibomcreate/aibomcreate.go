@@ -113,6 +113,13 @@ func runTestFlow(
 		return nil, testErr.SnykError
 	}
 	logger.Debug().Msg("Successfully tested AI-BOM")
+	config := invocationCtx.GetConfiguration()
+	severityThreshold := strings.ToLower(config.GetString(configuration.FLAG_SEVERITY_THRESHOLD))
+	testResult, filterErr := FilterTestResult(testResult, severityThreshold)
+	if filterErr != nil {
+		logger.Debug().Err(filterErr).Msg("failed to filter test result by severity threshold")
+		return nil, errors.NewInternalError("error while filtering AI-BOM test result").SnykError
+	}
 	parsed, parseErr := ParseTestResult(testResult)
 	if parseErr != nil {
 		logger.Debug().Err(parseErr).Msg("failed to parse test result, returning raw JSON")

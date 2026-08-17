@@ -19,7 +19,7 @@ func TestParseTestResult_SingleOpenIssue(t *testing.T) {
 				"issues":[{
 					"id":"issue-1",
 					"description":"Missing license",
-					"severity":"high",
+					"severity":"` + severityHigh + `",
 					"policy_id":"pol-123",
 					"state":"open",
 					"source":"policy",
@@ -33,7 +33,7 @@ func TestParseTestResult_SingleOpenIssue(t *testing.T) {
 	require.Len(t, res.Issues, 1)
 	assert.Equal(t, "issue-1", res.Issues[0].ID)
 	assert.Equal(t, "Missing license", res.Issues[0].Description)
-	assert.Equal(t, "high", res.Issues[0].Severity)
+	assert.Equal(t, severityHigh, res.Issues[0].Severity)
 	assert.Equal(t, "pol-123", res.Issues[0].PolicyID)
 	assert.Equal(t, aibomcreate.IssueStateOpen, res.Issues[0].State)
 	assert.Equal(t, "Add a LICENSE file", res.Issues[0].RemediationAdvice)
@@ -49,7 +49,7 @@ func TestParseTestResult_SingleOpenIssue(t *testing.T) {
 	err = json.Unmarshal(res.Summary, &summary)
 	require.NoError(t, err)
 	require.Len(t, summary.Results, 1)
-	assert.Equal(t, "high", summary.Results[0].Severity)
+	assert.Equal(t, severityHigh, summary.Results[0].Severity)
 	assert.Equal(t, 1, summary.Results[0].Total)
 	assert.Equal(t, 1, summary.Results[0].Open)
 	assert.Equal(t, 0, summary.Results[0].Ignored)
@@ -65,7 +65,7 @@ func TestParseTestResult_SortsBySeverity(t *testing.T) {
 					{"id":"a","description":"Low","severity":"low","state":"open"},
 					{"id":"b","description":"Critical","severity":"critical","state":"open"},
 					{"id":"c","description":"Medium","severity":"medium","state":"open"},
-					{"id":"d","description":"High","severity":"high","state":"open"}
+					{"id":"d","description":"High","severity":"` + severityHigh + `","state":"open"}
 				]
 			}
 		}
@@ -74,7 +74,7 @@ func TestParseTestResult_SortsBySeverity(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, res.Issues, 4)
 	assert.Equal(t, "critical", res.Issues[0].Severity)
-	assert.Equal(t, "high", res.Issues[1].Severity)
+	assert.Equal(t, severityHigh, res.Issues[1].Severity)
 	assert.Equal(t, "medium", res.Issues[2].Severity)
 	assert.Equal(t, "low", res.Issues[3].Severity)
 }
@@ -86,7 +86,7 @@ func TestParseTestResult_FiltersOutClosedIssues(t *testing.T) {
 			"type":"test",
 			"attributes":{
 				"issues":[
-					{"id":"open-1","description":"Open","severity":"high","state":"open"},
+					{"id":"open-1","description":"Open","severity":"` + severityHigh + `","state":"open"},
 					{"id":"ignored-1","description":"Ignored","severity":"medium","state":"ignored"},
 					{"id":"closed-1","description":"Closed","severity":"low","state":"closed"}
 				]
@@ -110,8 +110,8 @@ func TestParseTestResult_SummaryCountsOpenAndIgnored(t *testing.T) {
 			"type":"test",
 			"attributes":{
 				"issues":[
-					{"id":"1","description":"A","severity":"high","state":"open"},
-					{"id":"2","description":"B","severity":"high","state":"ignored"},
+					{"id":"1","description":"A","severity":"` + severityHigh + `","state":"open"},
+					{"id":"2","description":"B","severity":"` + severityHigh + `","state":"ignored"},
 					{"id":"3","description":"C","severity":"medium","state":"open"}
 				]
 			}
@@ -134,9 +134,9 @@ func TestParseTestResult_SummaryCountsOpenAndIgnored(t *testing.T) {
 	for _, r := range summary.Results {
 		bySev[r.Severity] = struct{ Total, Open, Ignored int }{r.Total, r.Open, r.Ignored}
 	}
-	assert.Equal(t, 2, bySev["high"].Total)
-	assert.Equal(t, 1, bySev["high"].Open)
-	assert.Equal(t, 1, bySev["high"].Ignored)
+	assert.Equal(t, 2, bySev[severityHigh].Total)
+	assert.Equal(t, 1, bySev[severityHigh].Open)
+	assert.Equal(t, 1, bySev[severityHigh].Ignored)
 	assert.Equal(t, 1, bySev["medium"].Total)
 	assert.Equal(t, 1, bySev["medium"].Open)
 	assert.Equal(t, 0, bySev["medium"].Ignored)
@@ -148,4 +148,74 @@ func TestParseTestResult_MissingData(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, res.Issues)
 	assert.NotNil(t, res.Summary)
+}
+
+func TestFilterTestResult_FiltersIssues(t *testing.T) {
+	jsonStr := `{
+		"data":{
+			"id":"run-1",
+			"type":"test",
+			"attributes":{
+				"issues":[
+					{"id":"1","description":"High","severity":"` + severityHigh + `","state":"open"},
+					{"id":"2","description":"Low","severity":"low","state":"closed"}
+				]
+			}
+		}
+	}`
+
+	filteredJSON, err := aibomcreate.FilterTestResult(jsonStr, severityHigh)
+	require.NoError(t, err)
+
+	var raw struct {
+		Data struct {
+			Attributes struct {
+				Issues []struct {
+					ID       string `json:"id"`
+					Severity string `json:"severity"`
+				} `json:"issues"`
+			} `json:"attributes"`
+		} `json:"data"`
+	}
+	err = json.Unmarshal([]byte(filteredJSON), &raw)
+	require.NoError(t, err)
+	require.Len(t, raw.Data.Attributes.Issues, 1)
+	assert.Equal(t, "1", raw.Data.Attributes.Issues[0].ID)
+	assert.Equal(t, severityHigh, raw.Data.Attributes.Issues[0].Severity)
+}
+
+func TestParseTestResult_AppliesSeverityThresholdFromFilteredJSON(t *testing.T) {
+	jsonStr := `{
+		"data":{
+			"id":"run-1",
+			"type":"test",
+			"attributes":{
+				"issues":[
+					{"id":"1","description":"Critical","severity":"critical","state":"open"},
+					{"id":"2","description":"High","severity":"` + severityHigh + `","state":"open"},
+					{"id":"3","description":"Medium","severity":"medium","state":"open"},
+					{"id":"4","description":"Low","severity":"low","state":"ignored"}
+				]
+			}
+		}
+	}`
+
+	filteredJSON, err := aibomcreate.FilterTestResult(jsonStr, severityHigh)
+	require.NoError(t, err)
+
+	parsed, err := aibomcreate.ParseTestResult(filteredJSON)
+	require.NoError(t, err)
+	require.Len(t, parsed.Issues, 2)
+	assert.Equal(t, "critical", parsed.Issues[0].Severity)
+	assert.Equal(t, severityHigh, parsed.Issues[1].Severity)
+
+	var summary struct {
+		Results []struct {
+			Severity string `json:"severity"`
+			Total    int    `json:"total"`
+		} `json:"results"`
+	}
+	err = json.Unmarshal(parsed.Summary, &summary)
+	require.NoError(t, err)
+	require.Len(t, summary.Results, 2)
 }
