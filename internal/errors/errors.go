@@ -20,6 +20,10 @@ func NewUnauthorizedError(msg string) *AiBomError {
 	return &AiBomError{SnykError: snyk_common_errors.NewUnauthorisedError(msg)}
 }
 
+func NewTooManyRequestsError(msg string) *AiBomError {
+	return &AiBomError{SnykError: snyk_common_errors.NewTooManyRequestsError(msg)}
+}
+
 func NewInternalError(msg string) *AiBomError {
 	return &AiBomError{SnykError: aibom_errors.NewInternalError(msg)}
 }

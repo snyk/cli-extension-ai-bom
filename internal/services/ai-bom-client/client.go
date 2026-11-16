@@ -183,6 +183,8 @@ func (c *AIBOMClientImpl) aiBomErrorFromHTTPStatusCode(endPoint string, statusCo
 		return errors.NewUnauthorizedError(errMsg)
 	case http.StatusForbidden:
 		return errors.NewForbiddenError(errMsg)
+	case http.StatusTooManyRequests:
+		return errors.NewTooManyRequestsError(errMsg)
 	default:
 		return errors.NewInternalError(errMsg)
 	}
