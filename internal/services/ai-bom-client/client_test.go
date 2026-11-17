@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	snyk_common_errors "github.com/snyk/error-catalog-golang-public/snyk"
 	"github.com/stretchr/testify/assert"
 
 	internal_errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
@@ -247,6 +248,29 @@ func TestGenerateAIBOM_CreateAIBOMStatusErrors(t *testing.T) {
 			assert.Contains(t, err.SnykError.Detail, "unexpected status code "+tc.expectedStatusText+" for CreateAIBOM")
 		})
 	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestGenerateAIBOM_CreateAIBOMRateLimitedClientError(t *testing.T) {
+	// The framework's network middleware turns a 429 into a client error rather than a response.
+	httpClient := &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return nil, snyk_common_errors.NewTooManyRequestsError("Service temporarily throttled")
+	})}
+	ictx := frameworkmock.NewMockInvocationContext(t)
+	client := aibomclient.NewAiBomClient(
+		loggermock.NewNoOpLogger(),
+		httpClient,
+		ictx.GetUserInterface(),
+		userAgent,
+		"http://snyk.invalid",
+	)
+
+	_, _, err := client.GenerateAIBOM(t.Context(), orgID, uploadRevisionID, false)
+
+	assert.Equal(t, internal_errors.NewTooManyRequestsError("").SnykError.ErrorCode, err.SnykError.ErrorCode)
 }
 
 func TestGenerateAIBOM_CreateAIBOMHTTPError(t *testing.T) {
