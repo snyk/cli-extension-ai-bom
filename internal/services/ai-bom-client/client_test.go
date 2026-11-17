@@ -190,7 +190,7 @@ func TestGenerateAIBOM_EnrichedQueryParam(t *testing.T) {
 }
 
 // CreateAIBOM tests.
-func TestGenerateAIBOM_CreateAIBOMAuthErrors(t *testing.T) {
+func TestGenerateAIBOM_CreateAIBOMStatusErrors(t *testing.T) {
 	tests := []struct {
 		name               string
 		statusCode         int
@@ -208,6 +208,12 @@ func TestGenerateAIBOM_CreateAIBOMAuthErrors(t *testing.T) {
 			statusCode:         http.StatusForbidden,
 			expectedErrorCode:  internal_errors.NewForbiddenError("").SnykError.ErrorCode,
 			expectedStatusText: "403",
+		},
+		{
+			name:               "TooManyRequests",
+			statusCode:         http.StatusTooManyRequests,
+			expectedErrorCode:  internal_errors.NewTooManyRequestsError("").SnykError.ErrorCode,
+			expectedStatusText: "429",
 		},
 	}
 
