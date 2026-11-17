@@ -190,6 +190,50 @@ func TestGenerateAIBOM_EnrichedQueryParam(t *testing.T) {
 	assert.Equal(t, "true", enrichedParam)
 }
 
+func TestCheckAPIAvailability(t *testing.T) {
+	tests := []struct {
+		name          string
+		statusCode    int
+		wantErrorCode string
+	}{
+		{name: "available", statusCode: http.StatusOK},
+		{
+			name:          "blocked",
+			statusCode:    http.StatusServiceUnavailable,
+			wantErrorCode: internal_errors.NewInternalError("").SnykError.ErrorCode,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var requests []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests = append(requests, r.Method+" "+r.URL.Path)
+				w.WriteHeader(tc.statusCode)
+			}))
+			defer server.Close()
+
+			ictx := frameworkmock.NewMockInvocationContext(t)
+			client := aibomclient.NewAiBomClient(
+				loggermock.NewNoOpLogger(),
+				ictx.GetNetworkAccess().GetHttpClient(),
+				ictx.GetUserInterface(),
+				userAgent,
+				server.URL,
+			)
+
+			err := client.CheckAPIAvailability(t.Context(), orgID)
+
+			assert.Equal(t, []string{"GET /hidden/orgs/" + orgID.String() + "/ai_bom_availability"}, requests)
+			if tc.wantErrorCode == "" {
+				assert.Nil(t, err)
+			} else {
+				assert.Equal(t, tc.wantErrorCode, err.SnykError.ErrorCode)
+			}
+		})
+	}
+}
+
 // CreateAIBOM tests.
 func TestGenerateAIBOM_CreateAIBOMStatusErrors(t *testing.T) {
 	tests := []struct {

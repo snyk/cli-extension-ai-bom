@@ -20,8 +20,6 @@ import (
 	errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
 )
 
-var DryRunUploadRevisionID = uuid.MustParse("00000000-0000-0000-0000-000000000000")
-
 //revive:disable:exported // The interface must be called AiBomClient to standardize.
 type AiBomClient interface {
 	CheckAPIAvailability(ctx context.Context, orgID uuid.UUID) *errors.AiBomError
@@ -81,8 +79,30 @@ func NewAiBomClient(
 var APIVersion = "2024-10-15"
 
 func (c *AIBOMClientImpl) CheckAPIAvailability(ctx context.Context, orgID uuid.UUID) *errors.AiBomError {
-	_, err := c.createAIBOM(ctx, orgID, DryRunUploadRevisionID, false)
-	return err
+	requestURL := fmt.Sprintf("%s/hidden/orgs/%s/ai_bom_availability?version=%s", c.baseURL, orgID, APIVersion)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, http.NoBody)
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while building GetAIBOMAvailability request")
+		return errors.NewInternalError(fmt.Sprintf("Error building GetAIBOMAvailability request: %s", err.Error()))
+	}
+	c.setCommonHeaders(requestURL, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return c.aiBomErrorFromHTTPClientError("GetAIBOMAvailability", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Debug().Err(err).Msg("error while reading GetAIBOMAvailability response body")
+		return errors.NewInternalError(fmt.Sprintf("Failed to read GetAIBOMAvailability response body: %s", err.Error()))
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return c.aiBomErrorFromHTTPStatusCode("GetAIBOMAvailability", resp.StatusCode, bodyBytes)
+	}
+	return nil
 }
 
 func (c *AIBOMClientImpl) GenerateAIBOM(
