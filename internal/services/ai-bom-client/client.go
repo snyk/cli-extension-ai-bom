@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/snyk/error-catalog-golang-public/snyk_errors"
 	"github.com/snyk/go-application-framework/pkg/ui"
 
 	errors "github.com/snyk/cli-extension-ai-bom/internal/errors"
@@ -165,6 +167,10 @@ func (c *AIBOMClientImpl) CreateAndUploadAIBOM(
 
 func (c *AIBOMClientImpl) aiBomErrorFromHTTPClientError(endPoint string, err error) *errors.AiBomError {
 	c.logger.Debug().Err(err).Msg(fmt.Sprintf("%s request HTTP error", endPoint))
+	var snykErr snyk_errors.Error
+	if stderrors.As(err, &snykErr) && snykErr.StatusCode == http.StatusTooManyRequests {
+		return errors.NewTooManyRequestsError(fmt.Sprintf("%s request was rate limited.", endPoint))
+	}
 	if strings.Contains(strings.ToLower(err.Error()), "authentication") {
 		return errors.NewUnauthorizedError(fmt.Sprintf("%s request failed with authentication error.", endPoint))
 	}
